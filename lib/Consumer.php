@@ -10,11 +10,14 @@ class Consumer extends OauthPhirehose
 		$stream_item = json_decode($status);
 		if (!(isset($stream_item->id_str))) { return;}
 		$text = preg_replace('/\s+/', ' ', trim($stream_item->text));
+
+		// write geolocated and location-set tweets to different tables
+		// NOTE: tweets with both parameters set will be written only to the geolocated tweet table (eg 'NYC_exact')
 		if ($stream_item->coordinates)
 		{
-			$this->db->query('INSERT INTO NYC_exact (lat, lon, text) values ('
-				. $stream_item->coordinates->coordinates[1] . ','
+			$this->db->query('INSERT INTO NYC_exact (lon, lat, text) values ('
 				. $stream_item->coordinates->coordinates[0] . ','
+				. $stream_item->coordinates->coordinates[1] . ','
 				. "'" . $text . "'"
 				. ');');
 		}
