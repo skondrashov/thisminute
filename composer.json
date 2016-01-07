@@ -1,0 +1,6 @@
+{
+    "require": {
+        "abraham/twitteroauth": "^0.6.2",
+        "fennb/phirehose": "^1.0"
+    }
+}
