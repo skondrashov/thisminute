@@ -1,8 +1,8 @@
 <?php
 require 'lib/stats.php';
+require 'stats/settings.php';
 
-define('TIME_GRANULARITY', 60);
-define('COUNT_THRESHOLD', 0);
+define('COUNT_THRESHOLD', 1);
 
 $last_runtime = time() - TIME_GRANULARITY;
 $db = new mysqli("localhost", "responder", "lovepotion", "NYC");

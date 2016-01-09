@@ -1,7 +1,7 @@
 <?php
 require 'lib/stats.php';
+require 'stats/settings.php';
 
-define('TIME_GRANULARITY', 300);
 define('COUNT_THRESHOLD', 1);
 
 $db = new mysqli("localhost", "statistician", "mightmakesright", "NYC");
@@ -10,11 +10,26 @@ if ($db->connect_error)
 	die("Connection failed: " . $db->connect_error);
 }
 
+// define the latest tweet time, move backwards from that point for calculations
 $interval_start = strtotime($db->query('SELECT Max(time) FROM tweets;')->fetch_row()[0]);
+
+// define an ending point for the calculations - either the beginning of records, or a predefined recall scope, whichever gives fewer results
 $beginning_of_time = strtotime($db->query('SELECT Min(time) FROM tweets;')->fetch_row()[0]);
+if ($beginning_of_time < $interval_start - RECALL_SCOPE)
+{
+	$beginning_of_time = $interval_start - RECALL_SCOPE;
+}
+else
+{
+	echo "Not enough data to look back " . RECALL_SCOPE . " seconds, starting from beginning of records instead. (" . ($interval_start-$beginning_of_time) . " seconds ago)\n";
+}
+
 $word_counts = [];
 
-for ($i = 0; $interval_start > ($beginning_of_time + TIME_GRANULARITY); ($interval_start -= TIME_GRANULARITY) && $i++)
+for ($i = 0;
+	$interval_start >= ($beginning_of_time + TIME_GRANULARITY);
+	($i++) & ($interval_start -= TIME_GRANULARITY)
+)
 {
 	$query = "SELECT user, text FROM tweets WHERE time <= FROM_UNIXTIME($interval_start) and time > FROM_UNIXTIME(" . ($interval_start - TIME_GRANULARITY) . ');';
 	$new_tweets = $db->query($query)->fetch_all();
