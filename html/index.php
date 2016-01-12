@@ -1,5 +1,5 @@
 <?php
-$db = new mysqli("localhost", "press", "lovepotion", "NYC");
+$db = new mysqli("localhost", "press", "U9dB5VWD3qpGvDKb", "NYC");
 
 if ($db->connect_error) {
 	echo "ERROR LOL";
