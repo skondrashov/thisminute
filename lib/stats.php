@@ -1,5 +1,7 @@
 <?php
-function countWords($tweets, $threshold = 0)
+require 'stats/settings.php';
+
+function countWords($tweets)
 {
 	$unique_words = [];
 
@@ -43,15 +45,6 @@ function countWords($tweets, $threshold = 0)
 			{
 				$word_counts[$word]++;
 			}
-		}
-	}
-
-	// trim words that did not appear often enough to need counted
-	foreach ($word_counts as $word => $count)
-	{
-		if ($count < $threshold)
-		{
-			unset($word_counts[$word]);
 		}
 	}
 

@@ -1,17 +1,24 @@
+<?php
+$db = new mysqli("localhost", "press", "lovepotion", "NYC");
+
+if ($db->connect_error) {
+	echo "ERROR LOL";
+}
+
+$events = $db->query('SELECT * FROM events WHERE mapped=2 ORDER BY time;')->fetch_all(MYSQLI_ASSOC);
+
+?>
 <!doctype HTML>
 <html>
 	<head>
 		<title>NYC Tweet Mapper</title>
-		<script src="lib/poll.js"></script>
-		<style type="text/css">
-			html, body { height: 100%; margin: 0; padding: 0; }
-			#map { height: 100%; }
-		</style>
 	</head>
 	<body>
-		<div id="map"></div>
-		<script async defer
-			src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCLWGtBTbTki6xwphWDWOPfZ4Csl2CtqlI&callback=initMap">
-		</script>
+		<?php
+		foreach ($events as $event)
+		{
+			echo '<a href="map.php?word=' . $event['word'] . '&time=' . strtotime($event['time']) . '">' . $event['word'] . '</a><br>';
+		}
+		?>
 	</body>
 </html>

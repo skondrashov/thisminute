@@ -1,0 +1,2 @@
+1) open tweets on hover next to them could look super fucking cool and make the UI very easy to navigate... like a wave of tweets as you mouse over the region
+on mobile, the center of the screen could always have tweets open, and the same effect could be achieved without having a cursor
