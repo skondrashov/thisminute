@@ -16,13 +16,13 @@ abstract class OauthPhirehose extends Phirehose
     * The Twitter consumer key. Get it from the application's page on Twitter.
     * If not set then the global define TWITTER_CONSUMER_KEY is used instead.
     */
-    public $consumerKey=null;
+    public $consumerKey='vpMqXncZSG3OT49XTmb4sGipS';
 
     /**
     * The Twitter consumer secret. Get it from the application's page on Twitter.
     * If not set then the global define TWITTER_CONSUMER_SECRET is used instead.
     */
-    public $consumerSecret=null;
+    public $consumerSecret='baA8vzo5MCaKRniZn4IxMVYHibS6AmYf0MExYe0zossfqE5CDP';
 
 
     /**

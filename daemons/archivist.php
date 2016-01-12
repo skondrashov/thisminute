@@ -5,7 +5,7 @@ require "lib/Consumer.php";
 
 use Fennb\Phirehose\OauthPhirehose;
 
-$c = new Consumer('447957969-kz0OCtJcgRd7S5PYkT2rTxIV5sTxlT5wXku9InH4', 'RMyT6utD7tpdtvAy7RqFFLUuL3bUDLBVXO5Rwr05WcWQz', Phirehose::METHOD_FILTER);
+$c = new Consumer('447957969-OWZYty1k63bo2i3lan2ZaUEdWZ3KtFXofZqwTBnj', 'Xu8ywbeiaekJsqrZjktEam7hNQJoSxT8RJ7SFupQ57fvV', Phirehose::METHOD_FILTER);
 
 $c->db = new mysqli("localhost", "archivist", "DtTJLVxZ9pZEBDpY", "NYC");
 
