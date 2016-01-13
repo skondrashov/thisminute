@@ -1,5 +1,5 @@
 <?php
-require 'stats/settings.php';
+require 'lib/stats/settings.php';
 
 function countWords($tweets)
 {

@@ -5,7 +5,7 @@ if ($db->connect_error) {
 	echo "ERROR LOL";
 }
 
-$events = $db->query('SELECT * FROM events WHERE mapped=2 ORDER BY time;')->fetch_all(MYSQLI_ASSOC);
+$events = $db->query('SELECT * FROM events WHERE mapped!=0 ORDER BY time;')->fetch_all(MYSQLI_ASSOC);
 
 ?>
 <!doctype HTML>

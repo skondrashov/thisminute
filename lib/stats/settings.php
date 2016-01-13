@@ -1,4 +1,16 @@
 <?php
 define('TIME_GRANULARITY', 600);
-define('EVENT_CHECK_PERIOD', 30);
-define('RECALL_SCOPE', 48*60*60); // 48*60*60 is 48 hours
+
+// statistician
+define('STATISTICIAN_PERIOD', 600);
+define('STATISTICIAN_RECALL_SCOPE', 48*60*60); // 48*60*60 is 48 hours
+
+// pericog
+define('PERICOG_PERIOD', 30);
+define('PERICOG_NEW_WORD_THRESHOLD', 10);
+define('PERICOG_RECORDED_WORD_THRESHOLD', 20);
+
+// cartographer
+define('CARTOGRAPHER_PERIOD', 30);
+define('CARTOGRAPHER_LOOKBACK', 60*60);
+define('CARTOGRAPHER_LOOKAHEAD', 5*60*60);

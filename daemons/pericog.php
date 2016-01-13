@@ -2,7 +2,7 @@
 <?php
 require 'lib/stats.php';
 
-$last_runtime = time() - EVENT_CHECK_PERIOD;
+$last_runtime = time() - PERICOG_PERIOD;
 $db = new mysqli("localhost", "pericog", "Mg9tajcdNSUdpsVq", "NYC");
 if ($db->connect_error)
 {
@@ -11,7 +11,7 @@ if ($db->connect_error)
 
 while (1)
 {
-	if (time() - $last_runtime > EVENT_CHECK_PERIOD)
+	if (time() - $last_runtime > PERICOG_PERIOD)
 	{
 		$new_tweets = $db->query('SELECT user, text FROM tweets WHERE time > FROM_UNIXTIME(' . ($last_runtime - TIME_GRANULARITY) . ')')->fetch_all();
 		$word_stats = $db->query('SELECT * FROM stats;')->fetch_all();
@@ -19,11 +19,10 @@ while (1)
 		$word_stats_assoc = [];
 		foreach ($word_stats as $word_stat)
 		{
-			$word_thresholds[$word_stat[0]] = floatval($word_stat[1]) + floatval($word_stat[2]) * 10;
+			$word_thresholds[$word_stat[0]] = floatval($word_stat[1]) + floatval($word_stat[2]) * PERICOG_RECORDED_WORD_THRESHOLD;
 		}
 
 		$word_counts = countWords($new_tweets);
-		$last_runtime = time();
 
 		foreach ($word_counts as $word => $count)
 		{
@@ -35,7 +34,7 @@ while (1)
 					$detected = true;
 				}
 			}
-			elseif ($count > 10)
+			elseif ($count > PERICOG_NEW_WORD_THRESHOLD)
 			{
 				$detected = true;
 			}
@@ -49,5 +48,6 @@ while (1)
 				}
 			}
 		}
+		$last_runtime = time();
 	}
 }

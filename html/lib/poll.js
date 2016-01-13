@@ -2,7 +2,7 @@ var map, markers = {}, info;
 function initMap() {
 	map = new google.maps.Map(document.getElementById('map'), {
 		center: {lat: 40.712783, lng: -74.005942},
-		zoom: 12
+		zoom: 11
 	});
 }
 
@@ -20,19 +20,19 @@ window.onload = function() {
 				for (var i = 0; i < result.length; i++)
 				{
 					// create unique id for each tweet received to ensure we don't create duplicates
-					var id = ids[i] = result[i][0] + result[i][1] + result[i][2] + result[i][3];
+					var id = ids[i] = JSON.stringify(result[i]);
 
 					// only create a new marker if its id has not been filled
 					if (!(id in markers))
 					{
 						markers[id] = new google.maps.Marker({
-								position: {lat: parseFloat(result[i][1]), lng: parseFloat(result[i][2])},
+								position: {lng: parseFloat(result[i].lon), lat: parseFloat(result[i].lat)},
 								map: map,
-								title: result[i][0]
+								title: result[i].time
 							});
 
 						(function() {
-							var content = result[i][4];
+							var content = result[i].text;
 							var marker = markers[id];
 							marker.addListener('click', function() {
 								info.close();
