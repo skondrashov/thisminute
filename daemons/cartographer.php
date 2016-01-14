@@ -3,7 +3,7 @@
 require 'lib/stats.php';
 
 $last_runtime = time() - CARTOGRAPHER_PERIOD;
-$db = new mysqli("localhost", "cartographer", "LKWDZQnFQvhgQPg3", "events");
+$db = new mysqli("localhost", "cartographer", file_get_contents("/srv/auth/daemons/cartographer.pw"), "events");
 if ($db->connect_error)
 {
 	die("Connection failed: " . $db->connect_error);

@@ -5,9 +5,12 @@ require "lib/Consumer.php";
 
 use Fennb\Phirehose\OauthPhirehose;
 
-$c = new Consumer('447957969-OWZYty1k63bo2i3lan2ZaUEdWZ3KtFXofZqwTBnj', 'Xu8ywbeiaekJsqrZjktEam7hNQJoSxT8RJ7SFupQ57fvV', Phirehose::METHOD_FILTER);
+define('TWITTER_CONSUMER_KEY',    file_get_contents('/srv/auth/twitter/consumer_key'));
+define('TWITTER_CONSUMER_SECRET', file_get_contents('/srv/auth/twitter/consumer_secret'));
 
-$c->db = new mysqli("localhost", "archivist", "DtTJLVxZ9pZEBDpY", "NYC");
+$c = new Consumer(file_get_contents('/srv/auth/twitter/access_token'), file_get_contents('/srv/auth/twitter/access_token_secret'), Phirehose::METHOD_FILTER);
+
+$db = new mysqli("localhost", "archivist", file_get_contents("/srv/auth/daemons/archivist.pw"), "NYC");
 
 $c->setLocations([[-74.5, 40, -73.5, 41]]);
 

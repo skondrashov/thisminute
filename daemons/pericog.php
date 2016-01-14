@@ -3,7 +3,7 @@
 require 'lib/stats.php';
 
 $last_runtime = time() - PERICOG_PERIOD;
-$db = new mysqli("localhost", "pericog", "Mg9tajcdNSUdpsVq", "NYC");
+$db = new mysqli("localhost", "pericog", file_get_contents("/srv/auth/daemons/pericog.pw"), "NYC");
 if ($db->connect_error)
 {
 	die("Connection failed: " . $db->connect_error);

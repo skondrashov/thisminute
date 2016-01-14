@@ -3,7 +3,7 @@
 require 'lib/stats.php';
 
 $last_runtime = time() - STATISTICIAN_PERIOD;
-$db = new mysqli("localhost", "statistician", "EJqEV5wbYJquJjcc", "NYC");
+$db = new mysqli("localhost", "statistician", file_get_contents("/srv/auth/daemons/statistician.pw"), "NYC");
 if ($db->connect_error)
 {
 	die("Connection failed: " . $db->connect_error);
