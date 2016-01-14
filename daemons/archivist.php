@@ -10,7 +10,7 @@ define('TWITTER_CONSUMER_SECRET', file_get_contents('/srv/auth/twitter/consumer_
 
 $c = new Consumer(file_get_contents('/srv/auth/twitter/access_token'), file_get_contents('/srv/auth/twitter/access_token_secret'), Phirehose::METHOD_FILTER);
 
-$db = new mysqli("localhost", "archivist", file_get_contents("/srv/auth/daemons/archivist.pw"), "NYC");
+$c->db = new mysqli("localhost", "archivist", file_get_contents("/srv/auth/daemons/archivist.pw"), "NYC");
 
 $c->setLocations([[-74.5, 40, -73.5, 41]]);
 
