@@ -1,0 +1,29 @@
+<div ng-init="init()"></div>
+
+<!--
+ Cirlcular Add Button 
+<div class="fixed-action-btn" style="bottom: 45px; right: 24px;">
+    <a class="z-depth-2 btn-floating btn-large green waves-effect waves-light" title="Add New Environment" ng-click="openAddEnvironmentModal()">
+        <i class="large material-icons">add</i>
+    </a>
+</div>
+-->
+
+<div infinite-scroll="incrementRenderLimit(5)" infinite-scroll-distance="1" class="container">
+    
+    <!-- Tab Navigation -->
+    <ng-include src="'html/partials/TabNavigation.html'"></ng-include>
+    
+    <!-- Search and Filter utility for searching by Environment  -->
+    <div id="mapTab" class="navigation-tab">
+       <ng-include src="'html/pages/TrendMap.html'"></ng-include>
+    </div>
+    
+    <!-- Frontend for searching by user -->
+    <div id="feedTab" class="navigation-tab">
+       <ng-include src="'html/pages/EventList.html'"></ng-include>
+    </div>
+    
+</div>
+
+<ng-include src="'html/partials/AddEnvironmentModal.html'"></ng-include>

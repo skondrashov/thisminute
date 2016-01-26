@@ -1,0 +1,22 @@
+ <div class="card">
+    <div class="card-content">
+        <span class="card-title black-text">
+            <span ng-hide="currentUser.environments[environment.$id]" class="right">
+                <a href="" class="btn waves-effect waves-light checkout" 
+                                   ng-click="checkout(environment)">
+                Checkout</a>
+            </span>
+            <span ng-show="currentUser.environments[environment.$id]" class="right">
+                <a href="" class="btn waves-effect waves-light blue checkin"
+                   ng-click="checkin(environment)">
+                    Check-in</a>
+            </span>
+            {{environment.name}} - <span class="grey-text">{{environment.type}}</span></span>
+        
+        <div class="toggle-history noselect" ng-click="environment.showingHistory = !environment.showingHistory">
+            <i class="material-icons right"
+               ng-class="{'orange-text': environment.showingHistory, 'grey-text': !environment.showingHistory}"
+               title="Toggle History">view_list</i>
+        </div>
+    </div>
+</div>
