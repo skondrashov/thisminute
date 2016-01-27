@@ -1,16 +1,28 @@
 <?php
 define('TIME_GRANULARITY', 600);
 
+// daemon periods have case-insensitive definitions to avoid complications in the daemon template
+define('STATISTICIAN_PERIOD', 600, true);
+define('PERICOG_PERIOD',      30,  true);
+define('CARTOGRAPHER_PERIOD', 30,  true);
+
+// archivist
+// distances between boundaries should be multiples of the heatmap resolution
+// ie ((AWB - AEB) % AHR) === 0
+// if not, part of the heatmap won't be generated
+const ARCHIVIST_WEST_BOUNDARY      = -74.5;
+const ARCHIVIST_EAST_BOUNDARY      = -73.5;
+const ARCHIVIST_SOUTH_BOUNDARY     = 40;
+const ARCHIVIST_NORTH_BOUNDARY     = 41;
+const ARCHIVIST_HEATMAP_RESOLUTION = 0.1;
+
 // statistician
-define('STATISTICIAN_PERIOD', 600);
-define('STATISTICIAN_RECALL_SCOPE', 48*60*60); // 48*60*60 is 48 hours
+const STATISTICIAN_RECALL_SCOPE = 172800; // 172800 seconds == 48 hours
 
 // pericog
-define('PERICOG_PERIOD', 30);
-define('PERICOG_NEW_WORD_THRESHOLD', 10);
-define('PERICOG_RECORDED_WORD_THRESHOLD', 20);
+const PERICOG_NEW_WORD_THRESHOLD      = 10;
+const PERICOG_RECORDED_WORD_THRESHOLD = 20;
 
 // cartographer
-define('CARTOGRAPHER_PERIOD', 30);
-define('CARTOGRAPHER_LOOKBACK', 60*60);
-define('CARTOGRAPHER_LOOKAHEAD', 5*60*60);
+const CARTOGRAPHER_LOOKBACK  = 3600;  // 3600 seconds  == 1 hour
+const CARTOGRAPHER_LOOKAHEAD = 18000; // 18000 seconds == 5 hours
