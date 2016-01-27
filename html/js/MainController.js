@@ -5,17 +5,6 @@ app.controller("MainCtrl", ["$scope", "$http",
     function($scope, $http) {
         
         $('ul_tabs').tabs();    
-        
-        $http({
-            url: app_server + "press/get_event_list.php",
-            method: "GET",
-        }).
-        success(function(data) {
-            console.log("Successfully retrieved data");
-        }).
-        error(function(data) {
-            console.error("Error retrieving data");     
-        });
                     
     }]);
 
@@ -28,12 +17,12 @@ app.config(function($routeProvider) { // include this for pretty URL $locationPr
         controller : 'MainCtrl'
     })
     
-    .when('/TrendMap', {
+    .when('/Map', {
         templateUrl : 'html/pages/TrendMap.html',
         controller : 'TrendMapCtrl'
     })
     
-    .when('/EventList', {
+    .when('/Feed', {
         templateUrl : 'html/pages/EventListCtrl.html',
         controller : 'EventListCtrl'
     })

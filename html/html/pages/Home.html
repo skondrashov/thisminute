@@ -14,15 +14,17 @@
     <!-- Tab Navigation -->
     <ng-include src="'html/partials/TabNavigation.html'"></ng-include>
     
+    <!-- Frontend for searching by user -->
+    <div id="feedTab" class="navigation-tab">
+       <ng-include src="'html/pages/EventList.html'"></ng-include>
+    </div>
+    
     <!-- Search and Filter utility for searching by Environment  -->
     <div id="mapTab" class="navigation-tab">
        <ng-include src="'html/pages/TrendMap.html'"></ng-include>
     </div>
     
-    <!-- Frontend for searching by user -->
-    <div id="feedTab" class="navigation-tab">
-       <ng-include src="'html/pages/EventList.html'"></ng-include>
-    </div>
+
     
 </div>
 

@@ -28,26 +28,47 @@ app.controller("EventListCtrl", ["$scope", "$location", "$timeout", "$http", "$i
             var hoursAgo = now.getUTCHours() - tweetTime.getUTCHours();
             if (hoursAgo >= 1) return Math.abs(hoursAgo) + " hours ago";
             var minutesAgo = now.getUTCMinutes() - tweetTime.getUTCMinutes();
-            if (minutesAgo >- 1) return Math.abs(minutesAgo) + " minutes ago";
+            if (minutesAgo >= 1) return Math.abs(minutesAgo) + " minutes ago";
         }
         
         
         // Initial functions
-        init();
-        $interval(getNow,5000);
+        update();
+        $interval(update,10000);
         // End
         
-        function init() {
+        function update() {
             getNow();
-            for (var key in test_data) {
-                var datum = test_data[key];
-                var tweet = new Tweet(datum.word, datum.time);
-                $scope.data.push(tweet)
-            }
+            getEvents();
         }
         
         function getNow() {
             $scope.now = new Date();
         }
         
+        function getEvents() {
+            $http({
+                url: app_server + "press/get_event_list.php",
+                method: "GET",
+            }).
+            success(function(data) {
+                fillEvents(data);
+                console.log("Successfully retrieved data");
+            }).
+            error(function(data) {
+                fillEvents(data);
+                console.error("Error retrieving data");     
+            });
+        }
+        
+        function fillEvents(data) {
+            $scope.data.length = 0;
+            for (var key in data) {
+                var datum = data[key];
+                var tweet = new Tweet(datum.word, datum.time);
+                $scope.data.push(tweet);
+            }
+        }
+        
     }]);
+

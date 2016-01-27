@@ -1,5 +1,5 @@
 <?php
-$db = new mysqli("localhost", "press", "U9dB5VWD3qpGvDKb", "events");
+$db = new mysqli("localhost", "press", file_get_contents('/srv/auth/press.pw'), "events");
 
 $table = $_GET['word'] . '_' . $_GET['place'] . '_' . $_GET['time'];
 
