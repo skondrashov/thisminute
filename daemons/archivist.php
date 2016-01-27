@@ -2,6 +2,7 @@
 <?php
 require "vendor/autoload.php";
 require "lib/Consumer.php";
+require 'lib/stats.php';
 
 use Fennb\Phirehose\OauthPhirehose;
 
@@ -12,6 +13,6 @@ $c = new Consumer(file_get_contents('/srv/auth/twitter/access_token'), file_get_
 
 $c->db = new mysqli("localhost", "archivist", file_get_contents("/srv/auth/daemons/archivist.pw"), "NYC");
 
-$c->setLocations([[-74.5, 40, -73.5, 41]]);
+$c->setLocations([[ARCHIVIST_WEST_BOUNDARY, ARCHIVIST_SOUTH_BOUNDARY, ARCHIVIST_EAST_BOUNDARY, ARCHIVIST_NORTH_BOUNDARY]]);
 
 $c->consume();

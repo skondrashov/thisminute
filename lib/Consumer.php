@@ -8,7 +8,7 @@ class Consumer extends OauthPhirehose
 	public function enqueueStatus($status)
 	{
 		$stream_item = json_decode($status);
-		if (!(isset($stream_item->id_str))) { return;}
+		if (!(isset($stream_item->id_str))) {return;}
 		$text = preg_replace('/\s+/', ' ', trim($stream_item->text));
 
 		// calculate location information to write to database
@@ -20,6 +20,7 @@ class Consumer extends OauthPhirehose
 		{
 			$lon = $stream_item->coordinates->coordinates[0];
 			$lat = $stream_item->coordinates->coordinates[1];
+			$exact = 1;
 		}
 		else
 		{
@@ -32,12 +33,14 @@ class Consumer extends OauthPhirehose
 			}
 			$lon /= count($box_vertices[0]);
 			$lat /= count($box_vertices[0]);
+			$exact = 0;
 		}
 
-		$this->db->query('INSERT INTO tweets (lon, lat, user, text) values ('
+		$this->db->query('INSERT INTO tweets (lon, lat, exact, user, text) values ('
 			. $lon . ','
 			. $lat . ','
-			. "'" . $stream_item->user->id_str . "',"
+			. $exact . ','
+			. $stream_item->user->id_str . ","
 			. "'" . $text . "'"
 			. ');');
 	}
