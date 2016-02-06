@@ -127,31 +127,6 @@ double** gaussBlur(double** unblurred_array, int width, int height)
     return blurred_array;
 }
 
-void printArray(double** arr, int width, int height)
-{
-    for(int j = 0; j < height; j++)
-    {
-        for(int i = 0; i < width; i++)
-        {
-            std::cout << arr[i][j] << ' ';
-        }
-        std::cout << std::endl;
-    }
-    std::cout << std::endl;
-}
-void printArray(int** arr, int width, int height)
-{
-    for(int j = 0; j < height; j++)
-    {
-        for(int i = 0; i < width; i++)
-        {
-            std::cout << arr[i][j] << ' ';
-        }
-        std::cout << std::endl;
-    }
-    std::cout << std::endl;
-}
-
 template<typename T> void getArg(T &arg, string section, string option)
 {
 	static INIReader reader("/srv/config/daemons.ini");
@@ -179,140 +154,156 @@ int main(int argc, char* argv[])
 	const int
 		MAP_WIDTH          = static_cast<int>(round(abs((WEST_BOUNDARY  - EAST_BOUNDARY)  / RESOLUTION))),
 		MAP_HEIGHT         = static_cast<int>(round(abs((SOUTH_BOUNDARY - NORTH_BOUNDARY) / RESOLUTION))),
-		PERIODS_IN_HISTORY = RECALL_SCOPE / PERIOD;
+		PERIODS_IN_HISTORY = RECALL_SCOPE/PERIOD;
 
 	// create a connection
 	sql::Connection* connection;
-	sql::Driver*     driver;
-	driver = get_driver_instance();
-	ifstream passwordFile("/srv/auth/daemons/pericog.pw");
-	auto password = static_cast<ostringstream&>(ostringstream{} << passwordFile.rdbuf()).str();
-	connection = driver->connect("tcp://127.0.0.1:3306", "pericog", password);
+	sql::Driver* driver = get_driver_instance();
+	{
+		ifstream passwordFile("/srv/auth/daemons/pericog.pw");
+		auto password = static_cast<ostringstream&>(ostringstream{} << passwordFile.rdbuf()).str();
+		connection = driver->connect("tcp://127.0.0.1:3306", "pericog", password);
+	}
 
 	// save all tweets since the specified time to an array
-	sql::ResultSet* dbTweets = connection->createStatement()->executeQuery(
-			"SELECT * FROM NYC.tweets WHERE time > FROM_UNIXTIME(" + to_string(LOOKBACK_TIME) + ") limit 1000;"
-		);
 	unordered_map<int, Tweet> tweets;
-	while (dbTweets->next())
 	{
-		int userId = stoi(dbTweets->getString("user"));
-		if (tweets.count(userId))
+		sql::ResultSet* dbTweets = connection->createStatement()->executeQuery(
+				"SELECT * FROM NYC.tweets WHERE time > FROM_UNIXTIME(" + to_string(LOOKBACK_TIME) + ") limit 1000;"
+			);
+		while (dbTweets->next())
 		{
-			// combine all tweets from a single user for the purposes of word counting
-			// location will be inaccurate for some words, but not often enough to matter (hopefully)
-			tweets[userId].text += " " + dbTweets->getString("text");
+			int userId = stoi(dbTweets->getString("user"));
+			if (tweets.count(userId))
+			{
+				// combine all tweets from a single user for the purposes of word counting
+				// location will be inaccurate for some words, but not often enough to matter (hopefully)
+				tweets[userId].text += " " + dbTweets->getString("text");
+			}
+			else
+			{
+				tweets[userId].lon  = stod(dbTweets->getString("lon"));
+				tweets[userId].lat  = stod(dbTweets->getString("lat"));
+				tweets[userId].text = dbTweets->getString("text");
+			}
 		}
-		else
-		{
-			tweets[userId].lon  = stod(dbTweets->getString("lon"));
-			tweets[userId].lat  = stod(dbTweets->getString("lat"));
-			tweets[userId].text = dbTweets->getString("text");
-		}
+		delete dbTweets;
 	}
-	delete dbTweets;
 
 	// refine each tweet into usable information
 	unordered_map<string, int**> currentWordRates;
 	auto tweetsPerCell = makeGrid<int>(MAP_WIDTH, MAP_HEIGHT, true);
-	for (const auto &pair : tweets)
 	{
-		auto tweet = pair.second;
-
-		// if a tweet is located outside of the grid, ignore it and go to the next tweet
-		if (tweet.lon < WEST_BOUNDARY || tweet.lon > EAST_BOUNDARY
-			|| tweet.lat < SOUTH_BOUNDARY || tweet.lat > NORTH_BOUNDARY)
+		for (const auto &pair : tweets)
 		{
-			continue;
-		}
+			auto tweet = pair.second;
 
-		const int
-			x = floor((tweet.lon - WEST_BOUNDARY)  / RESOLUTION),
-			y = floor((tweet.lat - SOUTH_BOUNDARY) / RESOLUTION);
-
-		// remove mentions and URLs
-		regex mentionsAndUrls ("((\\B@)|(\\bhttps?:\\/\\/))[^\\s]+");
-		tweet.text = regex_replace(tweet.text, mentionsAndUrls, string(" "));
-
-		// remove all non-word characters
-		regex nonWord ("[^\\w]+");
-		tweet.text = regex_replace(tweet.text, nonWord, string(" "));
-
-		cout << tweet.text << '\n';
-
-		auto words = explode(tweet.text);
-		for (const auto &word : words)
-		{
-			if (!currentWordRates.count(word))
+			// if a tweet is located outside of the grid, ignore it and go to the next tweet
+			if (tweet.lon < WEST_BOUNDARY || tweet.lon > EAST_BOUNDARY
+				|| tweet.lat < SOUTH_BOUNDARY || tweet.lat > NORTH_BOUNDARY)
 			{
-				currentWordRates[word] = makeGrid<int>(MAP_WIDTH, MAP_HEIGHT, true);
+				continue;
 			}
-			currentWordRates[word][x][y]++;
-		}
-		tweetsPerCell[x][y]++;
-	}
 
-	// the '&' character is interpreted as the word "amp"... squelch for now
-	currentWordRates.erase("amp");
+			const int
+				x = floor((tweet.lon - WEST_BOUNDARY)  / RESOLUTION),
+				y = floor((tweet.lat - SOUTH_BOUNDARY) / RESOLUTION);
+
+			// remove mentions and URLs
+			regex mentionsAndUrls ("((\\B@)|(\\bhttps?:\\/\\/))[^\\s]+");
+			tweet.text = regex_replace(tweet.text, mentionsAndUrls, string(" "));
+
+			// remove all non-word characters
+			regex nonWord ("[^\\w]+");
+			tweet.text = regex_replace(tweet.text, nonWord, string(" "));
+
+			auto words = explode(tweet.text);
+			for (const auto &word : words)
+			{
+				if (!currentWordRates.count(word))
+				{
+					currentWordRates[word] = makeGrid<int>(MAP_WIDTH, MAP_HEIGHT, true);
+				}
+				currentWordRates[word][x][y]++;
+			}
+			tweetsPerCell[x][y]++;
+		}
+
+		// the '&' character is interpreted as the word "amp"... squelch for now
+		currentWordRates.erase("amp");
+
+		// the word ' ' shows up sometimes... squelch for now
+		currentWordRates.erase(" ");
+	}
 
 	// load historic word usage rates per cell
-	sql::ResultSet* dbHistoricWordRates = connection->createStatement()->executeQuery(
-			"SELECT * FROM NYC.rates;"
-		);
 	unordered_map<string, double**> historicWordRates;
-	while (dbHistoricWordRates->next())
 	{
-		const auto word = dbHistoricWordRates->getString("word");
-		historicWordRates[word] = makeGrid<double>(MAP_WIDTH, MAP_HEIGHT);
-		for (int i = 0; i < MAP_WIDTH; i++)
+		sql::ResultSet* dbHistoricWordRates = connection->createStatement()->executeQuery(
+				"SELECT * FROM NYC.rates;"
+			);
+		while (dbHistoricWordRates->next())
 		{
-			for (int j = 0; j < MAP_HEIGHT; j++)
+			const auto word = dbHistoricWordRates->getString("word");
+			historicWordRates[word] = makeGrid<double>(MAP_WIDTH, MAP_HEIGHT);
+			for (int i = 0; i < MAP_WIDTH; i++)
 			{
-				historicWordRates[word][i][j] = stod(dbHistoricWordRates->getString(to_string(j*MAP_WIDTH+i)));
+				for (int j = 0; j < MAP_HEIGHT; j++)
+				{
+					historicWordRates[word][i][j] = stod(dbHistoricWordRates->getString(to_string(j*MAP_WIDTH+i)));
+				}
 			}
 		}
+		delete dbHistoricWordRates;
 	}
-	delete dbHistoricWordRates;
+
+	// consider historic rates that are no longer in use as being currently in use at a rate of 0
+	for (const auto &pair : historicWordRates)
+	{
+		const auto word = pair.first;
+		if (!currentWordRates.count(word))
+		{
+			currentWordRates[word] = makeGrid<int>(MAP_WIDTH, MAP_HEIGHT, true);
+		}
+	}
 
 	for (const auto &pair : currentWordRates)
 	{
 		const auto word = pair.first;
 		auto grid = pair.second;
 
+		// consider new uses of a word as being historically used at a rate of 0
+		if (!historicWordRates.count(word))
+		{
+			historicWordRates[word] = makeGrid<double>(MAP_WIDTH, MAP_HEIGHT, true);
+		}
+
 		// calculate the usage rate of each word at the current time in each cell and the average regional use
 		double** localWordRates = makeGrid<double>(MAP_WIDTH, MAP_HEIGHT);
 		double globalWordRate = 0;
-		int totalTweets = 0;
-		for (int i = 0; i < MAP_WIDTH; i++)
 		{
-			for (int j = 0; j < MAP_HEIGHT; j++)
+			int totalTweets = 0;
+			for (int i = 0; i < MAP_WIDTH; i++)
 			{
-				if (tweetsPerCell[i][j])
+				for (int j = 0; j < MAP_HEIGHT; j++)
 				{
-					localWordRates[i][j] = (double)grid[i][j]/tweetsPerCell[i][j];
-					globalWordRate += grid[i][j];
-					totalTweets += tweetsPerCell[i][j];
-				}
-				else
-				{
-					localWordRates[i][j] = 0;
+					if (tweetsPerCell[i][j])
+					{
+						localWordRates[i][j] = (double)grid[i][j]/tweetsPerCell[i][j];
+						globalWordRate += grid[i][j];
+						totalTweets += tweetsPerCell[i][j];
+					}
+					else
+					{
+						localWordRates[i][j] = 0;
+					}
 				}
 			}
+			globalWordRate /= totalTweets;
 		}
-		globalWordRate /= totalTweets;
 
 		// blur the rates over cell borders to reduce noise
 		localWordRates = gaussBlur(localWordRates, MAP_WIDTH, MAP_HEIGHT);
-
-		// determine if a word is appearing for the first time in recorded history
-		bool insert = false;
-		if (!historicWordRates.count(word))
-		{
-			insert = true;
-
-			// if no previous uses of a word are recorded, fill the prior usage map with 0s
-			historicWordRates[word] = makeGrid<double>(MAP_WIDTH, MAP_HEIGHT, true);
-		}
 
 		// detect events!! and adjust historic rates
 		for (int i = 0; i < MAP_WIDTH; i++)
@@ -328,8 +319,8 @@ int main(int argc, char* argv[])
 							"INSERT INTO NYC.events (word, x, y) VALUES ('" + word + "'," + to_string(i) + "," + to_string(j) + ");"
 						);
 				}
-				historicWordRates[word][i][j] *= (PERIODS_IN_HISTORY - 1) / 4;
-				historicWordRates[word][i][j] += localWordRates[i][j] / 4;
+				historicWordRates[word][i][j] *= (PERIODS_IN_HISTORY - 1) / PERIODS_IN_HISTORY;
+				historicWordRates[word][i][j] += localWordRates[i][j] / PERIODS_IN_HISTORY;
 			}
 		}
 
@@ -346,33 +337,26 @@ int main(int argc, char* argv[])
 				values[j*MAP_WIDTH+i+1]  = to_string(historicWordRates[word][i][j]);
 			}
 		}
-		string query;
-		if (insert)
+		string query = "INSERT INTO NYC.rates (";
+		for (int i = 0; i < MAP_WIDTH*MAP_HEIGHT+1; i++)
 		{
-			query = "INSERT INTO NYC.rates (";
-			for (int i = 0; i < MAP_WIDTH*MAP_HEIGHT+1; i++)
-			{
-				query += "`" + columns[i] + "`,";
-			}
-			query.pop_back(); // take the extra comma out
-			query += ") VALUES (";
-			for (int i = 0; i < MAP_WIDTH*MAP_HEIGHT+1; i++)
-			{
-				query += values[i] + ",";
-			}
-			query.pop_back(); // take the extra comma out
-			query += ");";
+			query += "`" + columns[i] + "`,";
 		}
-		else
+		query.pop_back(); // take the extra comma out
+		query += ") VALUES (";
+		for (int i = 0; i < MAP_WIDTH*MAP_HEIGHT+1; i++)
 		{
-			query = "UPDATE NYC.rates SET ";
-			for (int i = 0; i < MAP_WIDTH*MAP_HEIGHT+1; i++)
-			{
-				query += "`" + columns[i] + "`=" + values[i] + ",";
-			}
-			query.pop_back(); // take the extra comma out
-			query += " WHERE word='" + word + "';";
+			query += values[i] + ",";
 		}
+		query.pop_back(); // take the extra comma out
+		query += ") ON DUPLICATE KEY UPDATE ";
+		for (int i = 0; i < MAP_WIDTH*MAP_HEIGHT+1; i++)
+		{
+			query += "`" + columns[i] + "`=" + values[i] + ",";
+		}
+		query.pop_back(); // take the extra comma out
+		query += ";";
+
 		connection->createStatement()->execute(query);
 	}
 }
