@@ -319,7 +319,7 @@ int main(int argc, char* argv[])
 							"INSERT INTO NYC.events (word, x, y) VALUES ('" + word + "'," + to_string(i) + "," + to_string(j) + ");"
 						);
 				}
-				historicWordRates[word][i][j] *= (PERIODS_IN_HISTORY - 1) / PERIODS_IN_HISTORY;
+				historicWordRates[word][i][j] *= ((double)PERIODS_IN_HISTORY - 1) / PERIODS_IN_HISTORY;
 				historicWordRates[word][i][j] += localWordRates[i][j] / PERIODS_IN_HISTORY;
 			}
 		}
