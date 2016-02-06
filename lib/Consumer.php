@@ -1,12 +1,23 @@
 <?php
 class Consumer extends OauthPhirehose
 {
-	public $db;
-
 	// This function is called automatically by the Phirehose class
 	// when a new tweet is received with the JSON data in $status
 	public function enqueueStatus($status)
 	{
+		static $db;
+		static $last_clear = 0;
+		if ($last_clear < time() - 120)
+		{
+			if (isset($db))
+			{
+				$db->close();
+				unset($db);
+			}
+			$db = new mysqli("localhost", "archivist", file_get_contents("/srv/auth/daemons/archivist.pw"), "NYC");
+			$last_clear = time();
+		}
+
 		$stream_item = json_decode($status);
 		if (!(isset($stream_item->id_str))) {return;}
 		$text = preg_replace('/\s+/', ' ', trim($stream_item->text));
@@ -36,7 +47,7 @@ class Consumer extends OauthPhirehose
 			$exact = 0;
 		}
 
-		$this->db->query('INSERT INTO tweets (lon, lat, exact, user, text) values ('
+		$db->query('INSERT INTO tweets (lon, lat, exact, user, text) values ('
 			. $lon . ','
 			. $lat . ','
 			. $exact . ','
