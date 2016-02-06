@@ -6,16 +6,9 @@ class Consumer extends OauthPhirehose
 	public function enqueueStatus($status)
 	{
 		static $db;
-		static $last_clear = 0;
-		if ($last_clear < time() - 120)
+		if (!isset($db))
 		{
-			if (isset($db))
-			{
-				$db->close();
-				unset($db);
-			}
 			$db = new mysqli("localhost", "archivist", file_get_contents("/srv/auth/daemons/archivist.pw"), "NYC");
-			$last_clear = time();
 		}
 
 		$stream_item = json_decode($status);
