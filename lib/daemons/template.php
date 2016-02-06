@@ -22,4 +22,5 @@ while (1)
 		file_put_contents("/etc/ochre/runtimes/" . DAEMON, $time);
 		$last_runtime = $time;
 	}
+	sleep(1);
 }
