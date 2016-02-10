@@ -8,7 +8,7 @@ class Consumer extends OauthPhirehose
 		static $db;
 		if (!isset($db))
 		{
-			$db = new mysqli("localhost", "archivist", file_get_contents("/srv/auth/daemons/archivist.pw"), "NYC");
+			$db = new mysqli("localhost", "archivist", file_get_contents("/srv/etc/auth/daemons/archivist.pw"), "NYC");
 		}
 
 		$stream_item = json_decode($status);

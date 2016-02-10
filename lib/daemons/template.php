@@ -1,5 +1,5 @@
 <?php
-$config = parse_ini_file("/srv/config/daemons.ini", true);
+$config = parse_ini_file("/srv/etc/config/daemons.ini", true);
 
 $last_runtime = file_get_contents("/etc/ochre/runtimes/" . DAEMON);
 if (!$last_runtime)
@@ -7,7 +7,7 @@ if (!$last_runtime)
 	$last_runtime = time() - $config['timing']['period'];
 }
 
-$db = new mysqli("localhost", DAEMON, file_get_contents("/srv/auth/daemons/" . DAEMON . ".pw"));
+$db = new mysqli("localhost", DAEMON, file_get_contents("/srv/etc/auth/daemons/" . DAEMON . ".pw"));
 if ($db->connect_error)
 {
 	error_log("Database connection failed for " . DAEMON . " daemon: " . $db->connect_error);

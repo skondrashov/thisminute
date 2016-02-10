@@ -129,7 +129,7 @@ double** gaussBlur(double** unblurred_array, int width, int height)
 
 template<typename T> void getArg(T &arg, string section, string option)
 {
-	static INIReader reader("/srv/config/daemons.ini");
+	static INIReader reader("/srv/etc/config/daemons.ini");
 	static double errorValue = -9999;
 	arg = (T)reader.GetReal(section, option, errorValue);
 	assert(arg != errorValue);
@@ -160,7 +160,7 @@ int main(int argc, char* argv[])
 	sql::Connection* connection;
 	sql::Driver* driver = get_driver_instance();
 	{
-		ifstream passwordFile("/srv/auth/daemons/pericog.pw");
+		ifstream passwordFile("/srv/etc/auth/daemons/pericog.pw");
 		auto password = static_cast<ostringstream&>(ostringstream{} << passwordFile.rdbuf()).str();
 		connection = driver->connect("tcp://127.0.0.1:3306", "pericog", password);
 	}
@@ -169,7 +169,7 @@ int main(int argc, char* argv[])
 	unordered_map<int, Tweet> tweets;
 	{
 		sql::ResultSet* dbTweets = connection->createStatement()->executeQuery(
-				"SELECT * FROM NYC.tweets WHERE time > FROM_UNIXTIME(" + to_string(LOOKBACK_TIME) + ") limit 1000;"
+				"SELECT * FROM NYC.tweets WHERE time > FROM_UNIXTIME(" + to_string(LOOKBACK_TIME) + ");"
 			);
 		while (dbTweets->next())
 		{
