@@ -236,25 +236,41 @@ int main(int argc, char* argv[])
 		currentWordRates.erase(" ");
 	}
 
+	for (const auto &pair : currentWordRates)
+	{
+		connection->createStatement()->execute(
+				"INSERT INTO NYC.words_seen (word) VALUES ('" + pair.first + "') ON DUPLICATE KEY UPDATE last_seen=NOW();"
+			);
+	}
+
 	// load historic word usage rates per cell
 	unordered_map<string, double**> historicWordRates;
 	{
-		sql::ResultSet* dbHistoricWordRates = connection->createStatement()->executeQuery(
-				"SELECT * FROM NYC.rates;"
+		sql::ResultSet* dbWordsSeen = connection->createStatement()->executeQuery(
+				"SELECT * FROM NYC.words_seen;"
 			);
-		while (dbHistoricWordRates->next())
+		while (dbWordsSeen->next())
 		{
-			const auto word = dbHistoricWordRates->getString("word");
-			historicWordRates[word] = makeGrid<double>(MAP_WIDTH, MAP_HEIGHT);
-			for (int i = 0; i < MAP_WIDTH; i++)
+			const auto word = dbWordsSeen->getString("word");
+			sql::ResultSet* wordRates = connection->createStatement()->executeQuery(
+					"SELECT * FROM NYC.rates WHERE word ='" + word + "' AND time BETWEEN FROM_UNIXTIME(" +
+				 	to_string(LOOKBACK_TIME) + ") AND FROM_UNIXTIME(" + to_string(LOOKBACK_TIME-RECALL_SCOPE) + ") ORDER BY time DESC;"
+				);
+
+			historicWordRates[word] = makeGrid<double>(MAP_WIDTH, MAP_HEIGHT, true);
+
+			while (wordRates->next())
 			{
-				for (int j = 0; j < MAP_HEIGHT; j++)
+				for(int i = 0; i < MAP_WIDTH; i++)
 				{
-					historicWordRates[word][i][j] = stod(dbHistoricWordRates->getString(to_string(j*MAP_WIDTH+i)));
+					for (int j = 0; j < MAP_HEIGHT; j++)
+					{
+						historicWordRates[word][i][j] += stod(wordRates->getString('`' + to_string(j*MAP_WIDTH+i) + '`'))/PERIODS_IN_HISTORY;
+					}
 				}
 			}
 		}
-		delete dbHistoricWordRates;
+		delete dbWordsSeen;
 	}
 
 	// consider historic rates that are no longer in use as being currently in use at a rate of 0
@@ -271,12 +287,6 @@ int main(int argc, char* argv[])
 	{
 		const auto word = pair.first;
 		auto grid = pair.second;
-
-		// consider new uses of a word as being historically used at a rate of 0
-		if (!historicWordRates.count(word))
-		{
-			historicWordRates[word] = makeGrid<double>(MAP_WIDTH, MAP_HEIGHT, true);
-		}
 
 		// calculate the usage rate of each word at the current time in each cell and the average regional use
 		double** localWordRates = makeGrid<double>(MAP_WIDTH, MAP_HEIGHT);
@@ -311,7 +321,9 @@ int main(int argc, char* argv[])
 			for (int j = 0; j < MAP_HEIGHT; j++)
 			{
 				if (
+					// checks if a word is a appearing with a greater percentage in one cell than in other cells in the city grid
 					(localWordRates[i][j] > globalWordRate + SPACIAL_DEVIATION_THRESHOLD) &&
+					// checks if a word is appearing more frequently in a cell than it has historically in that cell
 					(localWordRates[i][j] > historicWordRates[word][i][j] + TEMPORAL_DEVIATION_THRESHOLD)
 				)
 				{
@@ -319,8 +331,6 @@ int main(int argc, char* argv[])
 							"INSERT INTO NYC.events (word, x, y) VALUES ('" + word + "'," + to_string(i) + "," + to_string(j) + ");"
 						);
 				}
-				historicWordRates[word][i][j] *= ((double)PERIODS_IN_HISTORY - 1) / PERIODS_IN_HISTORY;
-				historicWordRates[word][i][j] += localWordRates[i][j] / PERIODS_IN_HISTORY;
 			}
 		}
 
@@ -334,7 +344,7 @@ int main(int argc, char* argv[])
 			for (int i = 0; i < MAP_WIDTH; i++)
 			{
 				columns[j*MAP_WIDTH+i+1] = to_string(j*MAP_WIDTH+i);
-				values[j*MAP_WIDTH+i+1]  = to_string(historicWordRates[word][i][j]);
+				values[j*MAP_WIDTH+i+1]  = to_string(currentWordRates[word][i][j]);
 			}
 		}
 		string query = "INSERT INTO NYC.rates (";
