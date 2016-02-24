@@ -21,6 +21,7 @@
 #include <vector>
 #include <map>
 #include <memory>
+#include <pair>
 
 namespace sql {
 	class Connection;
@@ -56,16 +57,18 @@ template<typename T> Grid<T> makeGrid();
 template<typename T> void getArg(T &arg, string section, string option);
 
 
-map<int, Tweet> getUserIdToTweetMap(sql::Connection connection);
+map<int, Tweet> getUserIdToTweetMap();
 
 // refine each tweet into usable information
-Grid<int> refineTweetsAndGetTweetCountPerCell(unordered_map<int, Tweet> userIdTweetMap);
+Grid<int> refineTweetsAndGetTweetCountPerCell(unordered_map<int, Tweet> &userIdTweetMap);
 
 // load the number of times each word was used in every cell
-unordered_map <string, Grid<int>> getWordCountPerCell(unordered_map<int, Tweet> userIdTweetMap);
+unordered_map <string, Grid<int>> getCurrentWordCountPerCell(const unordered_map<int, Tweet> &userIdTweetMap);
 
 // load historic word usage rates per cell
-unordered_map<string, Grid<double>> getHistoricWordRates();
+pair<unordered_map<string, Grid<double>>, unordered_map<string, Grid<double>>> getHistoricWordRatesAndDeviation();
+
+pair<Grid<double>, double> getCurrentLocalAndGlobalRatesForWord(const Grid<int> &wordCountPerCell, const Grid<int> &tweetCountPerCell);
 
 void detectEvents(
 	unordered_map<string, Grid<int>>      currentWordRates,
@@ -113,10 +116,10 @@ int main(int argc, char* argv[])
 
 	auto tweetCountPerCell = refineTweetsAndGetTweetCountPerCell(userIdToTweetMap);
 
-	auto wordCountPerCell = getWordCountPerCell(userIdToTweetMap);
+	auto currentWordCountPerCell = getCurrentWordCountPerCell(userIdToTweetMap);
 
 	string query = "INSERT INTO NYC.words_seen (time,word) VALUES ";
-	for (const auto &pair : wordCountPerCell)
+	for (const auto &pair : currentWordCountPerCell)
 	{
 		query += "(FROM_UNIXTIME(" + to_string(LOOKBACK_TIME) + "),'" + pair.first + "'),";
 	}
@@ -124,71 +127,55 @@ int main(int argc, char* argv[])
 	query += " ON DUPLICATE KEY UPDATE last_seen=FROM_UNIXTIME(" + to_string(LOOKBACK_TIME) + ");"
 	connection->createStatement()->execute(query);
 
-	auto historicWordRates = getHistoricWordRates();
+	unordered_map<string, Grid<double>> historicWordRates, historicDeviations;
+	tie(historicWordRates, historicDeviations) = getHistoricWordRatesAndDeviation();
 
 	// consider historic rates that are no longer in use as being currently in use at a rate of 0
 	for (const auto &pair : historicWordRates)
 	{
 		const auto& word = pair.first;
-		if (!wordCountPerCell.count(word))
-			wordCountPerCell[word] = makeGrid<int>();
+		if (!currentWordCountPerCell.count(word))
+			currentWordCountPerCell[word] = makeGrid<int>();
 	}
 
-	for (const auto &pair : wordCountPerCell)
+	for (const auto &pair : currentWordCountPerCell)
 	{
 		const auto& word = pair.first;
-		auto &grid = pair.second;
+		const auto &currentCountByCell = pair.second;
 
 		// calculate the usage rate of each word at the current time in each cell and the average regional use
-		Grid<double> localWordRates = makeGrid<double>();
-		// calculate the usage rate of each word at the current time in each cell and the average regional use
-		double** localWordRates = makeGrid<double>();
-		double globalWordRate = 0, globalDeviation = 0;
+		Grid<double> localWordRateByCell;
+		double globalWordRate;
+
+		tie(localWordRateByCell, globalWordRate) =  getCurrentLocalAndGlobalRatesForWord(currentCountByCell, tweetCountPerCell);
+
+		double globalDeviation;
+		for (int i = 0; i < MAP_WIDTH; i++)
 		{
-			int totalTweets = 0;
-			for (int i = 0; i < MAP_WIDTH; i++)
+			for (int j = 0; j < MAP_HEIGHT; j++)
 			{
-				for (int j = 0; j < MAP_HEIGHT; j++)
-				{
-					if (tweetsPerCell[i][j])
-					{
-						localWordRates[i][j] = (double)grid[i][j]/tweetsPerCell[i][j];
-						globalWordRate += grid[i][j];
-						totalTweets += tweetsPerCell[i][j];
-					}
-					else
-					{
-						localWordRates[i][j] = 0;
-					}
-				}
+				globalDeviation += pow(localWordRateByCell[i][j] - globalWordRate, 2);
 			}
-			globalWordRate /= totalTweets;
-
-			for (int i = 0; i < MAP_WIDTH; i++)
-			{
-				for (int j = 0; j < MAP_HEIGHT; j++)
-				{
-					globalDeviation += pow(localWordRates[i][j] - globalWordRate, 2) / (MAP_WIDTH * MAP_HEIGHT);
-				}
-			}
-			globalDeviation = pow(globalDeviation, 0.5);
 		}
+		globalDeviation /= MAP_WIDTH * MAP_HEIGHT;
+		globalDeviation = pow(globalDeviation, 0.5);
 
 		// blur the rates over cell borders to reduce noise
-		localWordRates = gaussBlur(localWordRates);
+		localWordRateByCell = gaussBlur(localWordRateByCell);
 
 		// detect events!! and adjust historic rates
 		for (int i = 0; i < MAP_WIDTH; i++)
 		{
 			for (int j = 0; j < MAP_HEIGHT; j++)
 			{
+				double SPACIAL_PERCENTAGE_THRESHOLD, TEMPORAL_PERCENTAGE_THRESHOLD;
 				if (
 					// checks if a word is a appearing with a greater percentage in one cell than in other cells in the city grid
-					(localWordRates[i][j] > globalWordRate + SPACIAL_PERCENTAGE_THRESHOLD) &&
+					(localWordRateByCell[i][j] > globalWordRate + SPACIAL_PERCENTAGE_THRESHOLD) &&
 					// checks if a word is appearing more frequently in a cell than it has historically in that cell
-					(localWordRates[i][j] > historicWordRates[word][i][j] + TEMPORAL_PERCENTAGE_THRESHOLD) &&
-					(localWordRates[i][j] > historicWordRates[word][i][j] + globalDeviation * SPACIAL_DEVIATION_THRESHOLD) &&
-					(localWordRates[i][j] > historicWordRates[word][i][j] + historicDeviations[word][i][j] * TEMPORAL_DEVIATION_THRESHOLD)
+					(localWordRateByCell[i][j] > historicWordRates[word][i][j] + TEMPORAL_PERCENTAGE_THRESHOLD) &&
+					(localWordRateByCell[i][j] > historicWordRates[word][i][j] + globalDeviation * SPACIAL_DEVIATION_THRESHOLD) &&
+					(localWordRateByCell[i][j] > historicWordRates[word][i][j] + historicDeviations[word][i][j] * TEMPORAL_DEVIATION_THRESHOLD)
 				)
 				{
 					connection->createStatement()->execute(
@@ -198,41 +185,46 @@ int main(int argc, char* argv[])
 			}
 		}
 
-		// write updated historic rates to database
-		string* values  = new string[MAP_WIDTH*MAP_HEIGHT];
-		for (int j = 0; j < MAP_HEIGHT; j++)
-		{
-			for (int i = 0; i < MAP_WIDTH; i++)
-			{
-				values[j*MAP_WIDTH+i+1]  = to_string(localWordRates[i][j]);
-			}
-		}
 
-		"('" + word + "',FROM_UNIXTIME(" + to_string(LOOKBACK_TIME) + "),";
-		for (int i = 0; i < MAP_WIDTH*MAP_HEIGHT; i++)
-		{
-			sqlValuesString += values[i] + ",";
-		}
-	}
-	sqlValuesString.pop_back(); // take the extra comma out
 
-	string query = "INSERT INTO NYC.rates (word,time,";
-	string* columns = new string[MAP_WIDTH*MAP_HEIGHT];
-	for (int j = 0; j < MAP_HEIGHT; j++)
-	{
-		for (int i = 0; i < MAP_WIDTH; i++)
-		{
-			columns[j*MAP_WIDTH+i+1] = to_string(j*MAP_WIDTH+i);
-		}
-	}
-	for (int i = 0; i < MAP_WIDTH*MAP_HEIGHT; i++)
-	{
-		query += "`" + columns[i] + "`,";
-	}
-	query.pop_back(); // take the extra comma out
-	query += ") VALUES ";
+		///////////// THE NATE LINE 
 
-	connection->createStatement()->execute(query);
+
+	//	// write updated historic rates to database
+	//	string* values  = new string[MAP_WIDTH*MAP_HEIGHT];
+	//	for (int j = 0; j < MAP_HEIGHT; j++)
+	//	{
+	//		for (int i = 0; i < MAP_WIDTH; i++)
+	//		{
+	//			values[j*MAP_WIDTH+i+1]  = to_string(localWordRates[i][j]);
+	//		}
+	//	}
+
+	//	"('" + word + "',FROM_UNIXTIME(" + to_string(LOOKBACK_TIME) + "),";
+	//	for (int i = 0; i < MAP_WIDTH*MAP_HEIGHT; i++)
+	//	{
+	//		sqlValuesString += values[i] + ",";
+	//	}
+	//}
+	//sqlValuesString.pop_back(); // take the extra comma out
+
+	//string query = "INSERT INTO NYC.rates (word,time,";
+	//string* columns = new string[MAP_WIDTH*MAP_HEIGHT];
+	//for (int j = 0; j < MAP_HEIGHT; j++)
+	//{
+	//	for (int i = 0; i < MAP_WIDTH; i++)
+	//	{
+	//		columns[j*MAP_WIDTH+i+1] = to_string(j*MAP_WIDTH+i);
+	//	}
+	//}
+	//for (int i = 0; i < MAP_WIDTH*MAP_HEIGHT; i++)
+	//{
+	//	query += "`" + columns[i] + "`,";
+	//}
+	//query.pop_back(); // take the extra comma out
+	//query += ") VALUES ";
+
+	//connection->createStatement()->execute(query);
 }
 
 unordered_set<string> explode(string const &s)
@@ -342,9 +334,10 @@ template<typename T> void getArg(T &arg, string section, string option)
 	assert(arg != errorValue);
 }
 
-unordered_map<int, Tweet> getUserIdToTweetMap(sql::Connection connection)
+unordered_map<int, Tweet> getUserIdToTweetMap()
 {
 	unordered_map<int, Tweet> tweets;
+
 	unique_ptr<sql::ResultSet> dbTweets(connection.createStatement()->executeQuery(
 		"SELECT * FROM NYC.tweets WHERE time > FROM_UNIXTIME(" + to_string(LOOKBACK_TIME) + ");")
 		);
@@ -382,7 +375,7 @@ unordered_map<int, Tweet> getUserIdToTweetMap(sql::Connection connection)
 }
 
 // refine each tweet into usable information
-Grid<int> refineTweetsAndGetTweetCountPerCell(unordered_map<int, Tweet> userIdTweetMap)
+Grid<int> refineTweetsAndGetTweetCountPerCell(unordered_map<int, Tweet> &userIdTweetMap)
 {
 	unordered_map<string, Grid<int>> wordCountPerCell;
 	auto tweetsPerCell = makeGrid<int>();
@@ -406,7 +399,7 @@ Grid<int> refineTweetsAndGetTweetCountPerCell(unordered_map<int, Tweet> userIdTw
 }
 
 // refine each tweet into usable information
-unordered_map <string, Grid<int>> getWordCountPerCell(unordered_map<int, Tweet> userIdTweetMap)
+unordered_map <string, Grid<int>> getCurrentWordCountPerCell(const unordered_map<int, Tweet> &userIdTweetMap)
 {
 	unordered_map<string, Grid<int>> wordCountPerCell;
 
@@ -418,7 +411,7 @@ unordered_map <string, Grid<int>> getWordCountPerCell(unordered_map<int, Tweet> 
 		for (const auto &word : words)
 		{
 			if (!wordCountPerCell.count(word))
-				wordCountPerCell[word] = makeGrid<int>();
+				wordCountPerCell[word] = makeGrid<double>();
 
 			wordCountPerCell[word][tweet.x][tweet.y]++;
 		}
@@ -433,7 +426,7 @@ unordered_map <string, Grid<int>> getWordCountPerCell(unordered_map<int, Tweet> 
 	return wordCountPerCell;
 }
 
-unordered_map<string, Grid<double>> getHistoricWordRates()
+pair<unordered_map<string, Grid<double>>, unordered_map<string, Grid<double>>> getHistoricWordRatesAndDeviation()
 {
 	unordered_map<string, Grid<double>> historicWordRates, historicDeviations;
 
@@ -470,29 +463,36 @@ unordered_map<string, Grid<double>> getHistoricWordRates()
 			for (int j = 0; j < MAP_HEIGHT; j++)
 			{
 				for (const auto &rate : rates)
-				{
-					historicWordRates[word][i][j] += rate[i][j] / PERIODS_IN_HISTORY;
-				}
+					historicWordRates[word][i][j] += rate[i][j];
+				historicWordRates[word][i][j] / = PERIODS_IN_HISTORY;
+
 				for (const auto &rate : rates)
-				{
-					historicDeviations[word][i][j] += pow(rate[i][j] - historicWordRates[word][i][j], 2) / PERIODS_IN_HISTORY;
-				}
+					historicDeviations[word][i][j] += pow(rate[i][j] - historicWordRates[word][i][j], 2);
+				historicDeviations[word][i][j] /= PERIODS_IN_HISTORY;
+
 				historicDeviations[word][i][j] = pow(historicDeviations[word][i][j], 0.5);
 			}
 		}
 	}
 
-	return historicWordRates;
+	return tie(move(historicWordRates), move(historicDeviations));
 }
 
+
 void detectEvents(
+	const unordered_map<string, Grid<int>> &currentWordCountPerCell,
+	const Grid<int> 
 	unordered_map<string, Grid<double>>      currentWordRates,
 	unordered_map<string, Grid<double>>   historicWordRates,
-	double**                          localWordRates,
+	double**                          wordRatePerCell,
 	double                            globalWordRate,
 	double                            SPACIAL_DEVIATION_THRESHOLD,
 	double                            TEMPORAL_DEVIATION_THRESHOLD)
 {
+	const auto& word = pair.first;
+	auto &grid = pair.second;
+
+
 	for (const auto &pair : currentWordRates)
 	{
 		const auto &word = pair.first;
@@ -503,15 +503,56 @@ void detectEvents(
 			{
 				if (
 					// checks if a word is a appearing with a greater percentage in one cell than in other cells in the city grid
-					(localWordRates[i][j] > globalWordRate + SPACIAL_DEVIATION_THRESHOLD) &&
+					(localWordRates[i][j] > globalWordRate + SPACIAL_PERCENTAGE_THRESHOLD) &&
 					// checks if a word is appearing more frequently in a cell than it has historically in that cell
-					(localWordRates[i][j] > historicWordRates[word][i][j] + TEMPORAL_DEVIATION_THRESHOLD))
-					{
-					connection->createStatement()->execute(
-						"INSERT INTO NYC.events (word, x, y) VALUES ('" + word + "'," + to_string(i) + "," + to_string(j) + ");"
-					);
-					}
-				}
+					(localWordRates[i][j] > historicWordRates[word][i][j] + TEMPORAL_PERCENTAGE_THRESHOLD) &&
+					(localWordRates[i][j] > historicWordRates[word][i][j] + globalDeviation * SPACIAL_DEVIATION_THRESHOLD) &&
+					(localWordRates[i][j] > historicWordRates[word][i][j] + historicDeviations[word][i][j] * TEMPORAL_DEVIATION_THRESHOLD))
+						connection->createStatement()->execute(
+							"INSERT INTO NYC.events (word, x, y) VALUES ('" + word + "'," + to_string(i) + "," + to_string(j) + ");"
+							);
 			}
 		}
+	}
+}
+
+double calcStandardDev()
+{
+
+	double globalDeviation = 0;
+	for (int i = 0; i < MAP_WIDTH; i++)
+	{
+		for (int j = 0; j < MAP_HEIGHT; j++)
+			globalDeviation += pow(localWordRates[i][j] - globalWordRate, 2) / (MAP_WIDTH * MAP_HEIGHT);
+	}
+	return pow(globalDeviation, 0.5);
+}
+
+pair<Grid<double>, double> getCurrentLocalAndGlobalRatesForWord(const Grid<int> &wordCountPerCell, const Grid<int> &tweetCountPerCell)
+{
+	Grid<double> localWordRates = makeGrid<double>();
+
+	double globalWordRate = 0;
+	int totalTweets = 0;
+
+	for (int i = 0; i < MAP_WIDTH; i++)
+	{
+		for (int j = 0; j < MAP_HEIGHT; j++)
+		{
+			if (tweetCountPerCell[i][j])
+			{
+				localWordRates[i][j] = (double)wordCountPerCell[i][j] / tweetCountPerCell[i][j];
+				globalWordRate += wordCountPerCell[i][j];
+				totalTweets += tweetCountPerCell[i][j];
+			}
+			else
+			{
+				localWordRates[i][j] = 0;
+			}
+		}
+	}
+
+	globalWordRate /= totalTweets;
+
+	return { move(localWordRates), globalWordRate };
 }
