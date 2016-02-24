@@ -46,7 +46,7 @@ struct Tweet
 };
 
 unordered_set<string> explode(string const &s);
-template<typename T> vector<vector<T>> makeGrid(int width, int height);
+template<typename T> vector<vector<T>> makeGrid();
 
 template<typename T> void getArg(T &arg, string section, string option);
 
@@ -66,8 +66,6 @@ void detectEvents(
 	unordered_map<string, double**>   historicWordRates,
 	double**                          localWordRates,
 	double                            globalWordRate,
-	int                               MAP_WIDTH,
-	int                               MAP_HEIGHT,
 	double                            SPACIAL_DEVIATION_THRESHOLD,
 	double                            TEMPORAL_DEVIATION_THRESHOLD)
 
@@ -127,7 +125,7 @@ int main(int argc, char* argv[])
 	{
 		const auto& word = pair.first;
 		if (!wordCountPerCell.count(word))
-			wordCountPerCell[word] = makeGrid<int>(MAP_WIDTH, MAP_HEIGHT);
+			wordCountPerCell[word] = makeGrid<int>();
 	}
 
 	for (const auto &pair : wordCountPerCell)
@@ -136,9 +134,9 @@ int main(int argc, char* argv[])
 		auto &grid = pair.second;
 
 		// calculate the usage rate of each word at the current time in each cell and the average regional use
-		vector<vector<double>> localWordRates = makeGrid<double>(MAP_WIDTH, MAP_HEIGHT);
+		vector<vector<double>> localWordRates = makeGrid<double>();
 		// calculate the usage rate of each word at the current time in each cell and the average regional use
-		double** localWordRates = makeGrid<double>(MAP_WIDTH, MAP_HEIGHT);
+		double** localWordRates = makeGrid<double>();
 		double globalWordRate = 0, globalDeviation = 0;
 		{
 			int totalTweets = 0;
@@ -171,7 +169,7 @@ int main(int argc, char* argv[])
 		}
 
 		// blur the rates over cell borders to reduce noise
-		localWordRates = gaussBlur(localWordRates, MAP_WIDTH, MAP_HEIGHT);
+		localWordRates = gaussBlur(localWordRates);
 
 		// detect events!! and adjust historic rates
 		for (int i = 0; i < MAP_WIDTH; i++)
@@ -245,7 +243,7 @@ unordered_set<string> explode(string const &s)
 	return result;
 }
 
-template<typename T> vector<vector<T>> makeGrid(int width, int height)
+template<typename T> vector<vector<T>> makeGrid()
 {
 	vector<vector<T>> grid(MAP_WIDTH);
 	for (int i = 0; i < width; i++)
@@ -257,9 +255,12 @@ template<typename T> vector<vector<T>> makeGrid(int width, int height)
 }
 
 // returns pointer to a gaussian blurred 2d array with given dimensions
-double** gaussBlur(double** unblurred_array, int width, int height)
+double** gaussBlur(double** unblurred_array)
 {
 	static const double gaussValueMatrix[3] = {0.22508352, 0.11098164, 0.05472157}; // mid, perp, diag
+
+	auto& width = MAP_WIDTH;
+	auto& height = MAP_HEIGHT;
 
 	// declare a new 2d array to store the blurred values
 	double** blurred_array = new double*[width];
@@ -380,7 +381,7 @@ unordered_map<int, Tweet> getUserIdToTweetMap(sql::Connection connection)
 vector<vector<int>> refineTweetsAndGetTweetCountPerCell(unordered_map<int, Tweet> userIdTweetMap)
 {
 	unordered_map<string, vector<vector<int>>> wordCountPerCell;
-	auto tweetsPerCell = makeGrid<int>(MAP_WIDTH, MAP_HEIGHT);
+	auto tweetsPerCell = makeGrid<int>();
 
 	for (auto &pair : userIdTweetMap)
 	{
@@ -413,7 +414,7 @@ unordered_map <string, vector<vector<int>>> getWordCountPerCell(unordered_map<in
 		for (const auto &word : words)
 		{
 			if (!wordCountPerCell.count(word))
-				wordCountPerCell[word] = makeGrid<int>(MAP_WIDTH, MAP_HEIGHT);
+				wordCountPerCell[word] = makeGrid<int>();
 
 			wordCountPerCell[word][tweet.x][tweet.y]++;
 		}
@@ -444,13 +445,13 @@ unordered_map<string, vector<vector<double>>> getHistoricWordRates()
 			to_string(LOOKBACK_TIME) + ") AND FROM_UNIXTIME(" + to_string(LOOKBACK_TIME - RECALL_SCOPE) + ") ORDER BY time DESC;"
 			));
 
-		historicWordRates[word]  = makeGrid<double>(MAP_WIDTH, MAP_HEIGHT, true);
-		historicDeviations[word] = makeGrid<double>(MAP_WIDTH, MAP_HEIGHT, true);
+		historicWordRates[word]  = makeGrid<double>();
+		historicDeviations[word] = makeGrid<double>();
 		vector<vector<vector<double>>> rates;
 
 		while (wordRates->next())
 		{
-			rates.push_back(makeGrid<double>(MAP_WIDTH, MAP_HEIGHT));
+			rates.push_back(makeGrid<double>());
 			for (int i = 0; i < MAP_WIDTH; i++)
 			{
 				for (int j = 0; j < MAP_HEIGHT; j++)
@@ -485,8 +486,6 @@ void detectEvents(
 	unordered_map<string, double**>   historicWordRates,
 	double**                          localWordRates,
 	double                            globalWordRate,
-	int                               MAP_WIDTH,
-	int                               MAP_HEIGHT,
 	double                            SPACIAL_DEVIATION_THRESHOLD,
 	double                            TEMPORAL_DEVIATION_THRESHOLD)
 {
