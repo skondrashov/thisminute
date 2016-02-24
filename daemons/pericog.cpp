@@ -382,9 +382,9 @@ unordered_map<int, Tweet> getUserIdToTweetMap(sql::Connection connection)
 }
 
 // refine each tweet into usable information
-Grid<T> refineTweetsAndGetTweetCountPerCell(unordered_map<int, Tweet> userIdTweetMap)
+Grid<int> refineTweetsAndGetTweetCountPerCell(unordered_map<int, Tweet> userIdTweetMap)
 {
-	unordered_map<string, Grid<T>> wordCountPerCell;
+	unordered_map<string, Grid<int>> wordCountPerCell;
 	auto tweetsPerCell = makeGrid<int>();
 
 	for (auto &pair : userIdTweetMap)
