@@ -29,47 +29,53 @@ namespace sql {
 
 using namespace std;
 
-int LOOKBACK_TIME, RECALL_SCOPE, PERIOD, PERIODS_IN_HISTORY;
-int MAP_HEIGHT, MAP_WIDTH;
-
-double WEST_BOUNDARY, EAST_BOUNDARY, NORTH_BOUNDARY, SOUTH_BOUNDARY, RESOLUTION, SPACIAL_DEVIATION_THRESHOLD, TEMPORAL_DEVIATION_THRESHOLD;
-
-unique_ptr<sql::Connection> connection;
+template<class T>
+using Grid = vector<vector<T>>;
 
 struct Tweet
 {
 	Tweet(int x, int y, string text) :
-		x(x), y(y), text(text){}
+		x(x), y(y), text(text) {}
 
 	int x, y;
 	string text;
 };
 
-unordered_set<string> explode(string const &s);
-template<typename T> vector<vector<T>> makeGrid();
+int LOOKBACK_TIME, RECALL_SCOPE, PERIOD, PERIODS_IN_HISTORY;
+int MAP_HEIGHT, MAP_WIDTH;
 
+double WEST_BOUNDARY, EAST_BOUNDARY, NORTH_BOUNDARY, SOUTH_BOUNDARY, RESOLUTION, SPACIAL_DEVIATION_THRESHOLD, TEMPORAL_DEVIATION_THRESHOLD;
+
+
+sql::Connection* connection;
+
+
+
+unordered_set<string> explode(string const &s);
+template<typename T> Grid<T> makeGrid();
 template<typename T> void getArg(T &arg, string section, string option);
+
 
 map<int, Tweet> getUserIdToTweetMap(sql::Connection connection);
 
 // refine each tweet into usable information
-vector<vector<int>> refineTweetsAndGetTweetCountPerCell(unordered_map<int, Tweet> userIdTweetMap);
+Grid<int> refineTweetsAndGetTweetCountPerCell(unordered_map<int, Tweet> userIdTweetMap);
 
 // load the number of times each word was used in every cell
-unordered_map <string, vector<vector<int>>> getWordCountPerCell(unordered_map<int, Tweet> userIdTweetMap);
+unordered_map <string, Grid<int>> getWordCountPerCell(unordered_map<int, Tweet> userIdTweetMap);
 
 // load historic word usage rates per cell
-unordered_map<string, vector<vector<double>>> getHistoricWordRates();
+unordered_map<string, Grid<double>> getHistoricWordRates();
 
 void detectEvents(
-	unordered_map<string, int**>      currentWordRates,
-	unordered_map<string, double**>   historicWordRates,
+	unordered_map<string, Grid<int>>      currentWordRates,
+	unordered_map<string, Grid<double>>   historicWordRates,
 	double**                          localWordRates,
 	double                            globalWordRate,
 	double                            SPACIAL_DEVIATION_THRESHOLD,
-	double                            TEMPORAL_DEVIATION_THRESHOLD)
+	double                            TEMPORAL_DEVIATION_THRESHOLD);
 
-double** gaussBlur(double** unblurred_array, int width, int height);
+Grid<double> gaussBlur(const Grid<double> &unblurred_array);
 
 void Initialize()
 {
@@ -134,7 +140,7 @@ int main(int argc, char* argv[])
 		auto &grid = pair.second;
 
 		// calculate the usage rate of each word at the current time in each cell and the average regional use
-		vector<vector<double>> localWordRates = makeGrid<double>();
+		Grid<double> localWordRates = makeGrid<double>();
 		// calculate the usage rate of each word at the current time in each cell and the average regional use
 		double** localWordRates = makeGrid<double>();
 		double globalWordRate = 0, globalDeviation = 0;
@@ -243,9 +249,9 @@ unordered_set<string> explode(string const &s)
 	return result;
 }
 
-template<typename T> vector<vector<T>> makeGrid()
+template<typename T> Grid<T> makeGrid()
 {
-	vector<vector<T>> grid(MAP_WIDTH);
+	Grid<T> grid(MAP_WIDTH);
 	for (int i = 0; i < width; i++)
 	{
 		grid[i] = vector<T>(MAP_HEIGHT);
@@ -255,7 +261,7 @@ template<typename T> vector<vector<T>> makeGrid()
 }
 
 // returns pointer to a gaussian blurred 2d array with given dimensions
-double** gaussBlur(double** unblurred_array)
+Grid<double> gaussBlur(const Grid<double> &unblurred_array)
 {
 	static const double gaussValueMatrix[3] = {0.22508352, 0.11098164, 0.05472157}; // mid, perp, diag
 
@@ -263,9 +269,7 @@ double** gaussBlur(double** unblurred_array)
 	auto& height = MAP_HEIGHT;
 
 	// declare a new 2d array to store the blurred values
-	double** blurred_array = new double*[width];
-	for(int i = 0; i < width; ++i)
-		blurred_array[i] = new double[height]();
+	auto blurred_array = makeGrid<double>();
 
 	// for each value in the unblurred array, sum the products of that value and each value in the gaussValueMatrix
 
@@ -378,9 +382,9 @@ unordered_map<int, Tweet> getUserIdToTweetMap(sql::Connection connection)
 }
 
 // refine each tweet into usable information
-vector<vector<int>> refineTweetsAndGetTweetCountPerCell(unordered_map<int, Tweet> userIdTweetMap)
+Grid<T> refineTweetsAndGetTweetCountPerCell(unordered_map<int, Tweet> userIdTweetMap)
 {
-	unordered_map<string, vector<vector<int>>> wordCountPerCell;
+	unordered_map<string, Grid<T>> wordCountPerCell;
 	auto tweetsPerCell = makeGrid<int>();
 
 	for (auto &pair : userIdTweetMap)
@@ -402,9 +406,9 @@ vector<vector<int>> refineTweetsAndGetTweetCountPerCell(unordered_map<int, Tweet
 }
 
 // refine each tweet into usable information
-unordered_map <string, vector<vector<int>>> getWordCountPerCell(unordered_map<int, Tweet> userIdTweetMap)
+unordered_map <string, Grid<int>> getWordCountPerCell(unordered_map<int, Tweet> userIdTweetMap)
 {
-	unordered_map<string, vector<vector<int>>> wordCountPerCell;
+	unordered_map<string, Grid<int>> wordCountPerCell;
 
 	for (const auto &pair : userIdTweetMap)
 	{
@@ -429,9 +433,9 @@ unordered_map <string, vector<vector<int>>> getWordCountPerCell(unordered_map<in
 	return wordCountPerCell;
 }
 
-unordered_map<string, vector<vector<double>>> getHistoricWordRates()
+unordered_map<string, Grid<double>> getHistoricWordRates()
 {
-	unordered_map<string, vector<vector<double>>> historicWordRates, historicDeviations;
+	unordered_map<string, Grid<double>> historicWordRates, historicDeviations;
 
 	unique_ptr<sql::ResultSet> dbWordsSeen(connection->createStatement()->executeQuery(
 		"SELECT * FROM NYC.words_seen;"
@@ -447,7 +451,7 @@ unordered_map<string, vector<vector<double>>> getHistoricWordRates()
 
 		historicWordRates[word]  = makeGrid<double>();
 		historicDeviations[word] = makeGrid<double>();
-		vector<vector<vector<double>>> rates;
+		vector<Grid<double>> rates;
 
 		while (wordRates->next())
 		{
@@ -482,15 +486,16 @@ unordered_map<string, vector<vector<double>>> getHistoricWordRates()
 }
 
 void detectEvents(
-	unordered_map<string, int**>      currentWordRates,
-	unordered_map<string, double**>   historicWordRates,
+	unordered_map<string, Grid<double>>      currentWordRates,
+	unordered_map<string, Grid<double>>   historicWordRates,
 	double**                          localWordRates,
 	double                            globalWordRate,
 	double                            SPACIAL_DEVIATION_THRESHOLD,
 	double                            TEMPORAL_DEVIATION_THRESHOLD)
 {
 	for (const auto &pair : currentWordRates)
-		{
+	{
+		const auto &word = pair.first;
 		// detect events!! and adjust historic rates
 		for (int i = 0; i < MAP_WIDTH; i++)
 		{
