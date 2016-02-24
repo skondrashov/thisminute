@@ -80,42 +80,48 @@ int main(int argc, char* argv[])
 			delete dbEvent;
 		}
 
-		string query = "SELECT id, word, UNIX_TIMESTAMP(start_time) AS unix_start, UNIX_TIMESTAMP(end_time) AS unix_end FROM NYC.superevents WHERE (";
+		string query = "SELECT id, word, UNIX_TIMESTAMP(start_time) AS unix_start, UNIX_TIMESTAMP(end_time) AS unix_end, ";
+
+		for (int i = 0; i < MAP_WIDTH*MAP_HEIGHT; i++)
+		{
+			query += "`" + to_string(i) + "`,";
+		}
+		query.pop_back(); // take the extra comma out
+		query += " FROM NYC.superevents WHERE (";
 
 		// check if event is within superevent location bounds
-
 		bool left_bound = x==0, right_bound  = x==(MAP_WIDTH-1);
 		bool top_bound  = y==0, bottom_bound = y==(MAP_HEIGHT-1);
 
 		vector<int> col;
 
-		col.push_back(x*MAP_WIDTH+y);
+		col.push_back(y*MAP_WIDTH+x);
 
 		if (!left_bound)
 		{
-			col.push_back((x-1)*MAP_WIDTH+y);
+			col.push_back(y*MAP_WIDTH+(x-1));
 
 			if (!top_bound)
-				col.push_back((x-1)*MAP_WIDTH+(y-1));
+				col.push_back((y-1)*MAP_WIDTH+(x-1));
 			if (!bottom_bound)
-				col.push_back((x-1)*MAP_WIDTH+(y+1));
+				col.push_back((y+1)*MAP_WIDTH+(x-1));
 		}
 
 		if (!right_bound)
 		{
-			col.push_back((x+1)*MAP_WIDTH+y);
+			col.push_back(y*MAP_WIDTH+(x+1));
 
 			if(!top_bound)
-				col.push_back((x+1)*MAP_WIDTH+(y-1));
+				col.push_back((y-1)*MAP_WIDTH+(x+1));
 			if(!bottom_bound)
-				col.push_back((x+1)*MAP_WIDTH+(y+1));
+				col.push_back((y+1)*MAP_WIDTH+(x+1));
 		}
 
 		if(!top_bound)
-			col.push_back(x*MAP_WIDTH+(y-1));
+			col.push_back((y-1)*MAP_WIDTH+x);
 
 		if(!bottom_bound)
-			col.push_back(x*MAP_WIDTH+(y+1));
+			col.push_back((y+1)*MAP_WIDTH+x);
 
 		for (unsigned int i = 0; i < col.size(); i++)
 		{
@@ -128,6 +134,8 @@ int main(int argc, char* argv[])
 		query += ") AND (";
 		query += "start_time < FROM_UNIXTIME(" + to_string(eventTime+LOOKAHEAD_TIME) + ") AND end_time >  FROM_UNIXTIME(" + to_string(eventTime-LOOKBACK_TIME) + ")";
 		query += ") AND word = '" + word + "';";
+
+		cout << word << " " << y*MAP_WIDTH+x << '\n';
 
 		Superevent superevent;
 		superevent.start_time = superevent.end_time = eventTime;
@@ -156,7 +164,7 @@ int main(int argc, char* argv[])
 				connection->createStatement()->execute(
 						"UPDATE NYC.superevents SET start_time=FROM_UNIXTIME(" + to_string(superevent.start_time) + "), " +
 						"end_time=FROM_UNIXTIME(" + to_string(superevent.end_time) + "), " +
-						"`" + to_string(x*MAP_WIDTH+y) + "`=1 " +
+						"`" + to_string(y*MAP_WIDTH+x) + "`=1 " +
 						"WHERE id=" + to_string(superevent.id) + ";"
 					);
 			}
@@ -183,7 +191,7 @@ int main(int argc, char* argv[])
 						// combine all of the cells in the detected superevent into the new merged superevent
 						for (int i = 0; i < MAP_WIDTH * MAP_HEIGHT; i++)
 						{
-							string col = "`" + to_string(i) + "`";
+							string col = to_string(i);
 
 							// ensures you dont overwrite 1's in the merged superevent with 0's from the current superevent
 							if (dbMatchingSuperevents->getString(col) == "1")
@@ -195,7 +203,6 @@ int main(int argc, char* argv[])
 						connection->createStatement()->execute(query);
 					}
 				}
-
 
 				string query = "INSERT INTO NYC.superevents (word, start_time, end_time,";
 				for (int i = 0; i < MAP_WIDTH*MAP_HEIGHT; i++)
@@ -240,7 +247,7 @@ int main(int argc, char* argv[])
 		superevent.id = stoi(dbSuperevents->getString("id"));
 		int eventLeftBound = 0, eventRightBound = 9, eventBottomBound = 0, eventTopBound = 9;
 		string query =
-				"INSERT INTO NYC.event_tweets SELECT " + to_string(superevent.id) + " AS id, time, lon, lat, exact, user, text FROM NYC.tweets WHERE " +
+				"INSERT IGNORE INTO NYC.event_tweets SELECT " + to_string(superevent.id) + " AS id, time, lon, lat, exact, user, text FROM NYC.tweets WHERE " +
 				"(time BETWEEN FROM_UNIXTIME(" + to_string(superevent.start_time-LOOKBACK_TIME) + ") AND FROM_UNIXTIME(" + to_string(superevent.end_time+LOOKAHEAD_TIME) + ")) " +
 				"AND (lon BETWEEN " + to_string(eventLeftBound * RESOLUTION + WEST_BOUNDARY) + " AND " + to_string((eventRightBound+1) * RESOLUTION + WEST_BOUNDARY) + ") " +
 				"AND (lat BETWEEN " + to_string(eventBottomBound * RESOLUTION + SOUTH_BOUNDARY) + " AND " + to_string((eventTopBound+1) * RESOLUTION + SOUTH_BOUNDARY) + ") " +
