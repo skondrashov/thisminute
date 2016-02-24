@@ -61,6 +61,16 @@ unordered_map <string, vector<vector<int>>> getWordCountPerCell(unordered_map<in
 // load historic word usage rates per cell
 unordered_map<string, vector<vector<double>>> getHistoricWordRates();
 
+void detectEvents(
+	unordered_map<string, int**>      currentWordRates,
+	unordered_map<string, double**>   historicWordRates,
+	double**                          localWordRates,
+	double                            globalWordRate,
+	int                               MAP_WIDTH,
+	int                               MAP_HEIGHT,
+	double                            SPACIAL_DEVIATION_THRESHOLD,
+	double                            TEMPORAL_DEVIATION_THRESHOLD)
+
 double** gaussBlur(double** unblurred_array, int width, int height);
 
 void Initialize()
@@ -468,4 +478,36 @@ unordered_map<string, vector<vector<double>>> getHistoricWordRates()
 	}
 
 	return historicWordRates;
+}
+
+void detectEvents(
+	unordered_map<string, int**>      currentWordRates,
+	unordered_map<string, double**>   historicWordRates,
+	double**                          localWordRates,
+	double                            globalWordRate,
+	int                               MAP_WIDTH,
+	int                               MAP_HEIGHT,
+	double                            SPACIAL_DEVIATION_THRESHOLD,
+	double                            TEMPORAL_DEVIATION_THRESHOLD)
+{
+	for (const auto &pair : currentWordRates)
+		{
+		// detect events!! and adjust historic rates
+		for (int i = 0; i < MAP_WIDTH; i++)
+		{
+			for (int j = 0; j < MAP_HEIGHT; j++)
+			{
+				if (
+					// checks if a word is a appearing with a greater percentage in one cell than in other cells in the city grid
+					(localWordRates[i][j] > globalWordRate + SPACIAL_DEVIATION_THRESHOLD) &&
+					// checks if a word is appearing more frequently in a cell than it has historically in that cell
+					(localWordRates[i][j] > historicWordRates[word][i][j] + TEMPORAL_DEVIATION_THRESHOLD))
+					{
+					connection->createStatement()->execute(
+						"INSERT INTO NYC.events (word, x, y) VALUES ('" + word + "'," + to_string(i) + "," + to_string(j) + ");"
+					);
+					}
+				}
+			}
+		}
 }
