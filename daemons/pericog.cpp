@@ -21,11 +21,12 @@
 #include <vector>
 #include <map>
 #include <memory>
-#include <pair>
+#include <utility>
 
 namespace sql {
 	class Connection;
 	class Driver;
+	class ResultSet;
 }
 
 using namespace std;
@@ -57,7 +58,7 @@ template<typename T> Grid<T> makeGrid();
 template<typename T> void getArg(T &arg, string section, string option);
 
 
-map<int, Tweet> getUserIdToTweetMap();
+unordered_map<int, Tweet> getUserIdToTweetMap();
 
 // refine each tweet into usable information
 Grid<int> refineTweetsAndGetTweetCountPerCell(unordered_map<int, Tweet> &userIdTweetMap);
@@ -147,7 +148,7 @@ int main(int argc, char* argv[])
 		Grid<double> localWordRateByCell;
 		double globalWordRate;
 
-		tie(localWordRateByCell, globalWordRate) =  getCurrentLocalAndGlobalRatesForWord(currentCountByCell, tweetCountPerCell);
+		tie(localWordRateByCell, globalWordRate) = getCurrentLocalAndGlobalRatesForWord(currentCountByCell, tweetCountPerCell);
 
 		double globalDeviation;
 		for (int i = 0; i < MAP_WIDTH; i++)
@@ -176,7 +177,7 @@ int main(int argc, char* argv[])
 					(localWordRateByCell[i][j] > historicWordRates[word][i][j] + TEMPORAL_PERCENTAGE_THRESHOLD) &&
 					(localWordRateByCell[i][j] > historicWordRates[word][i][j] + globalDeviation * SPACIAL_DEVIATION_THRESHOLD) &&
 					(localWordRateByCell[i][j] > historicWordRates[word][i][j] + historicDeviations[word][i][j] * TEMPORAL_DEVIATION_THRESHOLD)
-				)
+					)
 				{
 					connection->createStatement()->execute(
 						"INSERT INTO NYC.events (word, x, y) VALUES ('" + word + "'," + to_string(i) + "," + to_string(j) + ");"
@@ -184,6 +185,7 @@ int main(int argc, char* argv[])
 				}
 			}
 		}
+	}
 
 
 
@@ -252,79 +254,7 @@ template<typename T> Grid<T> makeGrid()
 	return grid;
 }
 
-// returns pointer to a gaussian blurred 2d array with given dimensions
-Grid<double> gaussBlur(const Grid<double> &unblurred_array)
-{
-	static const double gaussValueMatrix[3] = {0.22508352, 0.11098164, 0.05472157}; // mid, perp, diag
 
-	auto& width = MAP_WIDTH;
-	auto& height = MAP_HEIGHT;
-
-	// declare a new 2d array to store the blurred values
-	auto blurred_array = makeGrid<double>();
-
-	// for each value in the unblurred array, sum the products of that value and each value in the gaussValueMatrix
-
-	for(int j = 0; j < height; j++)
-	{
-		for(int i = 0; i < width; i++)
-		{
-			bool left_bound = i==0, right_bound = i==(width-1);
-			bool top_bound = j==0, bottom_bound = j==(height-1);
-
-			// blur the middle
-			blurred_array[i][j] += unblurred_array[i][j] * gaussValueMatrix[0];
-
-			if (!left_bound)
-			{
-				// blur the middle left
-				blurred_array[i][j] += unblurred_array[i-1][j] * gaussValueMatrix[1];
-
-				if (!top_bound)
-				{
-					//blur the top left
-					blurred_array[i][j] += unblurred_array[i-1][j-1] * gaussValueMatrix[2];
-				}
-				if (!bottom_bound)
-				{
-					// blur the bottom left
-					blurred_array[i][j] += unblurred_array[i-1][j+1] * gaussValueMatrix[2];
-				}
-			}
-
-			if (!right_bound)
-			{
-				// blur the middle right
-				blurred_array[i][j] += unblurred_array[i+1][j] * gaussValueMatrix[1];
-
-				if(!top_bound)
-				{
-				// blur the top right
-				blurred_array[i][j] += unblurred_array[i+1][j-1] * gaussValueMatrix[2];
-				}
-				if(!bottom_bound)
-				{
-				// blur the bottom right
-				blurred_array[i][j] += unblurred_array[i+1][j+1] * gaussValueMatrix[2];
-				}
-			}
-
-			if(!top_bound)
-			{
-				// blur the top middle
-				blurred_array[i][j] += unblurred_array[i][j-1] * gaussValueMatrix[1];
-			}
-
-			if(!bottom_bound)
-			{
-				// blur the bottom middle
-				blurred_array[i][j] += unblurred_array[i][j+1] * gaussValueMatrix[1];
-			}
-		}
-	}
-
-	return blurred_array;
-}
 
 template<typename T> void getArg(T &arg, string section, string option)
 {
@@ -338,7 +268,7 @@ unordered_map<int, Tweet> getUserIdToTweetMap()
 {
 	unordered_map<int, Tweet> tweets;
 
-	unique_ptr<sql::ResultSet> dbTweets(connection.createStatement()->executeQuery(
+	unique_ptr<sql::ResultSet> dbTweets(connection->createStatement()->executeQuery(
 		"SELECT * FROM NYC.tweets WHERE time > FROM_UNIXTIME(" + to_string(LOOKBACK_TIME) + ");")
 		);
 
@@ -479,7 +409,7 @@ pair<unordered_map<string, Grid<double>>, unordered_map<string, Grid<double>>> g
 }
 
 
-void detectEvents(
+void detectEvent(
 	const unordered_map<string, Grid<int>> &currentWordCountPerCell,
 	const Grid<int> 
 	unordered_map<string, Grid<double>>      currentWordRates,
@@ -555,4 +485,78 @@ pair<Grid<double>, double> getCurrentLocalAndGlobalRatesForWord(const Grid<int> 
 	globalWordRate /= totalTweets;
 
 	return { move(localWordRates), globalWordRate };
+}
+
+// returns pointer to a gaussian blurred 2d array with given dimensions
+Grid<double> gaussBlur(const Grid<double> &unblurred_array)
+{
+	static const double gaussValueMatrix[3] = { 0.22508352, 0.11098164, 0.05472157 }; // mid, perp, diag
+
+	auto& width = MAP_WIDTH;
+	auto& height = MAP_HEIGHT;
+
+	// declare a new 2d array to store the blurred values
+	auto blurred_array = makeGrid<double>();
+
+	// for each value in the unblurred array, sum the products of that value and each value in the gaussValueMatrix
+
+	for (int j = 0; j < height; j++)
+	{
+		for (int i = 0; i < width; i++)
+		{
+			bool left_bound = i == 0, right_bound = i == (width - 1);
+			bool top_bound = j == 0, bottom_bound = j == (height - 1);
+
+			// blur the middle
+			blurred_array[i][j] += unblurred_array[i][j] * gaussValueMatrix[0];
+
+			if (!left_bound)
+			{
+				// blur the middle left
+				blurred_array[i][j] += unblurred_array[i - 1][j] * gaussValueMatrix[1];
+
+				if (!top_bound)
+				{
+					//blur the top left
+					blurred_array[i][j] += unblurred_array[i - 1][j - 1] * gaussValueMatrix[2];
+				}
+				if (!bottom_bound)
+				{
+					// blur the bottom left
+					blurred_array[i][j] += unblurred_array[i - 1][j + 1] * gaussValueMatrix[2];
+				}
+			}
+
+			if (!right_bound)
+			{
+				// blur the middle right
+				blurred_array[i][j] += unblurred_array[i + 1][j] * gaussValueMatrix[1];
+
+				if (!top_bound)
+				{
+					// blur the top right
+					blurred_array[i][j] += unblurred_array[i + 1][j - 1] * gaussValueMatrix[2];
+				}
+				if (!bottom_bound)
+				{
+					// blur the bottom right
+					blurred_array[i][j] += unblurred_array[i + 1][j + 1] * gaussValueMatrix[2];
+				}
+			}
+
+			if (!top_bound)
+			{
+				// blur the top middle
+				blurred_array[i][j] += unblurred_array[i][j - 1] * gaussValueMatrix[1];
+			}
+
+			if (!bottom_bound)
+			{
+				// blur the bottom middle
+				blurred_array[i][j] += unblurred_array[i][j + 1] * gaussValueMatrix[1];
+			}
+		}
+	}
+
+	return blurred_array;
 }
