@@ -682,6 +682,10 @@ void detectEvents(const unordered_map<string, Grid<int>> &currentWordCountPerCel
 		threads.emplace_back(detectEventForWord);
 	}
 
+	for (int i = 0; i < THREAD_COUNT; i++)
+	{
+		threads[i].join();
+	}
 
 
 }
