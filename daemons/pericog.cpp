@@ -34,158 +34,159 @@ using namespace std;
 template<class T>
 using Grid = vector<vector<T>>;
 
-struct Tweet
-{
-	Tweet(int x, int y, string text) :
-		x(x), y(y), text(text) {}
-
-	int x, y;
-	string text;
-};
-
-int LOOKBACK_TIME, RECALL_SCOPE, PERIOD, PERIODS_IN_HISTORY;
-int MAP_HEIGHT, MAP_WIDTH;
-
-double WEST_BOUNDARY, EAST_BOUNDARY, NORTH_BOUNDARY, SOUTH_BOUNDARY, RESOLUTION, SPACIAL_DEVIATION_THRESHOLD, TEMPORAL_DEVIATION_THRESHOLD;
-
-
-sql::Connection* connection;
-
-
-
-unordered_set<string> explode(string const &s);
-template<typename T> Grid<T> makeGrid();
-template<typename T> void getArg(T &arg, string section, string option);
-
-
-unordered_map<int, Tweet> getUserIdToTweetMap();
-
-// refine each tweet into usable information
-Grid<int> refineTweetsAndGetTweetCountPerCell(unordered_map<int, Tweet> &userIdTweetMap);
-
-// load the number of times each word was used in every cell
-unordered_map <string, Grid<int>> getCurrentWordCountPerCell(const unordered_map<int, Tweet> &userIdTweetMap);
-
-// load historic word usage rates per cell
-pair<unordered_map<string, Grid<double>>, unordered_map<string, Grid<double>>> getHistoricWordRatesAndDeviation();
-
-pair<Grid<double>, double> getCurrentLocalAndGlobalRatesForWord(const Grid<int> &wordCountPerCell, const Grid<int> &tweetCountPerCell);
-
-void detectEvents(
-	unordered_map<string, Grid<int>>      currentWordRates,
-	unordered_map<string, Grid<double>>   historicWordRates,
-	double**                          localWordRates,
-	double                            globalWordRate,
-	double                            SPACIAL_DEVIATION_THRESHOLD,
-	double                            TEMPORAL_DEVIATION_THRESHOLD);
-
-Grid<double> gaussBlur(const Grid<double> &unblurred_array);
-
-void Initialize()
-{
-	getArg(RECALL_SCOPE,                 "timing",    "history");
-	getArg(PERIOD,                       "timing",    "period");
-	getArg(WEST_BOUNDARY,                "grid",      "west");
-	getArg(EAST_BOUNDARY,                "grid",      "east");
-	getArg(SOUTH_BOUNDARY,               "grid",      "south");
-	getArg(NORTH_BOUNDARY,               "grid",      "north");
-	getArg(RESOLUTION,                   "grid",      "cell_size");
-	getArg(SPACIAL_DEVIATION_THRESHOLD,  "threshold", "spacial");
-	getArg(TEMPORAL_DEVIATION_THRESHOLD, "threshold", "temporal");
-
-	MAP_WIDTH  = static_cast<int>(round(abs((WEST_BOUNDARY -  EAST_BOUNDARY)  / RESOLUTION)));
-	MAP_HEIGHT = static_cast<int>(round(abs((SOUTH_BOUNDARY - NORTH_BOUNDARY) / RESOLUTION)));
-	PERIODS_IN_HISTORY = RECALL_SCOPE / PERIOD;
-}
-
-int main(int argc, char* argv[])
-{
-	LOOKBACK_TIME = atoi(argv[1]);
-
-	Initialize();
-
-	// create a connection
-	unique_ptr<sql::Driver> driver(get_driver_instance());
+namespace FUCK {
+	struct Tweet
 	{
-		ifstream passwordFile("/srv/etc/auth/daemons/pericog.pw");
-		auto password = static_cast<ostringstream&>(ostringstream{} << passwordFile.rdbuf()).str();
-		connection = driver->connect("tcp://127.0.0.1:3306", "pericog", password);
+		Tweet(int x, int y, string text) :
+			x(x), y(y), text(text) {}
+
+		int x, y;
+		string text;
+	};
+
+	int LOOKBACK_TIME, RECALL_SCOPE, PERIOD, PERIODS_IN_HISTORY;
+	int MAP_HEIGHT, MAP_WIDTH;
+
+	double WEST_BOUNDARY, EAST_BOUNDARY, NORTH_BOUNDARY, SOUTH_BOUNDARY, RESOLUTION, SPACIAL_DEVIATION_THRESHOLD, TEMPORAL_DEVIATION_THRESHOLD;
+
+
+	sql::Connection* connection;
+
+
+
+	unordered_set<string> explode(string const &s);
+	template<typename T> Grid<T> makeGrid();
+	template<typename T> void getArg(T &arg, string section, string option);
+
+
+	unordered_map<int, Tweet> getUserIdToTweetMap();
+
+	// refine each tweet into usable information
+	Grid<int> refineTweetsAndGetTweetCountPerCell(unordered_map<int, Tweet> &userIdTweetMap);
+
+	// load the number of times each word was used in every cell
+	unordered_map <string, Grid<int>> getCurrentWordCountPerCell(const unordered_map<int, Tweet> &userIdTweetMap);
+
+	// load historic word usage rates per cell
+	pair<unordered_map<string, Grid<double>>, unordered_map<string, Grid<double>>> getHistoricWordRatesAndDeviation();
+
+	pair<Grid<double>, double> getCurrentLocalAndGlobalRatesForWord(const Grid<int> &wordCountPerCell, const Grid<int> &tweetCountPerCell);
+
+	void detectEvents(
+		unordered_map<string, Grid<int>>      currentWordRates,
+		unordered_map<string, Grid<double>>   historicWordRates,
+		double**                          localWordRates,
+		double                            globalWordRate,
+		double                            SPACIAL_DEVIATION_THRESHOLD,
+		double                            TEMPORAL_DEVIATION_THRESHOLD);
+
+	Grid<double> gaussBlur(const Grid<double> &unblurred_array);
+
+	void Initialize()
+	{
+		getArg(RECALL_SCOPE, "timing", "history");
+		getArg(PERIOD, "timing", "period");
+		getArg(WEST_BOUNDARY, "grid", "west");
+		getArg(EAST_BOUNDARY, "grid", "east");
+		getArg(SOUTH_BOUNDARY, "grid", "south");
+		getArg(NORTH_BOUNDARY, "grid", "north");
+		getArg(RESOLUTION, "grid", "cell_size");
+		getArg(SPACIAL_DEVIATION_THRESHOLD, "threshold", "spacial");
+		getArg(TEMPORAL_DEVIATION_THRESHOLD, "threshold", "temporal");
+
+		MAP_WIDTH = static_cast<int>(round(abs((WEST_BOUNDARY - EAST_BOUNDARY) / RESOLUTION)));
+		MAP_HEIGHT = static_cast<int>(round(abs((SOUTH_BOUNDARY - NORTH_BOUNDARY) / RESOLUTION)));
+		PERIODS_IN_HISTORY = RECALL_SCOPE / PERIOD;
 	}
 
-	// save all tweets since the specified time to an array
-	auto userIdToTweetMap = getUserIdToTweetMap(connection.get());
-
-	auto tweetCountPerCell = refineTweetsAndGetTweetCountPerCell(userIdToTweetMap);
-
-	auto currentWordCountPerCell = getCurrentWordCountPerCell(userIdToTweetMap);
-
-	string query = "INSERT INTO NYC.words_seen (time,word) VALUES ";
-	for (const auto &pair : currentWordCountPerCell)
+	int main(int argc, char* argv[])
 	{
-		query += "(FROM_UNIXTIME(" + to_string(LOOKBACK_TIME) + "),'" + pair.first + "'),";
-	}
-	query.pop_back(); // take the extra comma out
-	query += " ON DUPLICATE KEY UPDATE last_seen=FROM_UNIXTIME(" + to_string(LOOKBACK_TIME) + ");"
-	connection->createStatement()->execute(query);
+		LOOKBACK_TIME = atoi(argv[1]);
 
-	unordered_map<string, Grid<double>> historicWordRates, historicDeviations;
-	tie(historicWordRates, historicDeviations) = getHistoricWordRatesAndDeviation();
+		Initialize();
 
-	// consider historic rates that are no longer in use as being currently in use at a rate of 0
-	for (const auto &pair : historicWordRates)
-	{
-		const auto& word = pair.first;
-		if (!currentWordCountPerCell.count(word))
-			currentWordCountPerCell[word] = makeGrid<int>();
-	}
-
-	for (const auto &pair : currentWordCountPerCell)
-	{
-		const auto& word = pair.first;
-		const auto &currentCountByCell = pair.second;
-
-		// calculate the usage rate of each word at the current time in each cell and the average regional use
-		Grid<double> localWordRateByCell;
-		double globalWordRate;
-
-		tie(localWordRateByCell, globalWordRate) = getCurrentLocalAndGlobalRatesForWord(currentCountByCell, tweetCountPerCell);
-
-		double globalDeviation;
-		for (int i = 0; i < MAP_WIDTH; i++)
+		// create a connection
+		sql::Driver* driver(get_driver_instance());
 		{
-			for (int j = 0; j < MAP_HEIGHT; j++)
-			{
-				globalDeviation += pow(localWordRateByCell[i][j] - globalWordRate, 2);
-			}
+			ifstream passwordFile("/srv/etc/auth/daemons/pericog.pw");
+			auto password = static_cast<ostringstream&>(ostringstream{} << passwordFile.rdbuf()).str();
+			connection = driver->connect("tcp://127.0.0.1:3306", "pericog", password);
 		}
-		globalDeviation /= MAP_WIDTH * MAP_HEIGHT;
-		globalDeviation = pow(globalDeviation, 0.5);
 
-		// blur the rates over cell borders to reduce noise
-		localWordRateByCell = gaussBlur(localWordRateByCell);
+		// save all tweets since the specified time to an array
+		auto userIdToTweetMap = getUserIdToTweetMap();
 
-		// detect events!! and adjust historic rates
-		for (int i = 0; i < MAP_WIDTH; i++)
+		auto tweetCountPerCell = refineTweetsAndGetTweetCountPerCell(userIdToTweetMap);
+
+		auto currentWordCountPerCell = getCurrentWordCountPerCell(userIdToTweetMap);
+
+		string query = "INSERT INTO NYC.words_seen (time,word) VALUES ";
+		for (const auto &pair : currentWordCountPerCell)
 		{
-			for (int j = 0; j < MAP_HEIGHT; j++)
+			query += "(FROM_UNIXTIME(" + to_string(LOOKBACK_TIME) + "),'" + pair.first + "'),";
+		}
+		query.pop_back(); // take the extra comma out
+		query += " ON DUPLICATE KEY UPDATE last_seen=FROM_UNIXTIME(" + to_string(LOOKBACK_TIME) + ");";
+		connection->createStatement()->execute(query);
+
+		unordered_map<string, Grid<double>> historicWordRates, historicDeviations;
+		tie(historicWordRates, historicDeviations) = getHistoricWordRatesAndDeviation();
+
+		// consider historic rates that are no longer in use as being currently in use at a rate of 0
+		for (const auto &pair : historicWordRates)
+		{
+			const auto& word = pair.first;
+			if (!currentWordCountPerCell.count(word))
+				currentWordCountPerCell[word] = makeGrid<int>();
+		}
+
+		for (const auto &pair : currentWordCountPerCell)
+		{
+			const auto& word = pair.first;
+			const auto &currentCountByCell = pair.second;
+
+			// calculate the usage rate of each word at the current time in each cell and the average regional use
+			Grid<double> localWordRateByCell;
+			double globalWordRate;
+
+			tie(localWordRateByCell, globalWordRate) = getCurrentLocalAndGlobalRatesForWord(currentCountByCell, tweetCountPerCell);
+
+			double globalDeviation;
+			for (int i = 0; i < MAP_WIDTH; i++)
 			{
-				double SPACIAL_PERCENTAGE_THRESHOLD, TEMPORAL_PERCENTAGE_THRESHOLD;
-				if (
-					// checks if a word is a appearing with a greater percentage in one cell than in other cells in the city grid
-					(localWordRateByCell[i][j] > globalWordRate + SPACIAL_PERCENTAGE_THRESHOLD) &&
-					// checks if a word is appearing more frequently in a cell than it has historically in that cell
-					(localWordRateByCell[i][j] > historicWordRates[word][i][j] + TEMPORAL_PERCENTAGE_THRESHOLD) &&
-					(localWordRateByCell[i][j] > historicWordRates[word][i][j] + globalDeviation * SPACIAL_DEVIATION_THRESHOLD) &&
-					(localWordRateByCell[i][j] > historicWordRates[word][i][j] + historicDeviations[word][i][j] * TEMPORAL_DEVIATION_THRESHOLD)
-					)
+				for (int j = 0; j < MAP_HEIGHT; j++)
 				{
-					connection->createStatement()->execute(
-						"INSERT INTO NYC.events (word, x, y) VALUES ('" + word + "'," + to_string(i) + "," + to_string(j) + ");"
-						);
+					globalDeviation += pow(localWordRateByCell[i][j] - globalWordRate, 2);
+				}
+			}
+			globalDeviation /= MAP_WIDTH * MAP_HEIGHT;
+			globalDeviation = pow(globalDeviation, 0.5);
+
+			// blur the rates over cell borders to reduce noise
+			localWordRateByCell = gaussBlur(localWordRateByCell);
+
+			// detect events!! and adjust historic rates
+			for (int i = 0; i < MAP_WIDTH; i++)
+			{
+				for (int j = 0; j < MAP_HEIGHT; j++)
+				{
+					double SPACIAL_PERCENTAGE_THRESHOLD, TEMPORAL_PERCENTAGE_THRESHOLD;
+					if (
+						// checks if a word is a appearing with a greater percentage in one cell than in other cells in the city grid
+						(localWordRateByCell[i][j] > globalWordRate + SPACIAL_PERCENTAGE_THRESHOLD) &&
+						// checks if a word is appearing more frequently in a cell than it has historically in that cell
+						(localWordRateByCell[i][j] > historicWordRates[word][i][j] + TEMPORAL_PERCENTAGE_THRESHOLD) &&
+						(localWordRateByCell[i][j] > historicWordRates[word][i][j] + globalDeviation * SPACIAL_DEVIATION_THRESHOLD) &&
+						(localWordRateByCell[i][j] > historicWordRates[word][i][j] + historicDeviations[word][i][j] * TEMPORAL_DEVIATION_THRESHOLD)
+						)
+					{
+						connection->createStatement()->execute(
+							"INSERT INTO NYC.events (word, x, y) VALUES ('" + word + "'," + to_string(i) + "," + to_string(j) + ");"
+							);
+					}
 				}
 			}
 		}
-	}
 
 
 
@@ -227,336 +228,337 @@ int main(int argc, char* argv[])
 	//query += ") VALUES ";
 
 	//connection->createStatement()->execute(query);
-}
 
-unordered_set<string> explode(string const &s)
-{
-	unordered_set<string> result;
-	istringstream iss(s);
-
-	for (string token; getline(iss, token, ' '); )
-	{
-		transform(token.begin(), token.end(), token.begin(), ::tolower);
-		result.insert(token);
+		return 0;
 	}
 
-	return result;
-}
-
-template<typename T> Grid<T> makeGrid()
-{
-	Grid<T> grid(MAP_WIDTH);
-	for (int i = 0; i < width; i++)
+	unordered_set<string> explode(string const &s)
 	{
-		grid[i] = vector<T>(MAP_HEIGHT);
-	}
+		unordered_set<string> result;
+		istringstream iss(s);
 
-	return grid;
-}
-
-
-
-template<typename T> void getArg(T &arg, string section, string option)
-{
-	static INIReader reader("/srv/etc/config/daemons.ini");
-	static double errorValue = -9999;
-	arg = (T)reader.GetReal(section, option, errorValue);
-	assert(arg != errorValue);
-}
-
-unordered_map<int, Tweet> getUserIdToTweetMap()
-{
-	unordered_map<int, Tweet> tweets;
-
-	unique_ptr<sql::ResultSet> dbTweets(connection->createStatement()->executeQuery(
-		"SELECT * FROM NYC.tweets WHERE time > FROM_UNIXTIME(" + to_string(LOOKBACK_TIME) + ");")
-		);
-
-	while (dbTweets->next())
-	{
-		const double lon = stod(dbTweets->getString("lon"));
-		const double lat = stod(dbTweets->getString("lat"));
-
-		// if a tweet is located outside of the grid, ignore it and go to the next tweet
-		if (lon < WEST_BOUNDARY || lon > EAST_BOUNDARY
-			|| lat < SOUTH_BOUNDARY || lat > NORTH_BOUNDARY)
-			continue;
-
-		int userId = stoi(dbTweets->getString("user"));
-
-		auto tweetIter = tweets.find(userId);
-		if (tweetIter == tweets.end())
+		for (string token; getline(iss, token, ' '); )
 		{
-			const int
-				x = floor((lon - WEST_BOUNDARY) / RESOLUTION),
-				y = floor((lat - SOUTH_BOUNDARY) / RESOLUTION);
-
-			Tweet tweet(x, y, dbTweets->getString("text"));
-
-			tweets.insert({ userId, tweet });
+			transform(token.begin(), token.end(), token.begin(), ::tolower);
+			result.insert(token);
 		}
-		else
+
+		return result;
+	}
+
+	template<typename T> Grid<T> makeGrid()
+	{
+		Grid<T> grid(MAP_WIDTH);
+		for (int i = 0; i < MAP_WIDTH; i++)
+			grid[i] = vector<T>(MAP_HEIGHT);
+
+		return grid;
+	}
+
+
+
+	template<typename T> void getArg(T &arg, string section, string option)
+	{
+		static INIReader reader("/srv/etc/config/daemons.ini");
+		static double errorValue = -9999;
+		arg = (T)reader.GetReal(section, option, errorValue);
+		assert(arg != errorValue);
+	}
+
+	unordered_map<int, Tweet> getUserIdToTweetMap()
+	{
+		unordered_map<int, Tweet> tweets;
+
+		unique_ptr<sql::ResultSet> dbTweets(connection->createStatement()->executeQuery(
+			"SELECT * FROM NYC.tweets WHERE time > FROM_UNIXTIME(" + to_string(LOOKBACK_TIME) + ");")
+			);
+
+		while (dbTweets->next())
 		{
-			tweetIter->second.text += " " + dbTweets->getString("text");
+			const double lon = stod(dbTweets->getString("lon"));
+			const double lat = stod(dbTweets->getString("lat"));
+
+			// if a tweet is located outside of the grid, ignore it and go to the next tweet
+			if (lon < WEST_BOUNDARY || lon > EAST_BOUNDARY
+				|| lat < SOUTH_BOUNDARY || lat > NORTH_BOUNDARY)
+				continue;
+
+			int userId = stoi(dbTweets->getString("user"));
+
+			auto tweetIter = tweets.find(userId);
+			if (tweetIter == tweets.end())
+			{
+				const int
+					x = floor((lon - WEST_BOUNDARY) / RESOLUTION),
+					y = floor((lat - SOUTH_BOUNDARY) / RESOLUTION);
+
+				Tweet tweet(x, y, dbTweets->getString("text"));
+
+				tweets.insert({ userId, tweet });
+			}
+			else
+			{
+				tweetIter->second.text += " " + dbTweets->getString("text");
+			}
 		}
+
+		return tweets;
 	}
 
-	return tweets;
-}
-
-// refine each tweet into usable information
-Grid<int> refineTweetsAndGetTweetCountPerCell(unordered_map<int, Tweet> &userIdTweetMap)
-{
-	unordered_map<string, Grid<int>> wordCountPerCell;
-	auto tweetsPerCell = makeGrid<int>();
-
-	for (auto &pair : userIdTweetMap)
+	// refine each tweet into usable information
+	Grid<int> refineTweetsAndGetTweetCountPerCell(unordered_map<int, Tweet> &userIdTweetMap)
 	{
-		auto &tweet = pair.second;
+		unordered_map<string, Grid<int>> wordCountPerCell;
+		auto tweetsPerCell = makeGrid<int>();
 
-		// remove mentions and URLs
-		regex mentionsAndUrls("((\\B@)|(\\bhttps?:\\/\\/))[^\\s]+");
-		tweet.text = regex_replace(tweet.text, mentionsAndUrls, string(" "));
-
-		// remove all non-word characters
-		regex nonWord("[^\\w]+");
-		tweet.text = regex_replace(tweet.text, nonWord, string(" "));
-
-		tweetsPerCell[tweet.x][tweet.y]++;
-	}
-
-	return tweetsPerCell;
-}
-
-// refine each tweet into usable information
-unordered_map <string, Grid<int>> getCurrentWordCountPerCell(const unordered_map<int, Tweet> &userIdTweetMap)
-{
-	unordered_map<string, Grid<int>> wordCountPerCell;
-
-	for (const auto &pair : userIdTweetMap)
-	{
-		auto tweet = pair.second;
-
-		auto words = explode(tweet.text);
-		for (const auto &word : words)
+		for (auto &pair : userIdTweetMap)
 		{
-			if (!wordCountPerCell.count(word))
-				wordCountPerCell[word] = makeGrid<double>();
+			auto &tweet = pair.second;
 
-			wordCountPerCell[word][tweet.x][tweet.y]++;
+			// remove mentions and URLs
+			regex mentionsAndUrls("((\\B@)|(\\bhttps?:\\/\\/))[^\\s]+");
+			tweet.text = regex_replace(tweet.text, mentionsAndUrls, string(" "));
+
+			// remove all non-word characters
+			regex nonWord("[^\\w]+");
+			tweet.text = regex_replace(tweet.text, nonWord, string(" "));
+
+			tweetsPerCell[tweet.x][tweet.y]++;
 		}
+
+		return tweetsPerCell;
 	}
 
-	// the '&' character is interpreted as the word "amp"... squelch for now
-	wordCountPerCell.erase("amp");
-
-	// the word ' ' shows up sometimes... squelch for now
-	wordCountPerCell.erase(" ");
-
-	return wordCountPerCell;
-}
-
-pair<unordered_map<string, Grid<double>>, unordered_map<string, Grid<double>>> getHistoricWordRatesAndDeviation()
-{
-	unordered_map<string, Grid<double>> historicWordRates, historicDeviations;
-
-	unique_ptr<sql::ResultSet> dbWordsSeen(connection->createStatement()->executeQuery(
-		"SELECT * FROM NYC.words_seen;"
-		));
-
-	while (dbWordsSeen->next())
+	// refine each tweet into usable information
+	unordered_map <string, Grid<int>> getCurrentWordCountPerCell(const unordered_map<int, Tweet> &userIdTweetMap)
 	{
-		const auto word = dbWordsSeen->getString("word");
-		unique_ptr<sql::ResultSet> wordRates(connection->createStatement()->executeQuery(
-			"SELECT * FROM NYC.rates WHERE word ='" + word + "' AND time BETWEEN FROM_UNIXTIME(" +
-			to_string(LOOKBACK_TIME) + ") AND FROM_UNIXTIME(" + to_string(LOOKBACK_TIME - RECALL_SCOPE) + ") ORDER BY time DESC;"
+		unordered_map<string, Grid<int>> wordCountPerCell;
+
+		for (const auto &pair : userIdTweetMap)
+		{
+			auto tweet = pair.second;
+
+			auto words = explode(tweet.text);
+			for (const auto &word : words)
+			{
+				if (!wordCountPerCell.count(word))
+					wordCountPerCell[word] = makeGrid<int>();
+
+				wordCountPerCell[word][tweet.x][tweet.y]++;
+			}
+		}
+
+		// the '&' character is interpreted as the word "amp"... squelch for now
+		wordCountPerCell.erase("amp");
+
+		// the word ' ' shows up sometimes... squelch for now
+		wordCountPerCell.erase(" ");
+
+		return wordCountPerCell;
+	}
+
+	pair<unordered_map<string, Grid<double>>, unordered_map<string, Grid<double>>> getHistoricWordRatesAndDeviation()
+	{
+		unordered_map<string, Grid<double>> historicWordRates, historicDeviations;
+
+		unique_ptr<sql::ResultSet> dbWordsSeen(connection->createStatement()->executeQuery(
+			"SELECT * FROM NYC.words_seen;"
 			));
 
-		historicWordRates[word]  = makeGrid<double>();
-		historicDeviations[word] = makeGrid<double>();
-		vector<Grid<double>> rates;
-
-		while (wordRates->next())
+		while (dbWordsSeen->next())
 		{
-			rates.push_back(makeGrid<double>());
+			const auto word = dbWordsSeen->getString("word");
+			unique_ptr<sql::ResultSet> wordRates(connection->createStatement()->executeQuery(
+				"SELECT * FROM NYC.rates WHERE word ='" + word + "' AND time BETWEEN FROM_UNIXTIME(" +
+				to_string(LOOKBACK_TIME) + ") AND FROM_UNIXTIME(" + to_string(LOOKBACK_TIME - RECALL_SCOPE) + ") ORDER BY time DESC;"
+				));
+
+			historicWordRates[word] = makeGrid<double>();
+			historicDeviations[word] = makeGrid<double>();
+			vector<Grid<double>> rates;
+
+			while (wordRates->next())
+			{
+				rates.push_back(makeGrid<double>());
+				for (int i = 0; i < MAP_WIDTH; i++)
+				{
+					for (int j = 0; j < MAP_HEIGHT; j++)
+					{
+						rates.back()[i][j] = stod(wordRates->getString('`' + to_string(j*MAP_WIDTH + i) + '`'));
+					}
+				}
+			}
+
 			for (int i = 0; i < MAP_WIDTH; i++)
 			{
 				for (int j = 0; j < MAP_HEIGHT; j++)
 				{
-					rates.back()[i][j] = stod(wordRates->getString('`' + to_string(j*MAP_WIDTH+i) + '`'));
+					for (const auto &rate : rates)
+						historicWordRates[word][i][j] += rate[i][j];
+					historicWordRates[word][i][j] /= PERIODS_IN_HISTORY;
+
+					for (const auto &rate : rates)
+						historicDeviations[word][i][j] += pow(rate[i][j] - historicWordRates[word][i][j], 2);
+					historicDeviations[word][i][j] /= PERIODS_IN_HISTORY;
+
+					historicDeviations[word][i][j] = pow(historicDeviations[word][i][j], 0.5);
 				}
 			}
 		}
+
+		return{ move(historicWordRates), move(historicDeviations) };
+	}
+
+
+	void detectEvent(
+		const unordered_map<string, Grid<int>> &currentWordCountPerCell,
+		const Grid<int> asdf,
+		unordered_map<string, Grid<double>>      currentWordRates,
+		unordered_map<string, Grid<double>>   historicWordRates,
+		double**                          wordRatePerCell,
+		double                            globalWordRate,
+		double                            SPACIAL_DEVIATION_THRESHOLD,
+		double                            TEMPORAL_DEVIATION_THRESHOLD)
+	{
+		//const auto& word = pair.first;
+		//auto &grid = pair.second;
+
+
+		//for (const auto &pair : currentWordRates)
+		//{
+		//	const auto &word = pair.first;
+		//	// detect events!! and adjust historic rates
+		//	for (int i = 0; i < MAP_WIDTH; i++)
+		//	{
+		//		for (int j = 0; j < MAP_HEIGHT; j++)
+		//		{
+		//			if (
+		//				// checks if a word is a appearing with a greater percentage in one cell than in other cells in the city grid
+		//				(localWordRates[i][j] > globalWordRate + SPACIAL_PERCENTAGE_THRESHOLD) &&
+		//				// checks if a word is appearing more frequently in a cell than it has historically in that cell
+		//				(localWordRates[i][j] > historicWordRates[word][i][j] + TEMPORAL_PERCENTAGE_THRESHOLD) &&
+		//				(localWordRates[i][j] > historicWordRates[word][i][j] + globalDeviation * SPACIAL_DEVIATION_THRESHOLD) &&
+		//				(localWordRates[i][j] > historicWordRates[word][i][j] + historicDeviations[word][i][j] * TEMPORAL_DEVIATION_THRESHOLD))
+		//				connection->createStatement()->execute(
+		//					"INSERT INTO NYC.events (word, x, y) VALUES ('" + word + "'," + to_string(i) + "," + to_string(j) + ");"
+		//					);
+		//		}
+		//	}
+		//}
+	}
+
+	//double calcStandardDev()
+	//{
+
+	//	double globalDeviation = 0;
+	//	for (int i = 0; i < MAP_WIDTH; i++)
+	//	{
+	//		for (int j = 0; j < MAP_HEIGHT; j++)
+	//			globalDeviation += pow(localWordRates[i][j] - globalWordRate, 2) / (MAP_WIDTH * MAP_HEIGHT);
+	//	}
+	//	return pow(globalDeviation, 0.5);
+	//}
+
+	pair<Grid<double>, double> getCurrentLocalAndGlobalRatesForWord(const Grid<int> &wordCountPerCell, const Grid<int> &tweetCountPerCell)
+	{
+		Grid<double> localWordRates = makeGrid<double>();
+
+		double globalWordRate = 0;
+		int totalTweets = 0;
 
 		for (int i = 0; i < MAP_WIDTH; i++)
 		{
 			for (int j = 0; j < MAP_HEIGHT; j++)
 			{
-				for (const auto &rate : rates)
-					historicWordRates[word][i][j] += rate[i][j];
-				historicWordRates[word][i][j] / = PERIODS_IN_HISTORY;
-
-				for (const auto &rate : rates)
-					historicDeviations[word][i][j] += pow(rate[i][j] - historicWordRates[word][i][j], 2);
-				historicDeviations[word][i][j] /= PERIODS_IN_HISTORY;
-
-				historicDeviations[word][i][j] = pow(historicDeviations[word][i][j], 0.5);
+				if (tweetCountPerCell[i][j])
+				{
+					localWordRates[i][j] = (double)wordCountPerCell[i][j] / tweetCountPerCell[i][j];
+					globalWordRate += wordCountPerCell[i][j];
+					totalTweets += tweetCountPerCell[i][j];
+				}
+				else
+				{
+					localWordRates[i][j] = 0;
+				}
 			}
 		}
+
+		globalWordRate /= totalTweets;
+
+		return{ move(localWordRates), globalWordRate };
 	}
 
-	return tie(move(historicWordRates), move(historicDeviations));
-}
-
-
-void detectEvent(
-	const unordered_map<string, Grid<int>> &currentWordCountPerCell,
-	const Grid<int> 
-	unordered_map<string, Grid<double>>      currentWordRates,
-	unordered_map<string, Grid<double>>   historicWordRates,
-	double**                          wordRatePerCell,
-	double                            globalWordRate,
-	double                            SPACIAL_DEVIATION_THRESHOLD,
-	double                            TEMPORAL_DEVIATION_THRESHOLD)
-{
-	const auto& word = pair.first;
-	auto &grid = pair.second;
-
-
-	for (const auto &pair : currentWordRates)
+	// returns pointer to a gaussian blurred 2d array with given dimensions
+	Grid<double> gaussBlur(const Grid<double> &unblurred_array)
 	{
-		const auto &word = pair.first;
-		// detect events!! and adjust historic rates
-		for (int i = 0; i < MAP_WIDTH; i++)
+		static const double gaussValueMatrix[3] = { 0.22508352, 0.11098164, 0.05472157 }; // mid, perp, diag
+
+		auto& width = MAP_WIDTH;
+		auto& height = MAP_HEIGHT;
+
+		// declare a new 2d array to store the blurred values
+		auto blurred_array = makeGrid<double>();
+
+		// for each value in the unblurred array, sum the products of that value and each value in the gaussValueMatrix
+
+		for (int j = 0; j < height; j++)
 		{
-			for (int j = 0; j < MAP_HEIGHT; j++)
+			for (int i = 0; i < width; i++)
 			{
-				if (
-					// checks if a word is a appearing with a greater percentage in one cell than in other cells in the city grid
-					(localWordRates[i][j] > globalWordRate + SPACIAL_PERCENTAGE_THRESHOLD) &&
-					// checks if a word is appearing more frequently in a cell than it has historically in that cell
-					(localWordRates[i][j] > historicWordRates[word][i][j] + TEMPORAL_PERCENTAGE_THRESHOLD) &&
-					(localWordRates[i][j] > historicWordRates[word][i][j] + globalDeviation * SPACIAL_DEVIATION_THRESHOLD) &&
-					(localWordRates[i][j] > historicWordRates[word][i][j] + historicDeviations[word][i][j] * TEMPORAL_DEVIATION_THRESHOLD))
-						connection->createStatement()->execute(
-							"INSERT INTO NYC.events (word, x, y) VALUES ('" + word + "'," + to_string(i) + "," + to_string(j) + ");"
-							);
-			}
-		}
-	}
-}
+				bool left_bound = i == 0, right_bound = i == (width - 1);
+				bool top_bound = j == 0, bottom_bound = j == (height - 1);
 
-double calcStandardDev()
-{
+				// blur the middle
+				blurred_array[i][j] += unblurred_array[i][j] * gaussValueMatrix[0];
 
-	double globalDeviation = 0;
-	for (int i = 0; i < MAP_WIDTH; i++)
-	{
-		for (int j = 0; j < MAP_HEIGHT; j++)
-			globalDeviation += pow(localWordRates[i][j] - globalWordRate, 2) / (MAP_WIDTH * MAP_HEIGHT);
-	}
-	return pow(globalDeviation, 0.5);
-}
+				if (!left_bound)
+				{
+					// blur the middle left
+					blurred_array[i][j] += unblurred_array[i - 1][j] * gaussValueMatrix[1];
 
-pair<Grid<double>, double> getCurrentLocalAndGlobalRatesForWord(const Grid<int> &wordCountPerCell, const Grid<int> &tweetCountPerCell)
-{
-	Grid<double> localWordRates = makeGrid<double>();
+					if (!top_bound)
+					{
+						//blur the top left
+						blurred_array[i][j] += unblurred_array[i - 1][j - 1] * gaussValueMatrix[2];
+					}
+					if (!bottom_bound)
+					{
+						// blur the bottom left
+						blurred_array[i][j] += unblurred_array[i - 1][j + 1] * gaussValueMatrix[2];
+					}
+				}
 
-	double globalWordRate = 0;
-	int totalTweets = 0;
+				if (!right_bound)
+				{
+					// blur the middle right
+					blurred_array[i][j] += unblurred_array[i + 1][j] * gaussValueMatrix[1];
 
-	for (int i = 0; i < MAP_WIDTH; i++)
-	{
-		for (int j = 0; j < MAP_HEIGHT; j++)
-		{
-			if (tweetCountPerCell[i][j])
-			{
-				localWordRates[i][j] = (double)wordCountPerCell[i][j] / tweetCountPerCell[i][j];
-				globalWordRate += wordCountPerCell[i][j];
-				totalTweets += tweetCountPerCell[i][j];
-			}
-			else
-			{
-				localWordRates[i][j] = 0;
-			}
-		}
-	}
-
-	globalWordRate /= totalTweets;
-
-	return { move(localWordRates), globalWordRate };
-}
-
-// returns pointer to a gaussian blurred 2d array with given dimensions
-Grid<double> gaussBlur(const Grid<double> &unblurred_array)
-{
-	static const double gaussValueMatrix[3] = { 0.22508352, 0.11098164, 0.05472157 }; // mid, perp, diag
-
-	auto& width = MAP_WIDTH;
-	auto& height = MAP_HEIGHT;
-
-	// declare a new 2d array to store the blurred values
-	auto blurred_array = makeGrid<double>();
-
-	// for each value in the unblurred array, sum the products of that value and each value in the gaussValueMatrix
-
-	for (int j = 0; j < height; j++)
-	{
-		for (int i = 0; i < width; i++)
-		{
-			bool left_bound = i == 0, right_bound = i == (width - 1);
-			bool top_bound = j == 0, bottom_bound = j == (height - 1);
-
-			// blur the middle
-			blurred_array[i][j] += unblurred_array[i][j] * gaussValueMatrix[0];
-
-			if (!left_bound)
-			{
-				// blur the middle left
-				blurred_array[i][j] += unblurred_array[i - 1][j] * gaussValueMatrix[1];
+					if (!top_bound)
+					{
+						// blur the top right
+						blurred_array[i][j] += unblurred_array[i + 1][j - 1] * gaussValueMatrix[2];
+					}
+					if (!bottom_bound)
+					{
+						// blur the bottom right
+						blurred_array[i][j] += unblurred_array[i + 1][j + 1] * gaussValueMatrix[2];
+					}
+				}
 
 				if (!top_bound)
 				{
-					//blur the top left
-					blurred_array[i][j] += unblurred_array[i - 1][j - 1] * gaussValueMatrix[2];
+					// blur the top middle
+					blurred_array[i][j] += unblurred_array[i][j - 1] * gaussValueMatrix[1];
 				}
+
 				if (!bottom_bound)
 				{
-					// blur the bottom left
-					blurred_array[i][j] += unblurred_array[i - 1][j + 1] * gaussValueMatrix[2];
+					// blur the bottom middle
+					blurred_array[i][j] += unblurred_array[i][j + 1] * gaussValueMatrix[1];
 				}
-			}
-
-			if (!right_bound)
-			{
-				// blur the middle right
-				blurred_array[i][j] += unblurred_array[i + 1][j] * gaussValueMatrix[1];
-
-				if (!top_bound)
-				{
-					// blur the top right
-					blurred_array[i][j] += unblurred_array[i + 1][j - 1] * gaussValueMatrix[2];
-				}
-				if (!bottom_bound)
-				{
-					// blur the bottom right
-					blurred_array[i][j] += unblurred_array[i + 1][j + 1] * gaussValueMatrix[2];
-				}
-			}
-
-			if (!top_bound)
-			{
-				// blur the top middle
-				blurred_array[i][j] += unblurred_array[i][j - 1] * gaussValueMatrix[1];
-			}
-
-			if (!bottom_bound)
-			{
-				// blur the bottom middle
-				blurred_array[i][j] += unblurred_array[i][j + 1] * gaussValueMatrix[1];
 			}
 		}
-	}
 
-	return blurred_array;
+		return blurred_array;
+	}
 }
