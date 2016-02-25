@@ -321,27 +321,31 @@ Grid<int> refineTweetsAndGetTweetCountPerCell(unordered_map<int, Tweet> &userIdT
 	mutex tweetQueueLock;
 	mutex tweetsPerCellLock;
 
-	auto processTweets = [&]() {
-		tweetQueueLock.lock();
+	auto processTweets = [&]() 
+		{
+			while (true)
+			{
+				tweetQueueLock.lock();
 
-		if (tweetQueue.empty()) return;
-		Tweet &tweet = *tweetQueue.front();
-		tweetQueue.pop();
+				if (tweetQueue.empty()) return;
+				Tweet &tweet = *tweetQueue.front();
+				tweetQueue.pop();
 
-		tweetQueueLock.unlock();
+				tweetQueueLock.unlock();
 
-		// remove mentions and URLs
-		regex mentionsAndUrls("((\\B@)|(\\bhttps?:\\/\\/))[^\\s]+");
-		tweet.text = regex_replace(tweet.text, mentionsAndUrls, string(" "));
+				// remove mentions and URLs
+				regex mentionsAndUrls("((\\B@)|(\\bhttps?:\\/\\/))[^\\s]+");
+				tweet.text = regex_replace(tweet.text, mentionsAndUrls, string(" "));
 
-		// remove all non-word characters
-		regex nonWord("[^\\w]+");
-		tweet.text = regex_replace(tweet.text, nonWord, string(" "));
+				// remove all non-word characters
+				regex nonWord("[^\\w]+");
+				tweet.text = regex_replace(tweet.text, nonWord, string(" "));
 
-		tweetsPerCellLock.lock();
-		tweetsPerCell[tweet.x][tweet.y]++;
-		tweetsPerCellLock.unlock();
-	};
+				tweetsPerCellLock.lock();
+				tweetsPerCell[tweet.x][tweet.y]++;
+				tweetsPerCellLock.unlock();
+			}
+		};
 
 	vector<thread> threads;
 	for (int i = 0; i < THREAD_COUNT; i++)
@@ -584,4 +588,100 @@ Grid<double> gaussBlur(const Grid<double> &unblurred_array)
 	}
 
 	return blurred_array;
+}
+
+void detectEvents(const unordered_map<string, Grid<int>> &currentWordCountPerCell, const unordered_map<string, Grid<double>> &historicWordRatePerCell, const unordered_map<string, Grid<double>> &historicDeviationByCell, const Grid<int> &tweetCountPerCell)
+{
+
+	struct detectEventArguments
+	{
+		const string& word;
+		const Grid<int>& currentCountByCell;
+		const Grid<double>& historicRateByCell;
+		const Grid<double>& historicDeviationByCell;
+		const Grid<int>& tweetCountPerCell;
+
+		detectEventArguments(const string &_word, const Grid<int> _currentCountByCell, const Grid<double> &_historicRateByCell, const Grid<double> &_historicDeviationByCell, const Grid<int> &_tweetCountPerCell)
+			: word(_word), currentCountByCell(_currentCountByCell), historicRateByCell(_historicRateByCell), historicDeviationByCell(_historicDeviationByCell), tweetCountPerCell(_tweetCountPerCell) {}
+	};
+
+	mutex listLock;
+	list<detectEventArguments> argumentsList;
+	for (const auto &pair : currentWordCountPerCell)
+	{
+		const auto &word = pair.first;
+		argumentsList.push_back({ word, pair.second, historicWordRatePerCell[word], historicDeviationByCell[word], tweetCountPerCell });
+	}
+
+	auto argumentsListIter = argumentsList.cbegin();
+
+	auto detectEventForWord = [&]() 
+		{
+			while (true)
+			{
+				listLock.lock();
+				if (argumentsListIter == argumentsList.cend())
+					return;
+
+				const detectEventArguments &arguments = *argumentsListIter;
+				argumentsListIter++;
+				listLock.unlock();
+
+				const string &word = arguments.word;
+				const Grid<int> &currentCountByCell = arguments.currentCountByCell;
+				const Grid<double> &historicRateByCell = arguments.historicRateByCell;
+				const Grid<double> &historicDeviationByCell = arguments.historicDeviationByCell;
+				const Grid<int> &tweetCountPerCell = arguments.tweetCountPerCell;
+
+				// calculate the usage rate of each word at the current time in each cell and the average regional use
+				Grid<double> localWordRateByCell;
+				double globalWordRate;
+				tie(localWordRateByCell, globalWordRate) = getCurrentLocalAndGlobalRatesForWord(currentCountByCell, tweetCountPerCell);
+
+				double globalDeviation;
+				for (int i = 0; i < MAP_WIDTH; i++)
+				{
+					for (int j = 0; j < MAP_HEIGHT; j++)
+					{
+						globalDeviation += pow(localWordRateByCell[i][j] - globalWordRate, 2);
+					}
+				}
+				globalDeviation /= MAP_WIDTH * MAP_HEIGHT;
+				globalDeviation = pow(globalDeviation, 0.5);
+
+				// blur the rates over cell borders to reduce noise
+				localWordRateByCell = gaussBlur(localWordRateByCell);
+
+				// detect events!! and adjust historic rates
+				for (int i = 0; i < MAP_WIDTH; i++)
+				{
+					for (int j = 0; j < MAP_HEIGHT; j++)
+					{
+						double SPACIAL_PERCENTAGE_THRESHOLD, TEMPORAL_PERCENTAGE_THRESHOLD;
+						if (
+							// checks if a word is a appearing with a greater percentage in one cell than in other cells in the city grid
+							(localWordRateByCell[i][j] > globalWordRate + SPACIAL_PERCENTAGE_THRESHOLD) &&
+							// checks if a word is appearing more frequently in a cell than it has historically in that cell
+							(localWordRateByCell[i][j] > historicRateByCell[i][j] + TEMPORAL_PERCENTAGE_THRESHOLD) &&
+							(localWordRateByCell[i][j] > historicRateByCell[i][j] + globalDeviation * SPACIAL_DEVIATION_THRESHOLD) &&
+							(localWordRateByCell[i][j] > historicRateByCell[i][j] + historicDeviationByCell[i][j] * TEMPORAL_DEVIATION_THRESHOLD)
+							)
+						{
+							connection->createStatement()->execute(
+								"INSERT INTO NYC.events (word, x, y) VALUES ('" + word + "'," + to_string(i) + "," + to_string(j) + ");"
+								);
+						}
+					}
+				}
+			}
+		};
+
+	vector<thread> threads;
+	for (int i = 0; i < THREAD_COUNT; i++)
+	{
+		threads.emplace_back(detectEventForWord);
+	}
+
+
+
 }
