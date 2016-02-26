@@ -80,10 +80,10 @@ pair<unordered_map<string, Grid<double>>, unordered_map<string, Grid<double>>> g
 pair<Grid<double>, double> getCurrentLocalAndGlobalRatesForWord(const Grid<int> &wordCountPerCell, const Grid<int> &tweetCountPerCell);
 
 void detectEvents(
-	unordered_map<string, Grid<int>> &currentWordCountPerCell,
-	unordered_map<string, Grid<double>>    &historicWordRatePerCell,
-	unordered_map<string, Grid<double>>    &historicDeviationByCell,
-	Grid<int>                        &tweetCountPerCell);
+	const unordered_map<string, Grid<int>> &currentWordCountPerCell,
+	const unordered_map<string, Grid<double>>    &historicWordRatePerCell,
+	const unordered_map<string, Grid<double>>    &historicDeviationByCell,
+	const Grid<int>                        &tweetCountPerCell);
 
 Grid<double> gaussBlur(const Grid<double> &unblurred_array);
 
@@ -146,20 +146,20 @@ int main(int argc, char* argv[])
 		connection = driver->connect("tcp://127.0.0.1:3306", "pericog", password);
 	}
 
-	cout << "1\n";
+	cout << "READY";
 
 	// save all tweets since the specified time to an array
 	auto userIdToTweetMap = getUserIdToTweetMap();
 
-	cout << "2\n";
+	cout << ".";
 
 	auto tweetCountPerCell = refineTweetsAndGetTweetCountPerCell(userIdToTweetMap);
 
-	cout << "3\n";
+	cout << ".";
 
 	auto currentWordCountPerCell = getCurrentWordCountPerCell(userIdToTweetMap);
 
-	cout << "4\n";
+	cout << ".";
 
 	string query = "INSERT INTO NYC.words_seen (last_seen,word) VALUES ";
 	for (const auto &pair : currentWordCountPerCell)
@@ -175,12 +175,12 @@ int main(int argc, char* argv[])
 
 	connection->createStatement()->execute(query);
 
-	cout << "5\n";
+	cout << ".";
 
 	unordered_map<string, Grid<double>> historicWordRatePerCell, historicDeviationByCell;
 	tie(historicWordRatePerCell, historicDeviationByCell) = getHistoricWordRatesAndDeviation();
 
-	cout << "6\n";
+	cout << ".";
 
 	// consider historic rates that are no longer in use as being currently in use at a rate of 0
 	for (const auto &pair : historicWordRatePerCell)
@@ -190,11 +190,15 @@ int main(int argc, char* argv[])
 			currentWordCountPerCell[word] = makeGrid<int>();
 	}
 
-	cout << "7\n";
+	cout << "GO!\n";
+
+	int asdf = 1;
 
 	string sqlValuesString = "";
 	for (const auto &pair : currentWordCountPerCell)
 	{
+		cout << asdf << " ";
+		asdf++;
 		const auto& word = pair.first;
 		const auto &currentCountByCell = pair.second;
 
@@ -536,15 +540,15 @@ Grid<double> gaussBlur(const Grid<double> &unblurred_array)
 }
 
 void detectEvents(
-	unordered_map<string, Grid<int>>    &currentWordCountPerCell,
-	unordered_map<string, Grid<double>> &historicWordRatePerCell,
-	unordered_map<string, Grid<double>> &historicDeviationByCell,
-	Grid<int>                           &tweetCountPerCell
+	const unordered_map<string, Grid<int>>    &currentWordCountPerCell,
+	const unordered_map<string, Grid<double>> &historicWordRatePerCell,
+	const unordered_map<string, Grid<double>> &historicDeviationByCell,
+	const Grid<int>                           &tweetCountPerCell
 )
 {
 	mutex listLock;
 	queue<string> wordQueue;
-	for (auto &pair : currentWordCountPerCell)
+	for (const auto &pair : currentWordCountPerCell)
 	{
 		wordQueue.push(pair.first);
 	}
@@ -559,15 +563,14 @@ void detectEvents(
 					listLock.unlock();
 					return;
 				}
-				string &word = wordQueue.front();
+				string word = wordQueue.front();
 				wordQueue.pop();
 				listLock.unlock();
 
 				// calculate the usage rate of each word at the current time in each cell and the average regional use
 				Grid<double> localWordRateByCell;
 				double globalWordRate;
-				tie(localWordRateByCell, globalWordRate) = getCurrentLocalAndGlobalRatesForWord(currentWordCountPerCell[word], tweetCountPerCell);
-
+				tie(localWordRateByCell, globalWordRate) = getCurrentLocalAndGlobalRatesForWord(currentWordCountPerCell.at(word), tweetCountPerCell);
 				double globalDeviation = 0;
 				for (int i = 0; i < MAP_WIDTH; i++)
 				{
@@ -587,13 +590,17 @@ void detectEvents(
 				{
 					for (int j = 0; j < MAP_HEIGHT; j++)
 					{
+						double historicWordRate = 0;
+						if (historicWordRatePerCell.count(word))
+							historicWordRate = historicWordRatePerCell.at(word)[i][j];
+
 						if (
 							// checks if a word is a appearing with a greater percentage in one cell than in other cells in the city grid
 							(localWordRateByCell[i][j] > globalWordRate + SPACIAL_PERCENTAGE_THRESHOLD) &&
 							// checks if a word is appearing more frequently in a cell than it has historically in that cell
-							(localWordRateByCell[i][j] > historicWordRatePerCell[word][i][j] + TEMPORAL_PERCENTAGE_THRESHOLD) &&
-							(localWordRateByCell[i][j] > historicWordRatePerCell[word][i][j] + globalDeviation * SPACIAL_DEVIATIONS_THRESHOLD) &&
-							(localWordRateByCell[i][j] > historicWordRatePerCell[word][i][j] + historicDeviationByCell[word][i][j] * TEMPORAL_DEVIATIONS_THRESHOLD)
+							(localWordRateByCell[i][j] > historicWordRate + TEMPORAL_PERCENTAGE_THRESHOLD) &&
+							(localWordRateByCell[i][j] > historicWordRate + globalDeviation * SPACIAL_DEVIATIONS_THRESHOLD) &&
+							(localWordRateByCell[i][j] > historicWordRate + historicDeviationByCell.at(word)[i][j] * TEMPORAL_DEVIATIONS_THRESHOLD)
 							)
 						{
 							if (!HISTORIC_MODE)
