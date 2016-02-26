@@ -7,6 +7,7 @@
 #include <cassert>
 #include <cmath>
 #include <vector>
+#include <iostream>
 
 #include "mysql_connection.h"
 
@@ -134,6 +135,7 @@ void Initialize(int argc, char* argv[])
 
 int main(int argc, char* argv[])
 {
+	std::cout.setf( std::ios_base::unitbuf );
 	Initialize(argc, argv);
 
 	// create a connection
@@ -144,12 +146,20 @@ int main(int argc, char* argv[])
 		connection = driver->connect("tcp://127.0.0.1:3306", "pericog", password);
 	}
 
+	cout << "1\n";
+
 	// save all tweets since the specified time to an array
 	auto userIdToTweetMap = getUserIdToTweetMap();
 
+	cout << "2\n";
+
 	auto tweetCountPerCell = refineTweetsAndGetTweetCountPerCell(userIdToTweetMap);
 
+	cout << "3\n";
+
 	auto currentWordCountPerCell = getCurrentWordCountPerCell(userIdToTweetMap);
+
+	cout << "4\n";
 
 	string query = "INSERT INTO NYC.words_seen (last_seen,word) VALUES ";
 	for (const auto &pair : currentWordCountPerCell)
@@ -165,8 +175,12 @@ int main(int argc, char* argv[])
 
 	connection->createStatement()->execute(query);
 
+	cout << "5\n";
+
 	unordered_map<string, Grid<double>> historicWordRatePerCell, historicDeviationByCell;
 	tie(historicWordRatePerCell, historicDeviationByCell) = getHistoricWordRatesAndDeviation();
+
+	cout << "6\n";
 
 	// consider historic rates that are no longer in use as being currently in use at a rate of 0
 	for (const auto &pair : historicWordRatePerCell)
@@ -175,6 +189,8 @@ int main(int argc, char* argv[])
 		if (!currentWordCountPerCell.count(word))
 			currentWordCountPerCell[word] = makeGrid<int>();
 	}
+
+	cout << "7\n";
 
 	string sqlValuesString = "";
 	for (const auto &pair : currentWordCountPerCell)
@@ -373,48 +389,45 @@ pair<unordered_map<string, Grid<double>>, unordered_map<string, Grid<double>>> g
 {
 	unordered_map<string, Grid<double>> historicWordRates, historicDeviations;
 
-	unique_ptr<sql::ResultSet> dbWordsSeen(connection->createStatement()->executeQuery(
-		"SELECT * FROM NYC.words_seen;"
+	unique_ptr<sql::ResultSet> dbWordRates(connection->createStatement()->executeQuery(
+		"SELECT * FROM NYC.rates WHERE time BETWEEN FROM_UNIXTIME(" +
+		to_string(LOOKBACK_TIME) + ") AND FROM_UNIXTIME(" + to_string(LOOKBACK_TIME - RECALL_SCOPE) + ");"
 		));
 
-	while (dbWordsSeen->next())
+	unordered_map<string, vector<Grid<double>>> rates;
+
+	while (dbWordRates->next())
 	{
-		const auto word = dbWordsSeen->getString("word");
-		unique_ptr<sql::ResultSet> wordRates(connection->createStatement()->executeQuery(
-			"SELECT * FROM NYC.rates WHERE word ='" + word + "' AND time BETWEEN FROM_UNIXTIME(" +
-			to_string(LOOKBACK_TIME) + ") AND FROM_UNIXTIME(" + to_string(LOOKBACK_TIME - RECALL_SCOPE) + ") ORDER BY time DESC;"
-			));
-
-		historicWordRates[word] = makeGrid<double>();
-		historicDeviations[word] = makeGrid<double>();
-		vector<Grid<double>> rates;
-
-		while (wordRates->next())
-		{
-			rates.push_back(makeGrid<double>());
-			for (int i = 0; i < MAP_WIDTH; i++)
-			{
-				for (int j = 0; j < MAP_HEIGHT; j++)
-				{
-					rates.back()[i][j] = stod(wordRates->getString('`' + to_string(j*MAP_WIDTH + i) + '`'));
-				}
-			}
-		}
-
+		const auto word = dbWordRates->getString("word");
+		if (!rates.count(word))
+			rates[word].push_back(makeGrid<double>());
+		if (!historicWordRates.count(word))
+			historicWordRates[word] = makeGrid<double>();
+		if (!historicDeviations.count(word))
+			historicDeviations[word] = makeGrid<double>();
 		for (int i = 0; i < MAP_WIDTH; i++)
 		{
 			for (int j = 0; j < MAP_HEIGHT; j++)
 			{
-				for (const auto &rate : rates)
-					historicWordRates[word][i][j] += rate[i][j];
-				historicWordRates[word][i][j] /= PERIODS_IN_HISTORY;
-
-				for (const auto &rate : rates)
-					historicDeviations[word][i][j] += pow(rate[i][j] - historicWordRates[word][i][j], 2);
-				historicDeviations[word][i][j] /= PERIODS_IN_HISTORY;
-
-				historicDeviations[word][i][j] = pow(historicDeviations[word][i][j], 0.5);
+				rates[word].back()[i][j] = stod(dbWordRates->getString('`' + to_string(j*MAP_WIDTH + i) + '`'));
 			}
+		}
+	}
+
+	for (int i = 0; i < MAP_WIDTH; i++)
+	{
+		for (int j = 0; j < MAP_HEIGHT; j++)
+		{
+			for (auto &pair : rates)
+				for (auto &rate : pair.second)
+					historicWordRates[pair.first][i][j] += rate[i][j] / PERIODS_IN_HISTORY;
+
+			for (auto &pair : rates)
+				for (auto &rate : pair.second)
+					historicDeviations[pair.first][i][j] += pow(rate[i][j] - historicWordRates[pair.first][i][j], 2) / PERIODS_IN_HISTORY;
+
+			for (auto &pair : rates)
+				historicDeviations[pair.first][i][j] = pow(historicDeviations[pair.first][i][j], 0.5);
 		}
 	}
 
