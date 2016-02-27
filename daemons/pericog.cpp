@@ -1,51 +1,4 @@
-#include <string>
-#include <regex>
-#include <fstream>
-#include <algorithm>
-#include <unordered_set>
-#include <unordered_map>
-#include <cassert>
-#include <cmath>
-#include <vector>
-#include <iostream>
-
-#include "mysql_connection.h"
-
-#include <cppconn/driver.h>
-#include <cppconn/exception.h>
-#include <cppconn/resultset.h>
-#include <cppconn/statement.h>
-
-#include "INIReader.h"
-
-#include <array>
-#include <vector>
-#include <map>
-#include <memory>
-#include <utility>
-#include <thread>
-#include <mutex>
-#include <queue>
-
-namespace sql {
-	class Connection;
-	class Driver;
-	class ResultSet;
-}
-
-using namespace std;
-
-template<class T>
-using Grid = vector<vector<T>>;
-
-struct Tweet
-{
-	Tweet(int x, int y, string text) :
-		x(x), y(y), text(text) {}
-
-	int x, y;
-	string text;
-};
+#include "pericog.h"
 
 int LOOKBACK_TIME = -1, RECALL_SCOPE, PERIOD, PERIODS_IN_HISTORY;
 int MAP_HEIGHT, MAP_WIDTH;
@@ -56,82 +9,6 @@ double WEST_BOUNDARY, EAST_BOUNDARY, NORTH_BOUNDARY, SOUTH_BOUNDARY, RESOLUTION,
 const int THREAD_COUNT = 8;
 
 sql::Connection* connection;
-
-unordered_set<string> explode(string const &s);
-template<typename T> Grid<T> makeGrid();
-template<typename T> void getArg(T &arg, string section, string option);
-
-// write updated historic rates to database
-string sqlAppendRates(string word, vector<vector<double>> &wordRates);
-
-void commitRates(string sqlValuesString);
-
-unordered_map<int, Tweet> getUserIdToTweetMap();
-
-// refine each tweet into usable information
-Grid<int> refineTweetsAndGetTweetCountPerCell(unordered_map<int, Tweet> &userIdTweetMap);
-
-// load the number of times each word was used in every cell
-unordered_map <string, Grid<int>> getCurrentWordCountPerCell(const unordered_map<int, Tweet> &userIdTweetMap);
-
-// load historic word usage rates per cell
-pair<unordered_map<string, Grid<double>>, unordered_map<string, Grid<double>>> getHistoricWordRatesAndDeviation();
-
-pair<Grid<double>, double> getCurrentLocalAndGlobalRatesForWord(const Grid<int> &wordCountPerCell, const Grid<int> &tweetCountPerCell);
-
-void detectEvents(
-	const unordered_map<string, Grid<int>> &currentWordCountPerCell,
-	const unordered_map<string, Grid<double>>    &historicWordRatePerCell,
-	const unordered_map<string, Grid<double>>    &historicDeviationByCell,
-	const Grid<int>                        &tweetCountPerCell);
-
-Grid<double> gaussBlur(const Grid<double> &unblurred_array);
-
-void Initialize(int argc, char* argv[])
-{
-	getArg(RECALL_SCOPE,                  "timing",    "history");
-	getArg(PERIOD,                        "timing",    "period");
-	getArg(WEST_BOUNDARY,                 "grid",      "west");
-	getArg(EAST_BOUNDARY,                 "grid",      "east");
-	getArg(SOUTH_BOUNDARY,                "grid",      "south");
-	getArg(NORTH_BOUNDARY,                "grid",      "north");
-	getArg(RESOLUTION,                    "grid",      "cell_size");
-	getArg(SPACIAL_PERCENTAGE_THRESHOLD,  "threshold", "spacial_percentage");
-	getArg(TEMPORAL_PERCENTAGE_THRESHOLD, "threshold", "temporal_percentage");
-	getArg(SPACIAL_DEVIATIONS_THRESHOLD,  "threshold", "spacial_deviations");
-	getArg(TEMPORAL_DEVIATIONS_THRESHOLD, "threshold", "temporal_deviations");
-
-	char tmp;
-	while ((tmp = getopt(argc, argv, "l:1:2:3:4:H")) != -1)
-	{
-		switch (tmp)
-		{
-			case 'l':
-				LOOKBACK_TIME = stoi(optarg);
-				break;
-			case '1':
-				SPACIAL_PERCENTAGE_THRESHOLD = stod(optarg);
-				break;
-			case '2':
-				TEMPORAL_PERCENTAGE_THRESHOLD = stod(optarg);
-				break;
-			case '3':
-				SPACIAL_DEVIATIONS_THRESHOLD = stod(optarg);
-				break;
-			case '4':
-				TEMPORAL_DEVIATIONS_THRESHOLD = stod(optarg);
-				break;
-			case 'H':
-				HISTORIC_MODE = true;
-				break;
-		}
-	}
-	assert(LOOKBACK_TIME != -1);
-
-	MAP_WIDTH = static_cast<int>(round(abs((WEST_BOUNDARY - EAST_BOUNDARY) / RESOLUTION)));
-	MAP_HEIGHT = static_cast<int>(round(abs((SOUTH_BOUNDARY - NORTH_BOUNDARY) / RESOLUTION)));
-	PERIODS_IN_HISTORY = RECALL_SCOPE / PERIOD;
-}
 
 int main(int argc, char* argv[])
 {
@@ -215,8 +92,54 @@ int main(int argc, char* argv[])
 	return 0;
 }
 
+void Initialize(int argc, char* argv[])
+{
+	getArg(RECALL_SCOPE, "timing", "history");
+	getArg(PERIOD, "timing", "period");
+	getArg(WEST_BOUNDARY, "grid", "west");
+	getArg(EAST_BOUNDARY, "grid", "east");
+	getArg(SOUTH_BOUNDARY, "grid", "south");
+	getArg(NORTH_BOUNDARY, "grid", "north");
+	getArg(RESOLUTION, "grid", "cell_size");
+	getArg(SPACIAL_PERCENTAGE_THRESHOLD, "threshold", "spacial_percentage");
+	getArg(TEMPORAL_PERCENTAGE_THRESHOLD, "threshold", "temporal_percentage");
+	getArg(SPACIAL_DEVIATIONS_THRESHOLD, "threshold", "spacial_deviations");
+	getArg(TEMPORAL_DEVIATIONS_THRESHOLD, "threshold", "temporal_deviations");
+
+	char tmp;
+	while ((tmp = getopt(argc, argv, "l:1:2:3:4:H")) != -1)
+	{
+		switch (tmp)
+		{
+		case 'l':
+			LOOKBACK_TIME = stoi(optarg);
+			break;
+		case '1':
+			SPACIAL_PERCENTAGE_THRESHOLD = stod(optarg);
+			break;
+		case '2':
+			TEMPORAL_PERCENTAGE_THRESHOLD = stod(optarg);
+			break;
+		case '3':
+			SPACIAL_DEVIATIONS_THRESHOLD = stod(optarg);
+			break;
+		case '4':
+			TEMPORAL_DEVIATIONS_THRESHOLD = stod(optarg);
+			break;
+		case 'H':
+			HISTORIC_MODE = true;
+			break;
+		}
+	}
+	assert(LOOKBACK_TIME != -1);
+
+	MAP_WIDTH = static_cast<int>(round(abs((WEST_BOUNDARY - EAST_BOUNDARY) / RESOLUTION)));
+	MAP_HEIGHT = static_cast<int>(round(abs((SOUTH_BOUNDARY - NORTH_BOUNDARY) / RESOLUTION)));
+	PERIODS_IN_HISTORY = RECALL_SCOPE / PERIOD;
+}
+
 // write updated historic rates to database
-string sqlAppendRates(string word, Grid<double> &wordRates)
+string sqlAppendRates(const string &word, const Grid<double> &wordRates)
 {
 	string row = "('" + word + "',FROM_UNIXTIME(" + to_string(LOOKBACK_TIME) + "),";
 	for (int i = 0; i < MAP_WIDTH*MAP_HEIGHT; i++)
@@ -227,7 +150,7 @@ string sqlAppendRates(string word, Grid<double> &wordRates)
 	return row;
 }
 
-void commitRates(string sqlValuesString)
+void commitRates(const string &sqlValuesString)
 {
 	string query = "INSERT INTO NYC.rates (word,time,";
 	for (int i = 0; i < MAP_WIDTH*MAP_HEIGHT; i++)
@@ -389,9 +312,9 @@ unordered_map <string, Grid<int>> getCurrentWordCountPerCell(const unordered_map
 	return wordCountPerCell;
 }
 
-pair<unordered_map<string, Grid<double>>, unordered_map<string, Grid<double>>> getHistoricWordRatesAndDeviation()
+pair<WordToGridMap<double>, WordToGridMap<double>> getHistoricWordRatesAndDeviation()
 {
-	unordered_map<string, Grid<double>> historicWordRates, historicDeviations;
+	WordToGridMap<double> historicWordRates, historicDeviations;
 
 	unique_ptr<sql::ResultSet> dbWordRates(connection->createStatement()->executeQuery(
 		"SELECT * FROM NYC.rates WHERE time BETWEEN FROM_UNIXTIME(" +
@@ -540,9 +463,9 @@ Grid<double> gaussBlur(const Grid<double> &unblurred_array)
 }
 
 void detectEvents(
-	const unordered_map<string, Grid<int>>    &currentWordCountPerCell,
-	const unordered_map<string, Grid<double>> &historicWordRatePerCell,
-	const unordered_map<string, Grid<double>> &historicDeviationByCell,
+	const WordToGridMap<int>    &currentWordCountPerCell,
+	const WordToGridMap<double> &historicWordRatePerCell,
+	const WordToGridMap<double> &historicDeviationByCell,
 	const Grid<int>                           &tweetCountPerCell
 )
 {
