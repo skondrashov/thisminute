@@ -346,14 +346,12 @@ unordered_map <string, Grid<int>> getCurrentWordCountPerCell(const unordered_map
 	const int DISCARD_WORDS_WITH_LESS_COUNT = 2; // discard words counted < 2 times
 	unordered_map<string, Grid<int>> wordCountPerCell;
 	unordered_map<string, int> wordCount;
-	
 
 	for (const auto &pair : userIdTweetMap)
 	{
 		auto tweet = pair.second;
 
 		auto words = explode(tweet.text);
-		unsigned int count = 0;
 		for (const auto &word : words)
 		{
 			if (!wordCountPerCell.count(word))
