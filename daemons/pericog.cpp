@@ -343,19 +343,24 @@ Grid<int> refineTweetsAndGetTweetCountPerCell(unordered_map<int, Tweet> &userIdT
 // refine each tweet into usable information
 unordered_map <string, Grid<int>> getCurrentWordCountPerCell(const unordered_map<int, Tweet> &userIdTweetMap)
 {
+	const int DISCARD_WORDS_WITH_LESS_COUNT = 2; // discard words counted < 2 times
 	unordered_map<string, Grid<int>> wordCountPerCell;
+	unordered_map<string, int> wordCount;
+	
 
 	for (const auto &pair : userIdTweetMap)
 	{
 		auto tweet = pair.second;
 
 		auto words = explode(tweet.text);
+		unsigned int count = 0;
 		for (const auto &word : words)
 		{
 			if (!wordCountPerCell.count(word))
 				wordCountPerCell[word] = makeGrid<int>();
 
 			wordCountPerCell[word][tweet.x][tweet.y]++;
+			wordCount[word]++;
 		}
 	}
 
@@ -364,6 +369,12 @@ unordered_map <string, Grid<int>> getCurrentWordCountPerCell(const unordered_map
 
 	// the word ' ' shows up sometimes... squelch for now
 	wordCountPerCell.erase(" ");
+
+	for (const auto& wordCountPair : wordCount)
+	{
+		if (wordCountPair.second < DISCARD_WORDS_WITH_LESS_COUNT)
+			wordCountPerCell.erase(wordCountPair.first);
+	}
 
 	return wordCountPerCell;
 }
