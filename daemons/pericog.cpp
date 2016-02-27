@@ -48,7 +48,7 @@ struct Tweet
 
 int LOOKBACK_TIME = -1, RECALL_SCOPE, PERIOD, PERIODS_IN_HISTORY;
 int MAP_HEIGHT, MAP_WIDTH;
-bool HISTORIC_MODE = false;
+bool HISTORIC_MODE = false, SCAN_EVENTS = false;
 
 double WEST_BOUNDARY, EAST_BOUNDARY, NORTH_BOUNDARY, SOUTH_BOUNDARY, RESOLUTION, SPACIAL_PERCENTAGE_THRESHOLD, TEMPORAL_PERCENTAGE_THRESHOLD, SPACIAL_DEVIATIONS_THRESHOLD, TEMPORAL_DEVIATIONS_THRESHOLD;
 
@@ -101,7 +101,7 @@ void Initialize(int argc, char* argv[])
 	getArg(TEMPORAL_DEVIATIONS_THRESHOLD, "threshold", "temporal_deviations");
 
 	char tmp;
-	while ((tmp = getopt(argc, argv, "l:1:2:3:4:H")) != -1)
+	while ((tmp = getopt(argc, argv, "l:1:2:3:4:Ho")) != -1)
 	{
 		switch (tmp)
 		{
@@ -122,6 +122,9 @@ void Initialize(int argc, char* argv[])
 				break;
 			case 'H':
 				HISTORIC_MODE = true;
+				break;
+			case 'o':
+				SCAN_EVENTS = true;
 				break;
 		}
 	}
@@ -159,7 +162,7 @@ int main(int argc, char* argv[])
 	query.pop_back(); // take the extra comma out
 
 	if (HISTORIC_MODE)
-		query += " ON DUPLICATE KEY IGNORE;";
+		query += " ON DUPLICATE KEY UPDATE last_seen=@last_seen;";
 	else
 		query += " ON DUPLICATE KEY UPDATE last_seen=FROM_UNIXTIME(" + to_string(LOOKBACK_TIME) + ");";
 
@@ -167,14 +170,6 @@ int main(int argc, char* argv[])
 
 	unordered_map<string, Grid<double>> historicWordRatePerCell, historicDeviationByCell;
 	tie(historicWordRatePerCell, historicDeviationByCell) = getHistoricWordRatesAndDeviation();
-
-	// consider historic rates that are no longer in use as being currently in use at a rate of 0
-	for (const auto &pair : historicWordRatePerCell)
-	{
-		const auto& word = pair.first;
-		if (!currentWordCountPerCell.count(word))
-			currentWordCountPerCell[word] = makeGrid<int>();
-	}
 
 	string sqlValuesString = "";
 	for (const auto &pair : currentWordCountPerCell)
@@ -187,10 +182,14 @@ int main(int argc, char* argv[])
 
 		tie(localWordRateByCell, globalWordRate) = getCurrentLocalAndGlobalRatesForWord(currentCountByCell, tweetCountPerCell);
 
-		detectEvents(currentWordCountPerCell, historicWordRatePerCell, historicDeviationByCell, tweetCountPerCell);
+		if (SCAN_EVENTS)
+		{
+			detectEvents(currentWordCountPerCell, historicWordRatePerCell, historicDeviationByCell, tweetCountPerCell);
+		}
 
 		sqlValuesString += sqlAppendRates(word, localWordRateByCell);
 	}
+	sqlValuesString.pop_back();
 	commitRates(sqlValuesString);
 	return 0;
 }
@@ -204,7 +203,7 @@ string sqlAppendRates(string word, Grid<double> &wordRates)
 		row += to_string(wordRates[i%MAP_WIDTH][(i-(i%MAP_WIDTH))/MAP_WIDTH]) + ",";
 	}
 	row.pop_back(); // take the extra comma out
-	return row;
+	return row + "),";
 }
 
 void commitRates(string sqlValuesString)
@@ -215,7 +214,7 @@ void commitRates(string sqlValuesString)
 		query += "`" + to_string(i) + "`,";
 	}
 	query.pop_back(); // take the extra comma out
-	query += ") VALUES " + sqlValuesString + " ON DUPLICATE KEY IGNORE;";
+	query += ") VALUES " + sqlValuesString + " ON DUPLICATE KEY UPDATE time=@time;";
 	connection->createStatement()->execute(query);
 }
 
@@ -255,7 +254,7 @@ unordered_map<int, Tweet> getUserIdToTweetMap()
 	unordered_map<int, Tweet> tweets;
 
 	unique_ptr<sql::ResultSet> dbTweets(connection->createStatement()->executeQuery(
-		"SELECT * FROM NYC.tweets WHERE time > FROM_UNIXTIME(" + to_string(LOOKBACK_TIME) + ");")
+		"SELECT * FROM NYC.tweets WHERE time BETWEEN FROM_UNIXTIME(" + to_string(LOOKBACK_TIME - PERIOD) + ") AND FROM_UNIXTIME(" + to_string(LOOKBACK_TIME) + ");")
 		);
 
 	while (dbTweets->next())
@@ -375,7 +374,7 @@ pair<unordered_map<string, Grid<double>>, unordered_map<string, Grid<double>>> g
 
 	unique_ptr<sql::ResultSet> dbWordRates(connection->createStatement()->executeQuery(
 		"SELECT * FROM NYC.rates WHERE time BETWEEN FROM_UNIXTIME(" +
-		to_string(LOOKBACK_TIME) + ") AND FROM_UNIXTIME(" + to_string(LOOKBACK_TIME - RECALL_SCOPE) + ");"
+		to_string(LOOKBACK_TIME - RECALL_SCOPE) + ") AND FROM_UNIXTIME(" + to_string(LOOKBACK_TIME) + ");"
 		));
 
 	unordered_map<string, vector<Grid<double>>> rates;
@@ -393,7 +392,7 @@ pair<unordered_map<string, Grid<double>>, unordered_map<string, Grid<double>>> g
 		{
 			for (int j = 0; j < MAP_HEIGHT; j++)
 			{
-				rates[word].back()[i][j] = stod(dbWordRates->getString('`' + to_string(j*MAP_WIDTH + i) + '`'));
+				rates[word].back()[i][j] = stod(dbWordRates->getString(to_string(j*MAP_WIDTH+i)));
 			}
 		}
 	}
@@ -570,29 +569,37 @@ void detectEvents(
 				{
 					for (int j = 0; j < MAP_HEIGHT; j++)
 					{
-						double historicWordRate = 0;
+						double historicWordRate = 0, historicDeviation = 0;
 						if (historicWordRatePerCell.count(word))
+						{
 							historicWordRate = historicWordRatePerCell.at(word)[i][j];
+							historicDeviation = historicDeviationByCell.at(word)[i][j];
+						}
 
 						if (
 							// checks if a word is a appearing with a greater percentage in one cell than in other cells in the city grid
 							(localWordRateByCell[i][j] > globalWordRate + SPACIAL_PERCENTAGE_THRESHOLD) &&
 							// checks if a word is appearing more frequently in a cell than it has historically in that cell
 							(localWordRateByCell[i][j] > historicWordRate + TEMPORAL_PERCENTAGE_THRESHOLD) &&
-							(localWordRateByCell[i][j] > historicWordRate + globalDeviation * SPACIAL_DEVIATIONS_THRESHOLD) &&
-							(localWordRateByCell[i][j] > historicWordRate + historicDeviationByCell.at(word)[i][j] * TEMPORAL_DEVIATIONS_THRESHOLD)
+							(localWordRateByCell[i][j] > globalWordRate + globalDeviation * SPACIAL_DEVIATIONS_THRESHOLD) &&
+							(localWordRateByCell[i][j] > historicWordRate + historicDeviation * TEMPORAL_DEVIATIONS_THRESHOLD)
 							)
 						{
 							if (!HISTORIC_MODE)
 							{
 								connection->createStatement()->execute(
-									"INSERT INTO NYC.events (word, x, y) VALUES ('" + word + "'," + to_string(i) + "," + to_string(j) + ");"
+									"INSERT INTO NYC.events (time, word, x, y) VALUES (FROM_UNIXTIME(" + to_string(LOOKBACK_TIME) + "), '" + word + "'," + to_string(i) + "," + to_string(j) + ");"
 									);
 							}
 							{
 								ofstream resultFile;
-								resultFile.open ("/root/test/" + to_string(LOOKBACK_TIME) + ".txt", std::ofstream::out | std::ofstream::app);
-								resultFile << word + "\n";
+								resultFile.open ("/root/test/" +
+									to_string(SPACIAL_PERCENTAGE_THRESHOLD) + "_" +
+									to_string(TEMPORAL_PERCENTAGE_THRESHOLD) + "_" +
+									to_string(SPACIAL_DEVIATIONS_THRESHOLD) + "_" +
+									to_string(TEMPORAL_DEVIATIONS_THRESHOLD) +
+									".txt", std::ofstream::out | std::ofstream::app);
+								resultFile << "word: " << word << "\n";
 								resultFile.close();
 							}
 						}
