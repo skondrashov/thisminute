@@ -7,7 +7,6 @@
 #include <cassert>
 #include <cmath>
 #include <vector>
-#include <iostream>
 
 #include "mysql_connection.h"
 
@@ -135,7 +134,6 @@ void Initialize(int argc, char* argv[])
 
 int main(int argc, char* argv[])
 {
-	std::cout.setf( std::ios_base::unitbuf );
 	Initialize(argc, argv);
 
 	// create a connection
@@ -146,20 +144,12 @@ int main(int argc, char* argv[])
 		connection = driver->connect("tcp://127.0.0.1:3306", "pericog", password);
 	}
 
-	cout << "READY";
-
 	// save all tweets since the specified time to an array
 	auto userIdToTweetMap = getUserIdToTweetMap();
 
-	cout << ".";
-
 	auto tweetCountPerCell = refineTweetsAndGetTweetCountPerCell(userIdToTweetMap);
 
-	cout << ".";
-
 	auto currentWordCountPerCell = getCurrentWordCountPerCell(userIdToTweetMap);
-
-	cout << ".";
 
 	string query = "INSERT INTO NYC.words_seen (last_seen,word) VALUES ";
 	for (const auto &pair : currentWordCountPerCell)
@@ -175,12 +165,8 @@ int main(int argc, char* argv[])
 
 	connection->createStatement()->execute(query);
 
-	cout << ".";
-
 	unordered_map<string, Grid<double>> historicWordRatePerCell, historicDeviationByCell;
 	tie(historicWordRatePerCell, historicDeviationByCell) = getHistoricWordRatesAndDeviation();
-
-	cout << ".";
 
 	// consider historic rates that are no longer in use as being currently in use at a rate of 0
 	for (const auto &pair : historicWordRatePerCell)
@@ -190,15 +176,9 @@ int main(int argc, char* argv[])
 			currentWordCountPerCell[word] = makeGrid<int>();
 	}
 
-	cout << "GO!\n";
-
-	int asdf = 1;
-
 	string sqlValuesString = "";
 	for (const auto &pair : currentWordCountPerCell)
 	{
-		cout << asdf << " ";
-		asdf++;
 		const auto& word = pair.first;
 		const auto &currentCountByCell = pair.second;
 
