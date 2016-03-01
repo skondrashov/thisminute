@@ -1,6 +1,5 @@
 #include "pericog.h"
 
-
 int LOOKBACK_TIME = -1, RECALL_SCOPE, PERIOD, PERIODS_IN_HISTORY;
 int MAP_HEIGHT, MAP_WIDTH;
 bool HISTORIC_MODE = false, SCAN_EVENTS = false;
@@ -13,6 +12,9 @@ sql::Connection* connection;
 
 int main(int argc, char* argv[])
 {
+	TimeKeeper profiler;
+
+	profiler.start("init");
 	Initialize(argc, argv);
 
 	// create a connection
@@ -24,12 +26,16 @@ int main(int argc, char* argv[])
 	}
 
 	// save all tweets since the specified time to an array
+	profiler.start("getUserIdToTweetMap");
 	auto userIdToTweetMap = getUserIdToTweetMap();
 
+	profiler.start("refineTweetsAndGetTweetCountPerCell");
 	auto tweetCountPerCell = refineTweetsAndGetTweetCountPerCell(userIdToTweetMap);
 
+	profiler.start("getCurrentWordCountPerCell");
 	auto currentWordCountPerCell = getCurrentWordCountPerCell(userIdToTweetMap);
 
+	profiler.start("insert words_seen");
 	string query = "INSERT INTO NYC.words_seen (last_seen,word) VALUES ";
 	for (const auto &pair : currentWordCountPerCell)
 	{
@@ -45,7 +51,12 @@ int main(int argc, char* argv[])
 	connection->createStatement()->execute(query);
 
 	unordered_map<string, Grid<double>> historicWordRatePerCell, historicDeviationByCell;
+	profiler.start("getHistoricWordRatesAndDeviation");
 	tie(historicWordRatePerCell, historicDeviationByCell) = getHistoricWordRatesAndDeviation();
+
+	TimeKeeper profiler2;
+
+	profiler2.start("full loop");
 
 	string sqlValuesString = "";
 	for (const auto &pair : currentWordCountPerCell)
@@ -56,23 +67,29 @@ int main(int argc, char* argv[])
 		Grid<double> localWordRateByCell;
 		double globalWordRate;
 
+		profiler.start("getCurrentLocalAndGlobalRatesForWord " + word);
 		tie(localWordRateByCell, globalWordRate) = getCurrentLocalAndGlobalRatesForWord(currentCountByCell, tweetCountPerCell);
 
 		if (SCAN_EVENTS)
 		{
+			profiler.start("detectEvents " + word);
 			detectEvents(currentWordCountPerCell, historicWordRatePerCell, historicDeviationByCell, tweetCountPerCell);
 		}
 
 		sqlValuesString += sqlAppendRates(word, localWordRateByCell);
 	}
 	sqlValuesString.pop_back();
+	profiler2.stop();
+
+	profiler.start("commitRates");
 	commitRates(sqlValuesString);
+
+	profiler.stop();
 	return 0;
 }
 
 void Initialize(int argc, char* argv[])
 {
-	
 	getArg(RECALL_SCOPE, "timing", "history");
 	getArg(PERIOD, "timing", "period");
 	getArg(WEST_BOUNDARY, "grid", "west");
