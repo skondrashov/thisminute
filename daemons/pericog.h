@@ -25,7 +25,7 @@
 #include <cppconn/statement.h>
 
 #include "INIReader.h"
-#include "../timer.h"
+#include "timer.h"
 
 using namespace std;
 
@@ -55,6 +55,8 @@ void commitRates(const string &sqlValuesString);
 
 
 // YEAH LET'S DO IT
+void Initialize(int argc, char* argv[]);
+
 unordered_map<int, Tweet> getUserIdToTweetMap();
 
 Grid<int> refineTweetsAndGetTweetCountPerCell(unordered_map<int, Tweet> &userIdTweetMap);
@@ -72,4 +74,3 @@ void detectEvents(
 	const WordToGridMap<double> &historicWordRatePerCell,
 	const WordToGridMap<double> &historicDeviationByCell,
 	const Grid<int> &tweetCountPerCell);
-
