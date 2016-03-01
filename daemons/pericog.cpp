@@ -44,7 +44,7 @@ int main(int argc, char* argv[])
 	query.pop_back(); // take the extra comma out
 
 	if (HISTORIC_MODE)
-		query += " ON DUPLICATE KEY UPDATE last_seen=@last_seen;";
+		query += " ON DUPLICATE KEY UPDATE last_seen=last_seen;";
 	else
 		query += " ON DUPLICATE KEY UPDATE last_seen=FROM_UNIXTIME(" + to_string(LOOKBACK_TIME) + ");";
 
@@ -157,7 +157,7 @@ void commitRates(const string &sqlValuesString)
 		query += "`" + to_string(i) + "`,";
 	}
 	query.pop_back(); // take the extra comma out
-	query += ") VALUES " + sqlValuesString + " ON DUPLICATE KEY UPDATE time=@time;";
+	query += ") VALUES " + sqlValuesString + " ON DUPLICATE KEY UPDATE time=time;";
 	connection->createStatement()->execute(query);
 }
 
