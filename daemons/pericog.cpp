@@ -10,6 +10,7 @@ const int THREAD_COUNT = 2;
 
 sql::Connection* connection;
 ofstream verboseOutputFile;
+string verboseOutputFileName;
 
 int main(int argc, char* argv[])
 {
@@ -31,9 +32,12 @@ int main(int argc, char* argv[])
 	profiler.start("insertWordsSeen");
 	insertWordsSeen(currentWordCountPerCell);
 
-	profiler.start("getHistoricWordRatesAndDeviation");
 	unordered_map<string, Grid<double>> historicWordRatePerCell, historicDeviationByCell;
-	tie(historicWordRatePerCell, historicDeviationByCell) = getHistoricWordRatesAndDeviation();
+	if (SCAN_EVENTS)
+	{
+		profiler.start("getHistoricWordRatesAndDeviation");
+		tie(historicWordRatePerCell, historicDeviationByCell) = getHistoricWordRatesAndDeviation();
+	}
 
 	profiler.start("rate calculation loop");
 	string sqlValuesString = "";
@@ -65,25 +69,32 @@ int main(int argc, char* argv[])
 
 void Initialize(int argc, char* argv[])
 {
-	getArg(RECALL_SCOPE, "timing", "history");
-	getArg(PERIOD, "timing", "period");
-	getArg(WEST_BOUNDARY, "grid", "west");
-	getArg(EAST_BOUNDARY, "grid", "east");
-	getArg(SOUTH_BOUNDARY, "grid", "south");
-	getArg(NORTH_BOUNDARY, "grid", "north");
-	getArg(RESOLUTION, "grid", "cell_size");
-	getArg(SPACIAL_PERCENTAGE_THRESHOLD, "threshold", "spacial_percentage");
+	getArg(RECALL_SCOPE,                  "timing",    "history");
+	getArg(PERIOD,                        "timing",    "period");
+	getArg(WEST_BOUNDARY,                 "grid",      "west");
+	getArg(EAST_BOUNDARY,                 "grid",      "east");
+	getArg(SOUTH_BOUNDARY,                "grid",      "south");
+	getArg(NORTH_BOUNDARY,                "grid",      "north");
+	getArg(RESOLUTION,                    "grid",      "cell_size");
+	getArg(SPACIAL_PERCENTAGE_THRESHOLD,  "threshold", "spacial_percentage");
 	getArg(TEMPORAL_PERCENTAGE_THRESHOLD, "threshold", "temporal_percentage");
-	getArg(SPACIAL_DEVIATIONS_THRESHOLD, "threshold", "spacial_deviations");
+	getArg(SPACIAL_DEVIATIONS_THRESHOLD,  "threshold", "spacial_deviations");
 	getArg(TEMPORAL_DEVIATIONS_THRESHOLD, "threshold", "temporal_deviations");
 
 	char tmp;
-	while ((tmp = getopt(argc, argv, "l:1:2:3:4:ov")) != -1)
+	while ((tmp = getopt(argc, argv, "l:ov:1:2:3:4:")) != -1)
 	{
 		switch (tmp)
 		{
 		case 'l':
 			LOOKBACK_TIME = stoi(optarg);
+			break;
+		case 'o':
+			SCAN_EVENTS = true;
+			break;
+		case 'v':
+			VERBOSE_OUTPUT = true;
+			verboseOutputFileName = optarg;
 			break;
 		case '1':
 			SPACIAL_PERCENTAGE_THRESHOLD = stod(optarg);
@@ -96,13 +107,6 @@ void Initialize(int argc, char* argv[])
 			break;
 		case '4':
 			TEMPORAL_DEVIATIONS_THRESHOLD = stod(optarg);
-			break;
-		case 'o':
-			SCAN_EVENTS = true;
-			break;
-		case 'v':
-			VERBOSE_OUTPUT = true;
-			verboseOutputFile.open(optarg, std::ofstream::out | std::ofstream::app);
 			break;
 		}
 	}
@@ -545,6 +549,8 @@ void detectEvents(
 								);
 							if (VERBOSE_OUTPUT)
 							{
+								if (!verboseOutputFile.is_open())
+									verboseOutputFile.open(verboseOutputFileName, std::ofstream::out | std::ofstream::app);
 								verboseOutputFile <<
 									word                                 + " " +
 									to_string(localWordRateByCell[i][j]) + " " +
