@@ -7,7 +7,7 @@ while ($last_runtime < 1456460400 + 60*60*24*2)
 {
 	echo "$last_runtime ------------------\n";
 	$out = [];
-	exec("/srv/bin/pericog -l " . $last_runtime . " -H" . (($last_runtime > 1456460400) ? " -o" : ""), $out);
+	exec("/srv/bin/pericog -l " . $last_runtime . (($last_runtime > 1456460400) ? " -o -v" : ""), $out);
 	foreach ($out as $thing)
 	{
 		echo "$thing\n";

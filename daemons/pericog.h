@@ -50,9 +50,9 @@ template<typename T> Grid<T> makeGrid();
 template<typename T> void getArg(T &arg, string section, string option);
 
 // SQL functions
+void insertWordsSeen(const unordered_map <string, Grid<int>> &currentWordCountPerCell);
 string sqlAppendRates(const string &word, const Grid<double> &wordRates);
 void commitRates(const string &sqlValuesString);
-
 
 // YEAH LET'S DO IT
 void Initialize(int argc, char* argv[]);
