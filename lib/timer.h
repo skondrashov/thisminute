@@ -48,7 +48,7 @@ double TimeKeeper::duration() {
 
 
 void TimeKeeper::print() {
-	std::cout << std::endl << title << ": " << std::chrono::duration_cast<std::chrono::milliseconds>(programDuration).count() << std::endl;
+	std::cout << title << ": " << std::chrono::duration_cast<std::chrono::milliseconds>(programDuration).count() << std::endl;
 }
 
 void TimeKeeper::sleep() {

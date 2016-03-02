@@ -2,28 +2,22 @@
 
 int LOOKBACK_TIME = -1, RECALL_SCOPE, PERIOD, PERIODS_IN_HISTORY;
 int MAP_HEIGHT, MAP_WIDTH;
-bool HISTORIC_MODE = false, SCAN_EVENTS = false;
+bool SCAN_EVENTS = false, VERBOSE_OUTPUT = false;
 
 double WEST_BOUNDARY, EAST_BOUNDARY, NORTH_BOUNDARY, SOUTH_BOUNDARY, RESOLUTION, SPACIAL_PERCENTAGE_THRESHOLD, TEMPORAL_PERCENTAGE_THRESHOLD, SPACIAL_DEVIATIONS_THRESHOLD, TEMPORAL_DEVIATIONS_THRESHOLD;
 
 const int THREAD_COUNT = 2;
 
 sql::Connection* connection;
+ofstream verboseOutputFile;
+string verboseOutputFileName;
 
 int main(int argc, char* argv[])
 {
 	TimeKeeper profiler;
 
-	profiler.start("init");
+	profiler.start("Initialize");
 	Initialize(argc, argv);
-
-	// create a connection
-	sql::Driver* driver(get_driver_instance());
-	{
-		ifstream passwordFile("/srv/etc/auth/daemons/pericog.pw");
-		auto password = static_cast<ostringstream&>(ostringstream{} << passwordFile.rdbuf()).str();
-		connection = driver->connect("tcp://127.0.0.1:3306", "pericog", password);
-	}
 
 	// save all tweets since the specified time to an array
 	profiler.start("getUserIdToTweetMap");
@@ -35,29 +29,17 @@ int main(int argc, char* argv[])
 	profiler.start("getCurrentWordCountPerCell");
 	auto currentWordCountPerCell = getCurrentWordCountPerCell(userIdToTweetMap);
 
-	profiler.start("insert words_seen");
-	string query = "INSERT INTO NYC.words_seen (last_seen,word) VALUES ";
-	for (const auto &pair : currentWordCountPerCell)
-	{
-		query += "(FROM_UNIXTIME(" + to_string(LOOKBACK_TIME) + "),'" + pair.first + "'),";
-	}
-	query.pop_back(); // take the extra comma out
-
-	if (HISTORIC_MODE)
-		query += " ON DUPLICATE KEY UPDATE last_seen=last_seen;";
-	else
-		query += " ON DUPLICATE KEY UPDATE last_seen=FROM_UNIXTIME(" + to_string(LOOKBACK_TIME) + ");";
-
-	connection->createStatement()->execute(query);
+	profiler.start("insertWordsSeen");
+	insertWordsSeen(currentWordCountPerCell);
 
 	unordered_map<string, Grid<double>> historicWordRatePerCell, historicDeviationByCell;
-	profiler.start("getHistoricWordRatesAndDeviation");
-	tie(historicWordRatePerCell, historicDeviationByCell) = getHistoricWordRatesAndDeviation();
+	if (SCAN_EVENTS)
+	{
+		profiler.start("getHistoricWordRatesAndDeviation");
+		tie(historicWordRatePerCell, historicDeviationByCell) = getHistoricWordRatesAndDeviation();
+	}
 
-	TimeKeeper profiler2;
-
-	profiler2.start("full loop");
-
+	profiler.start("rate calculation loop");
 	string sqlValuesString = "";
 	for (const auto &pair : currentWordCountPerCell)
 	{
@@ -67,19 +49,16 @@ int main(int argc, char* argv[])
 		Grid<double> localWordRateByCell;
 		double globalWordRate;
 
-		profiler.start("getCurrentLocalAndGlobalRatesForWord " + word);
 		tie(localWordRateByCell, globalWordRate) = getCurrentLocalAndGlobalRatesForWord(currentCountByCell, tweetCountPerCell);
 
 		if (SCAN_EVENTS)
 		{
-			profiler.start("detectEvents " + word);
 			detectEvents(currentWordCountPerCell, historicWordRatePerCell, historicDeviationByCell, tweetCountPerCell);
 		}
 
 		sqlValuesString += sqlAppendRates(word, localWordRateByCell);
 	}
 	sqlValuesString.pop_back();
-	profiler2.stop();
 
 	profiler.start("commitRates");
 	commitRates(sqlValuesString);
@@ -90,25 +69,32 @@ int main(int argc, char* argv[])
 
 void Initialize(int argc, char* argv[])
 {
-	getArg(RECALL_SCOPE, "timing", "history");
-	getArg(PERIOD, "timing", "period");
-	getArg(WEST_BOUNDARY, "grid", "west");
-	getArg(EAST_BOUNDARY, "grid", "east");
-	getArg(SOUTH_BOUNDARY, "grid", "south");
-	getArg(NORTH_BOUNDARY, "grid", "north");
-	getArg(RESOLUTION, "grid", "cell_size");
-	getArg(SPACIAL_PERCENTAGE_THRESHOLD, "threshold", "spacial_percentage");
+	getArg(RECALL_SCOPE,                  "timing",    "history");
+	getArg(PERIOD,                        "timing",    "period");
+	getArg(WEST_BOUNDARY,                 "grid",      "west");
+	getArg(EAST_BOUNDARY,                 "grid",      "east");
+	getArg(SOUTH_BOUNDARY,                "grid",      "south");
+	getArg(NORTH_BOUNDARY,                "grid",      "north");
+	getArg(RESOLUTION,                    "grid",      "cell_size");
+	getArg(SPACIAL_PERCENTAGE_THRESHOLD,  "threshold", "spacial_percentage");
 	getArg(TEMPORAL_PERCENTAGE_THRESHOLD, "threshold", "temporal_percentage");
-	getArg(SPACIAL_DEVIATIONS_THRESHOLD, "threshold", "spacial_deviations");
+	getArg(SPACIAL_DEVIATIONS_THRESHOLD,  "threshold", "spacial_deviations");
 	getArg(TEMPORAL_DEVIATIONS_THRESHOLD, "threshold", "temporal_deviations");
 
 	char tmp;
-	while ((tmp = getopt(argc, argv, "l:1:2:3:4:Ho")) != -1)
+	while ((tmp = getopt(argc, argv, "l:ov:1:2:3:4:")) != -1)
 	{
 		switch (tmp)
 		{
 		case 'l':
 			LOOKBACK_TIME = stoi(optarg);
+			break;
+		case 'o':
+			SCAN_EVENTS = true;
+			break;
+		case 'v':
+			VERBOSE_OUTPUT = true;
+			verboseOutputFileName = optarg;
 			break;
 		case '1':
 			SPACIAL_PERCENTAGE_THRESHOLD = stod(optarg);
@@ -122,12 +108,6 @@ void Initialize(int argc, char* argv[])
 		case '4':
 			TEMPORAL_DEVIATIONS_THRESHOLD = stod(optarg);
 			break;
-		case 'H':
-			HISTORIC_MODE = true;
-			break;
-		case 'o':
-			SCAN_EVENTS = true;
-			break;
 		}
 	}
 	assert(LOOKBACK_TIME != -1);
@@ -135,6 +115,28 @@ void Initialize(int argc, char* argv[])
 	MAP_WIDTH = static_cast<int>(round(abs((WEST_BOUNDARY - EAST_BOUNDARY) / RESOLUTION)));
 	MAP_HEIGHT = static_cast<int>(round(abs((SOUTH_BOUNDARY - NORTH_BOUNDARY) / RESOLUTION)));
 	PERIODS_IN_HISTORY = RECALL_SCOPE / PERIOD;
+
+	// create a connection
+	sql::Driver* driver(get_driver_instance());
+	{
+		ifstream passwordFile("/srv/etc/auth/daemons/pericog.pw");
+		auto password = static_cast<ostringstream&>(ostringstream{} << passwordFile.rdbuf()).str();
+		connection = driver->connect("tcp://127.0.0.1:3306", "pericog", password);
+	}
+}
+
+void insertWordsSeen(const unordered_map <string, Grid<int>> &currentWordCountPerCell)
+{
+	string query = "INSERT INTO NYC.words_seen (last_seen,word) VALUES ";
+	for (const auto &pair : currentWordCountPerCell)
+	{
+		query += "(FROM_UNIXTIME(" + to_string(LOOKBACK_TIME) + "),'" + pair.first + "'),";
+	}
+	query.pop_back(); // take the extra comma out
+
+	query += " ON DUPLICATE KEY UPDATE last_seen=FROM_UNIXTIME(" + to_string(LOOKBACK_TIME) + ");";
+
+	connection->createStatement()->execute(query);
 }
 
 // write updated historic rates to database
@@ -324,6 +326,8 @@ pair<WordToGridMap<double>, WordToGridMap<double>> getHistoricWordRatesAndDeviat
 {
 	WordToGridMap<double> historicWordRates, historicDeviations;
 
+	TimeKeeper profiler;
+	profiler.start("getHistoricWordRatesAndDeviation query");
 	unique_ptr<sql::ResultSet> dbWordRates(connection->createStatement()->executeQuery(
 		"SELECT * FROM NYC.rates WHERE time BETWEEN FROM_UNIXTIME(" +
 		to_string(LOOKBACK_TIME - RECALL_SCOPE) + ") AND FROM_UNIXTIME(" + to_string(LOOKBACK_TIME) + ");"
@@ -331,6 +335,7 @@ pair<WordToGridMap<double>, WordToGridMap<double>> getHistoricWordRatesAndDeviat
 
 	unordered_map<string, vector<Grid<double>>> rates;
 
+	profiler.start("getHistoricWordRatesAndDeviation getrates");
 	while (dbWordRates->next())
 	{
 		const auto word = dbWordRates->getString("word");
@@ -349,6 +354,7 @@ pair<WordToGridMap<double>, WordToGridMap<double>> getHistoricWordRatesAndDeviat
 		}
 	}
 
+	profiler.start("getHistoricWordRatesAndDeviation math");
 	for (int i = 0; i < MAP_WIDTH; i++)
 	{
 		for (int j = 0; j < MAP_HEIGHT; j++)
@@ -365,6 +371,7 @@ pair<WordToGridMap<double>, WordToGridMap<double>> getHistoricWordRatesAndDeviat
 				historicDeviations[pair.first][i][j] = pow(historicDeviations[pair.first][i][j], 0.5);
 		}
 	}
+	profiler.stop();
 
 	return{ move(historicWordRates), move(historicDeviations) };
 }
@@ -474,7 +481,7 @@ void detectEvents(
 	const WordToGridMap<int>    &currentWordCountPerCell,
 	const WordToGridMap<double> &historicWordRatePerCell,
 	const WordToGridMap<double> &historicDeviationByCell,
-	const Grid<int>                           &tweetCountPerCell
+	const Grid<int>             &tweetCountPerCell
 )
 {
 	mutex listLock;
@@ -537,22 +544,20 @@ void detectEvents(
 							(localWordRateByCell[i][j] > historicWordRate + historicDeviation * TEMPORAL_DEVIATIONS_THRESHOLD)
 							)
 						{
-							if (!HISTORIC_MODE)
+							connection->createStatement()->execute(
+								"INSERT INTO NYC.events (time, word, x, y) VALUES (FROM_UNIXTIME(" + to_string(LOOKBACK_TIME) + "), '" + word + "'," + to_string(i) + "," + to_string(j) + ");"
+								);
+							if (VERBOSE_OUTPUT)
 							{
-								connection->createStatement()->execute(
-									"INSERT INTO NYC.events (time, word, x, y) VALUES (FROM_UNIXTIME(" + to_string(LOOKBACK_TIME) + "), '" + word + "'," + to_string(i) + "," + to_string(j) + ");"
-									);
-							}
-							{
-								ofstream resultFile;
-								resultFile.open ("/root/test/" +
-									to_string(SPACIAL_PERCENTAGE_THRESHOLD) + "_" +
-									to_string(TEMPORAL_PERCENTAGE_THRESHOLD) + "_" +
-									to_string(SPACIAL_DEVIATIONS_THRESHOLD) + "_" +
-									to_string(TEMPORAL_DEVIATIONS_THRESHOLD) +
-									".txt", std::ofstream::out | std::ofstream::app);
-								resultFile << "word: " << word << "\n";
-								resultFile.close();
+								if (!verboseOutputFile.is_open())
+									verboseOutputFile.open(verboseOutputFileName, std::ofstream::out | std::ofstream::app);
+								verboseOutputFile <<
+									word                                 + " " +
+									to_string(localWordRateByCell[i][j]) + " " +
+									to_string(globalWordRate)            + " " +
+									to_string(historicWordRate)          + " " +
+									to_string(globalDeviation)           + " " +
+									to_string(historicDeviation)         + "\n";
 							}
 						}
 					}
