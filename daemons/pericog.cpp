@@ -324,99 +324,86 @@ unordered_map <string, Grid<int>> getCurrentWordCountPerCell(const unordered_map
 
 pair<WordToGridMap<double>, WordToGridMap<double>> getHistoricWordRatesAndDeviation()
 {
-	unordered_map<string, Grid<double>> historicWordRates, historicDeviations, means, oldestRates, newestRates;
+	unordered_map<string, Grid<double>> historicWordRates, historicDeviations,  oldestRates, newestRates;
 
-    TimeKeeper profiler;
+	TimeKeeper profiler;
 	profiler.start("getHistoricWordRatesAndDeviation query");
-    
-    // set of words from 48 hrs ago, each with a 10x10 grid of rates
-    unique_ptr<sql::ResultSet> dbOldestRates(connection->createStatement()->executeQuery(
-    "SELECT * FROM NYC.rates WHERE time = FROM_UNIXTIME(" + to_string(LOOKBACK_TIME - RECALL_SCOPE) + ");"
-    ));
-    
-    // set of words from the most recent run, each with a 10x10 grid of rates
-    unique_ptr<sql::ResultSet> dbNewestRates(connection->createStatement()->executeQuery(
-        "SELECT * FROM NYC.rates WHERE time = FROM_UNIXTIME(" + to_string(LOOKBACK_TIME) + ");"
-        ));
-    
-    // set of words/means from the last 48 hours
-    unique_ptr<sql::ResultSet> dbMeans(connection->createStatement()->executeQuery(
-        "SELECT * FROM NYC.words_seen WHERE last_seen > FROM_UNIXTIME(" + to_string(LOOKBACK_TIME - RECALL_SCOPE) + ");"
-        ));
 
-    profiler.start("getHistoricWordRatesAndDeviation populateMaps");
-    while (dbNewestRates->next())
-    {
-        const auto word = dbNewestRates->getString("word");
-        
-        // populate the maps
-        // if the word/data is not already in the map, add it.
-        if (!means.count(word))
-            means[word] = makeGrid<double>());
-            
-        if (!historicWordRates.count(word))
-            historicWordRates[word] = makeGrid<double>();
-            
-        if (!historicDeviations.count(word))
-            historicDeviations[word] = makeGrid<double>();
-            
-        if (!newestRates.count(word))
-            newestRates[word] = makeGrid<double>();
-            
-        if (!oldestRates.count(word))
-            oldestRates[word] = makeGrid<double>();
-    }
-    
-    profiler.start("getHistoricWordRatesAndDeviation math");
-    // populate the unordered map "means" with the data from the ResultSet dbMeans
-    for (int i = 0; i < MAP_WIDTH; i++)
-    {
-        for (int j = 0; j < MAP_HEIGHT; j++)
-        {
-            means[dbMeans->getString('`' + word + '`')][i][j] = stod(dbMeans->getString('`' + to_string(j*MAP_WIDTH + i) + '`'));
-        }
-    }
-    
-    // populate the unordered map "oldestRates" with the data from the ResultSet dbOldestRates
-    for (int i = 0; i < MAP_WIDTH; i++)
-    {
-        for (int j = 0; j < MAP_HEIGHT; j++)
-        {
-            oldestRates[dbOldestRates->getString('`' + word + '`')][i][j] = stod(dbOldestRates->getString('`' + to_string(j*MAP_WIDTH + i) + '`'));
-        }
-    }
-    
-    // populate the unordered map "newestRates" with the data from the ResultSet dbNewestRates
-    for (int i = 0; i < MAP_WIDTH; i++)
-    {
-        for (int j = 0; j < MAP_HEIGHT; j++)
-        {
-            newestRates[dbNewestRates->getString('`' + word + '`')][i][j] = stod(dbNewestRates->getString('`' + to_string(j*MAP_WIDTH + i) + '`'));
-        }
-    }
-    
-    for (int i = 0; i < MAP_WIDTH; i++)
-    {
-        for (int j = 0; j < MAP_HEIGHT; j++)
-        {
-            
-            for (auto &pair : means)
-            {
-                // add the newest set of rates to the mean
-                historicWordRates[pair.first][i][j] += newestRates[word][i][j] / PERIODS_IN_HISTORY;
-                // remove the oldest set of rates from the mean                    
-                historicWordRates[pair.first][i][j] -= oldestRates[word][i][j] / PERIODS_IN_HISTORY;
-            }
-                
-            for (auto &pair : means)
-                historicDeviations[pair.first][i][j] += pow(means[word][i][j] - historicWordRates[pair.first][i][j], 2) / PERIODS_IN_HISTORY;
+	// set of words from 48 hrs ago, each with a 10x10 grid of rates
+	unique_ptr<sql::ResultSet> dbOldestRates(connection->createStatement()->executeQuery(
+	"SELECT * FROM NYC.rates WHERE time = FROM_UNIXTIME(" + to_string(LOOKBACK_TIME - RECALL_SCOPE) + ");"
+	));
 
-            for (auto &pair : means)
-                historicDeviations[pair.first][i][j] = pow(historicDeviations[pair.first][i][j], 0.5);
-        }
-    }
-    
-    profiler.stop();
+	// set of words from the most recent run, each with a 10x10 grid of rates
+	unique_ptr<sql::ResultSet> dbNewestRates(connection->createStatement()->executeQuery(
+		"SELECT * FROM NYC.rates WHERE time = FROM_UNIXTIME(" + to_string(LOOKBACK_TIME) + ");"
+		));
+
+	// set of words/means from the last 48 hours
+	unique_ptr<sql::ResultSet> dbMeans(connection->createStatement()->executeQuery(
+		"SELECT * FROM NYC.words_seen WHERE last_seen > FROM_UNIXTIME(" + to_string(LOOKBACK_TIME - RECALL_SCOPE) + ");"
+		));
+
+	profiler.start("getHistoricWordRatesAndDeviation populateMaps");
+	while (dbNewestRates->next())
+	{
+		const auto word = dbNewestRates->getString("word");
+
+		// populate the maps
+		// if the word/data is not already in the map, add it.
+		if (!historicWordRates.count(word))
+			historicWordRates[word] = makeGrid<double>();
+
+		if (!historicDeviations.count(word))
+			historicDeviations[word] = makeGrid<double>();
+
+		if (!newestRates.count(word))
+			newestRates[word] = makeGrid<double>();
+
+		if (!oldestRates.count(word))
+			oldestRates[word] = makeGrid<double>();
+
+		string word_col = "`" + word + "`";
+
+		for (int i = 0; i < MAP_WIDTH; i++)
+		{
+			for (int j = 0; j < MAP_HEIGHT; j++)
+			{
+				string num_col = "`" + to_string(j*MAP_WIDTH + i) + "`";
+				// populate the unordered map "historicWordRates" with the data from the ResultSet dbMeans
+				historicWordRates[dbMeans->getString(word_col)][i][j] = stod(dbMeans->getString(num_col));
+
+				// populate the unordered map "oldestRates" with the data from the ResultSet dbOldestRates
+				oldestRates[dbOldestRates->getString(word_col)][i][j] = stod(dbOldestRates->getString(num_col));
+
+				// populate the unordered map "newestRates" with the data from the ResultSet dbNewestRates
+				newestRates[dbNewestRates->getString(word_col)][i][j] = stod(dbNewestRates->getString(num_col));
+			}
+		}
+	}
+
+	profiler.start("getHistoricWordRatesAndDeviation math");
+	for (int i = 0; i < MAP_WIDTH; i++)
+	{
+		for (int j = 0; j < MAP_HEIGHT; j++)
+		{
+			for (auto &pair : historicWordRates)
+			{
+				// add the newest set of rates to the mean
+				historicWordRates[pair.first][i][j] += newestRates[pair.first][i][j] / PERIODS_IN_HISTORY;
+				// remove the oldest set of rates from the mean
+				historicWordRates[pair.first][i][j] -= oldestRates[pair.first][i][j] / PERIODS_IN_HISTORY;
+			}
+
+			// for (auto &pair : rates)
+			// 	historicDeviations[pair.first][i][j] += pow(rates[pair.first][i][j] - means[pair.first][i][j], 2) / PERIODS_IN_HISTORY;
+
+			// for (auto &pair : means)
+			// 	historicDeviations[pair.first][i][j] = pow(historicDeviations[pair.first][i][j], 0.5);
+		}
+	}
+
+	profiler.stop();
 	return{ move(historicWordRates), move(historicDeviations) };
 }
 
