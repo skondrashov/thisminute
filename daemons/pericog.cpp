@@ -6,7 +6,7 @@ bool SCAN_EVENTS = false, VERBOSE_OUTPUT = false, USE_CACHE = false;
 
 double WEST_BOUNDARY, EAST_BOUNDARY, NORTH_BOUNDARY, SOUTH_BOUNDARY, RESOLUTION, SPACIAL_PERCENTAGE_THRESHOLD, TEMPORAL_PERCENTAGE_THRESHOLD, SPACIAL_DEVIATIONS_THRESHOLD, TEMPORAL_DEVIATIONS_THRESHOLD;
 
-const int THREAD_COUNT = 2;
+const int THREAD_COUNT = 1;
 
 sql::Connection* connection;
 ofstream verboseOutputFile;
@@ -14,12 +14,13 @@ string verboseOutputFileName;
 
 int main(int argc, char* argv[])
 {
-	Stats stats;
 	TimeKeeper profiler;
 
 	profiler.start("Initialize");
 	Initialize(argc, argv);
+	Stats stats;
 
+	profiler.start("readCache");
 	if (!USE_CACHE || !readCache(stats))
 	{
 		// save all tweets since the specified time to an array
@@ -35,16 +36,18 @@ int main(int argc, char* argv[])
 		profiler.start("getCurrentLocalAndGlobalRatesForWord");
 		getCurrentLocalAndGlobalRatesForWord(stats);
 
-		// profiler.start("getHistoricWordRatesAndDeviation");
-		// getHistoricWordRatesAndDeviation(stats);
+		profiler.start("getHistoricWordRatesAndDeviation");
+		getHistoricWordRatesAndDeviation(stats);
 
 		profiler.start("commitRates");
 		commitStats(stats);
 	}
 
-	profiler.start("detectEvents");
 	if (SCAN_EVENTS)
+	{
+		profiler.start("detectEvents");
 		detectEvents(stats);
+	}
 
 	profiler.stop();
 	return 0;
@@ -137,6 +140,8 @@ bool readCache(Stats &stats)
 			stats.tweetCounts[x][y] = stats.perWord[word].currentCounts[x][y] / stats.perWord[word].currentRates[x][y];
 	}
 
+	getCurrentLocalAndGlobalRatesForWord(stats);
+
 	return true;
 }
 
@@ -227,7 +232,7 @@ Grid<int> refineTweetsAndGetTweetCountPerCell(unordered_map<int, Tweet> &userIdT
 	for (int i = 0; i < THREAD_COUNT; i++)
 		threads[i].join();
 
-	return move(tweetsPerCell);
+	return tweetsPerCell;
 }
 
 // refine each tweet into usable information
@@ -262,59 +267,58 @@ void getCurrentWordCountPerCell(Stats &stats, const unordered_map<int, Tweet> &u
 	}
 }
 
-// pair<WordToGridMap<double>, WordToGridMap<double>> getHistoricWordRatesAndDeviation()
-// {
-// 	WordToGridMap<double> historicWordRates, historicDeviations;
+void getHistoricWordRatesAndDeviation(Stats &stats)
+{
+	TimeKeeper profiler;
+	profiler.start("getHistoricWordRatesAndDeviation query");
+	unique_ptr<sql::ResultSet> dbWordStats(connection->createStatement()->executeQuery(
+		"SELECT * FROM NYC.stat_cache WHERE time BETWEEN FROM_UNIXTIME(" +
+		to_string(LOOKBACK_TIME - RECALL_SCOPE) + ") AND FROM_UNIXTIME(" + to_string(LOOKBACK_TIME) + ");"
+		));
 
-// 	TimeKeeper profiler;
-// 	profiler.start("getHistoricWordRatesAndDeviation query");
-// 	unique_ptr<sql::ResultSet> dbWordRates(connection->createStatement()->executeQuery(
-// 		"SELECT * FROM NYC.rates WHERE time BETWEEN FROM_UNIXTIME(" +
-// 		to_string(LOOKBACK_TIME - RECALL_SCOPE) + ") AND FROM_UNIXTIME(" + to_string(LOOKBACK_TIME) + ");"
-// 		));
+	unordered_map<string, Grid<vector<double>>> rates;
 
-// 	unordered_map<string, vector<Grid<double>>> rates;
+	profiler.start("getHistoricWordRatesAndDeviation getrates");
+	while (dbWordStats->next())
+	{
+		const auto &word = dbWordStats->getString("word");
+		const auto &x    = stoi(dbWordStats->getString("x"));
+		const auto &y    = stoi(dbWordStats->getString("y"));
+		const auto &rate = stod(dbWordStats->getString("rate"));
 
-// 	profiler.start("getHistoricWordRatesAndDeviation getrates");
-// 	while (dbWordRates->next())
-// 	{
-// 		const auto word = dbWordRates->getString("word");
-// 		if (!rates.count(word))
-// 			rates[word].push_back(makeGrid<double>());
-// 		if (!historicWordRates.count(word))
-// 			historicWordRates[word] = makeGrid<double>();
-// 		if (!historicDeviations.count(word))
-// 			historicDeviations[word] = makeGrid<double>();
-// 		for (int i = 0; i < MAP_WIDTH; i++)
-// 		{
-// 			for (int j = 0; j < MAP_HEIGHT; j++)
-// 			{
-// 				rates[word].back()[i][j] = stod(dbWordRates->getString(to_string(j*MAP_WIDTH+i)));
-// 			}
-// 		}
-// 	}
+		if (!rates.count(word))
+		{
+			rates[word].resize(MAP_WIDTH);
+			for (int i = 0; i < MAP_WIDTH; i++)
+				rates[word][i].resize(MAP_HEIGHT);
+		}
+		rates[word][x][y].push_back(rate);
+	}
 
-// 	profiler.start("getHistoricWordRatesAndDeviation math");
-// 	for (int i = 0; i < MAP_WIDTH; i++)
-// 	{
-// 		for (int j = 0; j < MAP_HEIGHT; j++)
-// 		{
-// 			for (auto &pair : rates)
-// 				for (auto &rate : pair.second)
-// 					historicWordRates[pair.first][i][j] += rate[i][j] / PERIODS_IN_HISTORY;
+	profiler.start("getHistoricWordRatesAndDeviation math");
+	for (auto &pair : rates)
+	{
+		for (int i = 0; i < MAP_WIDTH; i++)
+		{
+			for (int j = 0; j < MAP_HEIGHT; j++)
+			{
+				double historicMeanRate = 0, historicDeviation = 0;
+				for (auto &rate : pair.second[i][j])
+					historicMeanRate += rate / PERIODS_IN_HISTORY;
 
-// 			for (auto &pair : rates)
-// 				for (auto &rate : pair.second)
-// 					historicDeviations[pair.first][i][j] += pow(rate[i][j] - historicWordRates[pair.first][i][j], 2) / PERIODS_IN_HISTORY;
+				for (auto &rate : pair.second[i][j])
+					historicDeviation += pow(rate - historicMeanRate, 2) / PERIODS_IN_HISTORY;
 
-// 			for (auto &pair : rates)
-// 				historicDeviations[pair.first][i][j] = pow(historicDeviations[pair.first][i][j], 0.5);
-// 		}
-// 	}
-// 	profiler.stop();
+				historicDeviation = pow(historicDeviation, 0.5);
 
-// 	return{ move(historicWordRates), move(historicDeviations) };
-// }
+				stats.perWord[pair.first].historicMeanRates[i][j] = historicMeanRate;
+				stats.perWord[pair.first].historicDeviations[i][j] = historicDeviation;
+			}
+		}
+	}
+
+	profiler.stop();
+}
 
 // calculate the usage rate of each word at the current time in each cell and the average regional use
 void getCurrentLocalAndGlobalRatesForWord(Stats &stats)
@@ -354,25 +358,24 @@ void commitStats(const Stats &stats)
 		const auto &word = pair.first;
 		const auto &statsPerWord = pair.second;
 
-		sqlValuesString += string("(") +
-			"FROM_UNIXTIME(" + to_string(LOOKBACK_TIME) + "," +
-			"'" + word + "',";
 		for (int i = 0; i < MAP_WIDTH; i++)
 		{
 			for (int j = 0; j < MAP_HEIGHT; j++)
 			{
-				sqlValuesString +=
-					to_string(i)                                     + "," +
-					to_string(j)                                     + "," +
-					to_string(statsPerWord.currentCounts[i][j])      + "," +
-					to_string(statsPerWord.currentRates[i][j])       + "," +
-					to_string(statsPerWord.historicMeanRates[i][j])  + "," +
-					to_string(statsPerWord.historicDeviations[i][j]) + "," +
-					"),";
+				if (statsPerWord.currentCounts[i][j] > 1)
+				{
+					sqlValuesString += string("(") +
+						"FROM_UNIXTIME(" + to_string(LOOKBACK_TIME) + ")" + "," +
+						"'" + word + "'"                                  + "," +
+						to_string(i)                                      + "," +
+						to_string(j)                                      + "," +
+						to_string(statsPerWord.currentCounts[i][j])       + "," +
+						to_string(statsPerWord.currentRates[i][j])        + "," +
+						to_string(statsPerWord.historicMeanRates[i][j])   + "," +
+						to_string(statsPerWord.historicDeviations[i][j])  + "),";
+				}
 			}
 		}
-		sqlValuesString.pop_back(); // take the extra comma out
-		sqlValuesString += "),";
 	}
 	sqlValuesString.pop_back();
 
@@ -423,11 +426,14 @@ void detectEvents(const Stats &stats)
 					for (int j = 0; j < MAP_HEIGHT; j++)
 					{
 						const auto
-							&currentLocalWordRate = stats.perWord.at(word).currentRates[i][j],
-							&historicWordRate     = stats.perWord.at(word).historicMeanRates[i][j],
-							&historicDeviation    = stats.perWord.at(word).historicDeviations[i][j];
+							&currentLocalWordCount = stats.perWord.at(word).currentCounts[i][j];
+						const auto
+							&currentLocalWordRate  = stats.perWord.at(word).currentRates[i][j],
+							&historicWordRate      = stats.perWord.at(word).historicMeanRates[i][j],
+							&historicDeviation     = stats.perWord.at(word).historicDeviations[i][j];
 
 						if (
+							(currentLocalWordCount > 5) &&
 							// checks if a word is a appearing with a greater percentage in one cell than in other cells in the city grid
 							(currentLocalWordRate > globalWordRate + SPACIAL_PERCENTAGE_THRESHOLD) &&
 							// checks if a word is appearing more frequently in a cell than it has historically in that cell
@@ -489,7 +495,7 @@ template<typename T> Grid<T> makeGrid()
 	for (int i = 0; i < MAP_WIDTH; i++)
 		grid[i] = vector<T>(MAP_HEIGHT, 0);
 
-	return move(grid);
+	return grid;
 }
 
 template<typename T> void getArg(T &arg, string section, string option)

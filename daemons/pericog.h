@@ -83,6 +83,6 @@ unordered_map<int, Tweet> getUserIdToTweetMap();
 Grid<int> refineTweetsAndGetTweetCountPerCell(unordered_map<int, Tweet> &userIdTweetMap);
 void getCurrentWordCountPerCell(Stats &stats, const unordered_map<int, Tweet> &userIdTweetMap);
 void getCurrentLocalAndGlobalRatesForWord(Stats &stats);
-// pair<WordToGridMap<double>, WordToGridMap<double>> getHistoricWordRatesAndDeviation();
+void getHistoricWordRatesAndDeviation(Stats &stats);
 void commitStats(const Stats &stats);
 void detectEvents(const Stats &stats);
