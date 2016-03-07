@@ -48,29 +48,41 @@ struct Tweet
 unordered_set<string> explode(string const &s);
 template<typename T> Grid<T> makeGrid();
 template<typename T> void getArg(T &arg, string section, string option);
+Grid<double> gaussBlur(const Grid<double> &unblurred_array);
 
-// SQL functions
-void insertWordsSeen(const unordered_map <string, Grid<int>> &currentWordCountPerCell);
-string sqlAppendRates(const string &word, const Grid<double> &wordRates);
-void commitRates(const string &sqlValuesString);
+struct Stats
+{
+	struct StatsPerWord
+	{
+		Grid<int> currentCounts;
+		Grid<double> currentRates, historicMeanRates, historicDeviations;
+		double currentGlobalRate;
+		StatsPerWord() :
+			currentGlobalRate(0)
+		{
+			currentCounts      = makeGrid<int>();
+			currentRates       = makeGrid<double>();
+			historicMeanRates  = makeGrid<double>();
+			historicDeviations = makeGrid<double>();
+		}
+	};
+
+	Grid<int> tweetCounts;
+	unordered_map<string, StatsPerWord> perWord;
+
+	Stats()
+	{
+		tweetCounts = makeGrid<int>();
+	}
+};
 
 // YEAH LET'S DO IT
 void Initialize(int argc, char* argv[]);
-
+bool readCache(Stats &stats);
 unordered_map<int, Tweet> getUserIdToTweetMap();
-
 Grid<int> refineTweetsAndGetTweetCountPerCell(unordered_map<int, Tweet> &userIdTweetMap);
-
-unordered_map <string, Grid<int>> getCurrentWordCountPerCell(const unordered_map<int, Tweet> &userIdTweetMap);
-
-pair<WordToGridMap<double>, WordToGridMap<double>> getHistoricWordRatesAndDeviation();
-
-pair<Grid<double>, double> getCurrentLocalAndGlobalRatesForWord(const Grid<int> &wordCountPerCell, const Grid<int> &tweetCountPerCell);
-
-Grid<double> gaussBlur(const Grid<double> &unblurred_array);
-
-void detectEvents(
-	const WordToGridMap<int> &currentWordCountPerCell,
-	const WordToGridMap<double> &historicWordRatePerCell,
-	const WordToGridMap<double> &historicDeviationByCell,
-	const Grid<int> &tweetCountPerCell);
+void getCurrentWordCountPerCell(Stats &stats, const unordered_map<int, Tweet> &userIdTweetMap);
+void getCurrentLocalAndGlobalRatesForWord(Stats &stats);
+void getHistoricWordRatesAndDeviation(Stats &stats);
+void commitStats(const Stats &stats);
+void detectEvents(const Stats &stats);
