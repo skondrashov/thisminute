@@ -8,16 +8,23 @@ $filename =	"/root/test/" .
 	$config['threshold']['spacial_deviations'] . "_" .
 	$config['threshold']['temporal_deviations'] . ".txt";
 
-$last_runtime = 1456617600;
+$start_time = 1456617600;
+$last_runtime = $start_time;
 
-while ($last_runtime < 1456941093)
+while ($last_runtime < $start_time + 60*60*192)
 {
-	echo "$last_runtime ------------------\n";
-	$out = [];
-	exec("/srv/bin/pericog -l $last_runtime" . (($last_runtime > 1456617600 + 60*60*48) ? " -o -v $filename" : ""), $out);
-	foreach ($out as $thing)
+	for ($sp = .1; $sp < .5; $sp += .05)
+	for ($tp = .1; $tp < .5; $tp += .05)
+	for ($sd = .5; $sd < 5; $sd += .5)
+	for ($td = .5; $td < 5; $td += .5)
 	{
-		echo "$thing\n";
+		echo "$last_runtime ------------------\n";
+		$out = [];
+		exec("/srv/bin/pericog -l $last_runtime -c " . (($last_runtime > $start_time + 60*60*48) ? " -o -v $filename -1 $sp -2 $tp -3 $sd -4 $td" : ""), $out);
+		foreach ($out as $thing)
+		{
+			echo "$thing\n";
+		}
 	}
-	$last_runtime += 600;
+	$last_runtime += $config['timing']['period'];
 }
