@@ -15,12 +15,11 @@ if ($db->connect_error)
 
 while (1)
 {
-	$time = time();
-	if ($time - $last_runtime > $config['timing']['period'])
+	if (time() - $last_runtime > $config['timing']['period'])
 	{
 		daemon($db, $last_runtime, $config);
-		file_put_contents("/etc/ochre/runtimes/" . DAEMON, $time);
-		$last_runtime = $time;
+		file_put_contents("/etc/ochre/runtimes/" . DAEMON, $last_runtime);
+		$last_runtime += $config['timing']['period'];
 	}
 	sleep(1);
 }
