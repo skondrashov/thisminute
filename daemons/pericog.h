@@ -4,6 +4,7 @@
 #include <regex>
 #include <fstream>
 #include <algorithm>
+#include <map>
 #include <unordered_set>
 #include <unordered_map>
 #include <cassert>
@@ -16,6 +17,8 @@
 #include <thread>
 #include <mutex>
 #include <queue>
+#include <ctime>
+#include <iterator>
 
 #include "mysql_connection.h"
 
@@ -29,60 +32,84 @@
 
 using namespace std;
 
-template<class T>
-using Grid = vector<vector<T>>;
-
-template<class T>
-using WordToGridMap = unordered_map<string, Grid<T>>;
-
 struct Tweet
 {
-	Tweet(int x, int y, string text) :
-		x(x), y(y), text(text) {}
+	static const double EPS = 1;
+	static const int MIN_PTS = 3;
 
-	int x, y;
-	string text;
+	bool processed = false;
+	bool require_core_distance_update = true;
+	double core_distance;
+
+	double lat, lon;
+	unsigned int time;
+	unordered_set<string> text;
+	string id;
+	multimap<double, Tweet*> neighbors;
+	unordered_map<Tweet*, double> distances;
+
+	Tweet(string time, string lat, string lon, string user, string text) {
+		static const regex mentionsAndUrls("((\\B@)|(\\bhttps?:\\/\\/))[^\\s]+");
+		static const regex nonWord("[^\\w]+");
+		text = regex_replace(text, mentionsAndUrls, string(" "));
+		text = regex_replace(text, nonWord, string(" "));
+
+		id = time + "-" + user;
+		time = stoi(time);
+		lat = stod(lat);
+		lon = stod(lon);
+		text = explode(text);
+	}
+
+	void compare(Tweet &other) {
+		double x_dist = (lat - other.lat);
+		double y_dist = (lon - other.lon);
+		double euclidean = sqrt(x_dist * x_dist + y_dist * y_dist);
+
+		double similarity = 0;
+		int repeats = 0;
+		if (text.size() < other.text.size())
+		{
+			for (const auto &word : text)
+			{
+				if (other.text.count(word))
+				{
+					similarity += 1/text.size();
+					repeats++;
+				}
+			}
+		}
+		else
+		{
+			for (const auto &word : other.text)
+			{
+				if (text.count(word))
+				{
+					similarity += 1/other.text.size();
+					repeats++;
+				}
+			}
+		}
+
+		if (repeats)
+		{
+			double distance = (euclidean/repeats) - (similarity*similarity);
+			if (distance < Tweet.EPS)
+			{
+				neighbors.insert(make_pair(distance, &other));
+				other.neighbors.insert(make_pair(distance, this));
+				require_core_distance_update = other.require_core_distance_update = true;
+			}
+		}
+	}
 };
 
 // utility functions
 unordered_set<string> explode(string const &s);
-template<typename T> Grid<T> makeGrid();
 template<typename T> void getArg(T &arg, string section, string option);
-Grid<double> gaussBlur(const Grid<double> &unblurred_array);
-
-struct Stats
-{
-	struct StatsPerWord
-	{
-		Grid<int> currentCounts;
-		Grid<double> currentRates, historicMeanRates, historicDeviations;
-		double currentGlobalRate;
-		StatsPerWord() :
-			currentGlobalRate(0)
-		{
-			currentCounts      = makeGrid<int>();
-			currentRates       = makeGrid<double>();
-			historicMeanRates  = makeGrid<double>();
-			historicDeviations = makeGrid<double>();
-		}
-	};
-
-	Grid<int> tweetCounts;
-	unordered_map<string, StatsPerWord> perWord;
-
-	Stats()
-	{
-		tweetCounts = makeGrid<int>();
-	}
-};
 
 // YEAH LET'S DO IT
 void Initialize(int argc, char* argv[]);
-bool readCache(Stats &stats);
-unordered_map<int, Tweet> getUserIdToTweetMap();
-Grid<int> refineTweetsAndGetTweetCountPerCell(unordered_map<int, Tweet> &userIdTweetMap);
-void getCurrentWordCountPerCell(Stats &stats, const unordered_map<int, Tweet> &userIdTweetMap);
-void getCurrentLocalAndGlobalRatesForWord(Stats &stats);
-void getHistoricWordRatesAndDeviation(Stats &stats);
-void commitStats(const Stats &stats);
-void detectEvents(const Stats &stats);
+void updateTweets(unordered_map<string, Tweet> &tweets);
+void updateLastRun();
+void OPTICS();

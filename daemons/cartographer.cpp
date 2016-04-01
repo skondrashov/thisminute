@@ -207,6 +207,7 @@ int main(int argc, char* argv[])
 				string query = "INSERT INTO NYC.superevents (word, start_time, end_time,";
 				for (int i = 0; i < MAP_WIDTH*MAP_HEIGHT; i++)
 				{
+					// default column values are already 0, so only update the cell values if the event DID happen in that place
 					if (superevent.cells[i] == true)
 					{
 						query += "`" + to_string(i) + "`,";
