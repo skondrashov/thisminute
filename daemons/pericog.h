@@ -36,14 +36,14 @@ struct Tweet
 {
 	bool processed = false;
 	bool require_core_distance_update = true;
-	double core_distance;
+	double core_distance, smallest_reachability_distance;
 
 	double lat, lon;
 	unsigned int time;
 	unordered_set<string> text;
 	string id;
-	multimap<double, unique_ptr<Tweet>> neighbors;
-	unordered_map<unique_ptr<Tweet>, double> distances;
+	multimap<double, Tweet*> neighbors;
+	unordered_map<Tweet*, double> distances;
 
 	Tweet(string time, string lat, string lon, string user, string _text);
 };
@@ -54,6 +54,8 @@ template<typename T> void getArg(T &arg, string section, string option);
 
 // YEAH LET'S DO IT
 void Initialize(int argc, char* argv[]);
-void updateTweets(unordered_set<unique_ptr<Tweet>> &tweets);
+void updateTweets(unordered_set<Tweet*> &tweets);
+void compareTweets(const Tweet* &a, const Tweet* &b);
+vector<Tweet*> getReachabilityPlot(const unordered_set<Tweet*> &tweets);
+vector<vector<Tweet*>> extractClusters(vector<Tweet*> reachability_plot);
 void updateLastRun();
-void compareTweets(const unique_ptr<Tweet> &a, const unique_ptr<Tweet> &b);
