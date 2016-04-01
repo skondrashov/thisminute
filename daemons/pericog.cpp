@@ -1,25 +1,82 @@
 #include "pericog.h"
 
-int last_runtime = -1, RECALL_SCOPE, PERIOD;
+static const double EPS = 1;
+static const int MIN_PTS = 3;
+
+unsigned int last_runtime = 0, RECALL_SCOPE, PERIOD;
 
 double WEST_BOUNDARY, EAST_BOUNDARY, NORTH_BOUNDARY, SOUTH_BOUNDARY;
 
 const int THREAD_COUNT = 1;
 
 sql::Connection* connection;
-ofstream verboseOutputFile;
-string verboseOutputFileName;
+Tweet::Tweet(string time, string lat, string lon, string user, string _text)
+{
+	regex mentionsAndUrls("((\\B@)|(\\bhttps?:\\/\\/))[^\\s]+");
+	regex nonWord("[^\\w]+");
+	_text = regex_replace(_text, mentionsAndUrls, string(" "));
+	_text = regex_replace(_text, nonWord, string(" "));
+
+	id = time + "-" + user;
+	time = stoi(time);
+	lat = stod(lat);
+	lon = stod(lon);
+	text = explode(_text);
+}
+
+void compareTweets(const unique_ptr<Tweet> &a, const unique_ptr<Tweet> &b)
+{
+	double x_dist = (a->lat - b->lat);
+	double y_dist = (a->lon - b->lon);
+	double euclidean = sqrt(x_dist * x_dist + y_dist * y_dist);
+
+	double similarity = 0;
+	int repeats = 0;
+	if (a->text.size() < b->text.size())
+	{
+		for (const auto &word : a->text)
+		{
+			if (b->text.count(word))
+			{
+				similarity += 1/a->text.size();
+				repeats++;
+			}
+		}
+	}
+	else
+	{
+		for (const auto &word : b->text)
+		{
+			if (a->text.count(word))
+			{
+				similarity += 1/b->text.size();
+				repeats++;
+			}
+		}
+	}
+
+	if (repeats)
+	{
+		double distance = (euclidean/repeats) - (similarity*similarity);
+		if (distance < EPS)
+		{
+			a->neighbors.insert(make_pair(distance, b));
+			b->neighbors.insert(make_pair(distance, a));
+			a->require_core_distance_update = b->require_core_distance_update = true;
+		}
+	}
+}
 
 int main(int argc, char* argv[])
 {
 	TimeKeeper profiler;
-	unordered_set<Tweet*> tweets;
+	unordered_set<unique_ptr<Tweet>> tweets;
 	profiler.start("Initialize");
 	Initialize(argc, argv);
 
 	while (1)
 	{
-		if (time() - last_runtime > PERIOD)
+		if (time(0) - last_runtime > PERIOD)
 		{
 			updateTweets(tweets);
 			updateLastRun();
@@ -46,7 +103,7 @@ void Initialize(int argc, char* argv[])
 			break;
 		}
 	}
-	assert(last_runtime != -1);
+	assert(last_runtime != 0);
 
 	// create a connection
 	sql::Driver* driver(get_driver_instance());
@@ -57,24 +114,24 @@ void Initialize(int argc, char* argv[])
 	}
 }
 
-void updateTweets(unordered_map<string, Tweet> tweets)
+void updateTweets(unordered_set<unique_ptr<Tweet>> &tweets)
 {
 	// delete tweets too old to be related to new tweets
-	for (const auto &pair : tweets)
+	for (const auto &tweet : tweets)
 	{
-		if (last_runtime - pair.second->time > RECALL_SCOPE)
+		if (last_runtime - tweet->time > RECALL_SCOPE)
 		{
-			tweets.erase(pair.first);
+			tweets.erase(tweet);
 		}
 	}
 
 	unique_ptr<sql::ResultSet> dbTweets(connection->createStatement()->executeQuery(
-		"SELECT *, UNIX_TIMESTAMP(time) as unix_time FROM NYC.tweets WHERE time BETWEEN FROM_UNIXTIME(" + to_string(LOOKBACK_TIME - PERIOD) + ") AND FROM_UNIXTIME(" + to_string(LOOKBACK_TIME) + ");")
+		"SELECT *, UNIX_TIMESTAMP(time) as unix_time FROM NYC.tweets WHERE time BETWEEN FROM_UNIXTIME(" + to_string(last_runtime - PERIOD) + ") AND FROM_UNIXTIME(" + to_string(last_runtime) + ");")
 		);
 
 	while (dbTweets->next())
 	{
-		Tweet* new_tweet = new Tweet(
+		unique_ptr<Tweet> new_tweet(
 			dbTweets->getString("unix_time"),
 			dbTweets->getString("lat"),
 			dbTweets->getString("lon"),
@@ -82,28 +139,27 @@ void updateTweets(unordered_map<string, Tweet> tweets)
 			dbTweets->getString("text")
 			);
 
-		for (const auto &pair : tweets)
-			new_tweet->compare(*(pair.second));
+		for (const auto &tweet : tweets)
+			compareTweets(new_tweet, tweet);
 
 		tweets.insert(new_tweet);
 	}
 
 	// calculate core distances
-	for (const auto &pair : tweets)
+	for (const auto &tweet : tweets)
 	{
-		const auto &tweet = *(pair.second);
-		if (tweet.require_core_distance_update)
+		if (tweet->require_core_distance_update)
 		{
-			if (tweet.neighbors.size() < MIN_PTS)
+			if (tweet->neighbors.size() < MIN_PTS)
 			{
-				tweet.core_distance = -1;
+				tweet->core_distance = -1;
 				continue;
 			}
 
-			auto iterator = tweet.neighbors.begin();
+			auto iterator = tweet->neighbors.begin();
 			advance(iterator, MIN_PTS-1);
-			tweet.core_distance = iterator->first;
-			tweet.require_core_distance_update = false;
+			tweet->core_distance = iterator->first;
+			tweet->require_core_distance_update = false;
 		}
 	}
 
@@ -114,18 +170,6 @@ void updateLastRun()
 	ofstream last_runtime_file("/srv/lastrun/pericog");
 	last_runtime_file << last_runtime;
 	last_runtime += PERIOD;
-}
-
-vector<double> OPTICS()
-{
-	vector<Tweet*> ordered_list;
-	for (const auto &pair : tweets)
-	{
-		if (pair.second->processed)
-			continue;
-		pair.second->processed = true;
-		ordered_list.push_back(pair.first);
-	}
 }
 
 unordered_set<string> explode(string const &s)
