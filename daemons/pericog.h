@@ -34,8 +34,7 @@ using namespace std;
 
 struct Tweet
 {
-	bool processed = false;
-	bool require_core_distance_update = true;
+	bool require_update = true;
 	double core_distance, smallest_reachability_distance;
 
 	double lat, lon;
@@ -54,8 +53,8 @@ template<typename T> void getArg(T &arg, string section, string option);
 
 // YEAH LET'S DO IT
 void Initialize(int argc, char* argv[]);
-void updateTweets(unordered_set<Tweet*> &tweets);
-void compareTweets(const Tweet* &a, const Tweet* &b);
-vector<Tweet*> getReachabilityPlot(const unordered_set<Tweet*> &tweets);
+void updateTweets(deque<Tweet*> &tweets);
+double getDistance(const Tweet* &a, const Tweet* &b);
+vector<Tweet*> getReachabilityPlot(const deque<Tweet*> &tweets);
 vector<vector<Tweet*>> extractClusters(vector<Tweet*> reachability_plot);
 void updateLastRun();

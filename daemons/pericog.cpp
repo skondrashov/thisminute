@@ -1,6 +1,7 @@
 #include "pericog.h"
+#define STOPWORDS {"the", "and", "amp", "of", "you", "i", "a"}
 
-const double EPS = 1;
+const double EPSILON = 1;
 const int MIN_PTS = 3;
 const double REACHABILITY_THRESHOLD = 1;
 
@@ -11,6 +12,7 @@ double WEST_BOUNDARY, EAST_BOUNDARY, NORTH_BOUNDARY, SOUTH_BOUNDARY;
 const int THREAD_COUNT = 1;
 
 sql::Connection* connection;
+
 Tweet::Tweet(string time, string lat, string lon, string user, string _text)
 {
 	regex mentionsAndUrls("((\\B@)|(\\bhttps?:\\/\\/))[^\\s]+");
@@ -23,6 +25,8 @@ Tweet::Tweet(string time, string lat, string lon, string user, string _text)
 	lat = stod(lat);
 	lon = stod(lon);
 	text = explode(_text);
+	for (const string &word : STOPWORDS)
+		text.erase(word);
 }
 
 int main(int argc, char* argv[])
@@ -74,17 +78,21 @@ void Initialize(int argc, char* argv[])
 	}
 }
 
-void updateTweets(unordered_set<Tweet*> &tweets)
+void updateTweets(deque<Tweet*> &tweets)
 {
 	// delete tweets too old to be related to new tweets
 	while (last_runtime - tweets.at(0)->time > RECALL_SCOPE)
 	{
+		for (const auto &neighbor : tweets.at(0)->neighbors)
+		{
+			neighbor->require_update = true;
+		}
 		delete tweets.at(0);
 		tweets.pop_front();
 	}
 
 	unique_ptr<sql::ResultSet> dbTweets(connection->createStatement()->executeQuery(
-		"SELECT *, UNIX_TIMESTAMP(time) as unix_time FROM NYC.tweets WHERE time BETWEEN FROM_UNIXTIME(" + to_string(last_runtime - PERIOD) + ") AND FROM_UNIXTIME(" + to_string(last_runtime) + ");")
+		"SELECT *, UNIX_TIMESTAMP(time) as unix_time FROM NYC.tweets WHERE time BETWEEN FROM_UNIXTIME(" + to_string(last_runtime - PERIOD) + ") AND FROM_UNIXTIME(" + to_string(last_runtime) + ") ORDER BY time ASC;")
 		);
 
 	while (dbTweets->next())
@@ -98,7 +106,16 @@ void updateTweets(unordered_set<Tweet*> &tweets)
 			);
 
 		for (const auto &tweet : tweets)
-			compareTweets(new_tweet, tweet);
+		{
+			double distance = getDistance(new_tweet, tweet);
+			new_tweet->distances[tweet] = tweet->distances[new_tweet] = distance;
+			if (distance <= EPSILON)
+			{
+				new_tweet->neighbors.insert(make_pair(distance, tweet));
+				tweet->neighbors.insert(make_pair(distance, new_tweet));
+				tweet->require_update = true;
+			}
+		}
 
 		tweets.push_back(new_tweet);
 	}
@@ -108,77 +125,109 @@ void updateTweets(unordered_set<Tweet*> &tweets)
 	// calculate core distances
 	for (const auto &tweet : tweets)
 	{
-		if (tweet->require_core_distance_update)
+		if (tweet->require_update)
 		{
+			// non-core objects (borders and noise) are denoted by a core distance greater than epsilon
 			if (tweet->neighbors.size() < MIN_PTS)
 			{
-				tweet->core_distance = -1;
+				tweet->core_distance = EPSILON + 1;
 				continue;
 			}
 
 			auto iterator = tweet->neighbors.begin();
 			advance(iterator, MIN_PTS-1);
 			tweet->core_distance = iterator->first;
-			tweet->require_core_distance_update = false;
 		}
 	}
 
-}
-
-vector<Tweet*> getReachabilityPlot(const unordered_set<Tweet*> &tweets)
-{
+	// calculate smallest reachability distances
 	for (const auto &tweet : tweets)
-		tweet->processed = false;
-
-	vector<Tweet*> ordered_list;
-	ordered_list.reserve(tweets.size());
-
-	priority_queue<pair<double, Tweet*>, deque<pair<double, Tweet*>>> seeds;
-
-	for (auto i = tweets.begin(); i != tweets.end(); i++)
 	{
-		if (*i->processed)
-			continue;
-		seeds.push(make_pair(0, *i));
-		while (!seeds.empty())
+		if (tweet->require_update)
 		{
-			auto &tweet = seeds.top().second;
-			seeds.pop();
-			if (tweet->core_distance == -1)
-				continue;
-			ordered_list.push_back(tweet);
-			update(tweet, seeds);
-			tweet->processed = true;
+			// noise is denoted by a smallest reachability distance greater than epsilon
+			tweet->smallest_reachability_distance = EPSILON + 1;
+
+			for (const auto &neighbor : tweet->neighbors)
+			{
+				// tweet cannot be directly density-reachable from a non-core object
+				if (neighbor->core_distance > EPSILON)
+					continue;
+
+				double reachability_distance;
+				if (tweet->distances.at(neighbor) > neighbor->core_distance)
+					reachability_distance = tweet->distances.at(neighbor);
+				else
+					reachability_distance = tweet->core_distance;
+
+				if (tweet->smallest_reachability_distance > reachability_distance)
+					tweet->smallest_reachability_distance = reachability_distance;
+			}
+
+			tweet->require_update = false;
 		}
-	}
-
-	for (auto &tweet : tweets)
-	{
-		if (tweet->processed || tweet->core_distance == -1)
-			continue;
-
-		ordered_list.push_back(tweet);
-		update(tweet, seeds);
-		tweet->processed = true;
-
 	}
 }
 
-void update(Tweet* &tweet, priority_queue<pair<double, Tweet*>, deque<pair<double, Tweet*>> seeds)
+vector<Tweet*> getReachabilityPlot(const deque<Tweet*> &tweets)
 {
-	for (const auto &pair : tweet->neighbors)
+	// construct a container of all non-noise tweets for processing
+	unsorted_set<Tweet*> tweets_to_process;
+	for (const auto &tweet : tweets)
 	{
-		const auto &neighbor = pair.second;
-		if (neighbor->processed)
+		if (tweet->smallest_reachability_distance > EPSILON)
 			continue;
-		double reachability_distance;
-		if (tweet->distances.at(neighbor) > tweet->core_distance)
-			reachability_distance = tweet->distances.at(neighbor);
-		else
-			reachability_distance = tweet->core_distance;
-		seeds.push(make_pair(reachability_distance, neighbor));
-		tweet->smallest_reachability_distance = reachability_distance;
-		return; // because the neighbors are sorted, the first reachability-distance we find should always be the smallest and we can exit early
+		tweets_to_process.insert(tweet);
+	}
+
+	vector<Tweet*> reachability_plot;
+	reachability_plot.reserve(tweets_to_process.size());
+
+	priority_queue<pair<double, Tweet*>, deque<pair<double, Tweet*>>> nodes;
+
+	while (!tweets_to_process.empty())
+	{
+		// branch from an unprocessed core object with the smallest value of its smallest reachability distance
+		// this node is not special, but it is likely to be in the most dense tweet region
+		// this selectivity also makes the algorithm more deterministic, though not perfectly
+		double smallest_value_of_smallest_reachability_distance = EPS + 1;
+		Tweet* seed;
+		for (const auto &tweet : tweets_to_process)
+		{
+			// exclude border objects
+			if (tweet->core_distance > EPSILON)
+				continue;
+
+			if (smallest_value_of_smallest_reachability_distance > tweet->smallest_reachability_distance)
+			{
+				smallest_value_of_smallest_reachability_distance = tweet->smallest_reachability_distance;
+				seed = tweet;
+			}
+
+		}
+		nodes.push(make_pair(0, seed));
+		tweets_to_process.erase(seed);
+
+		// process the tree of nodes connected to the seed node in order of reachability
+		while (!nodes.empty())
+		{
+			auto &tweet = nodes.top().second;
+			nodes.pop();
+			reachability_plot.push_back(tweet);
+
+			// acquire, but do not branch through border objects
+			if (tweet->core_distance > EPSILON)
+				continue;
+
+			for (const auto &pair : tweet->neighbors)
+			{
+				const auto &neighbor = pair.second;
+				if (!tweets_to_process.count(neighbor))
+					continue;
+				nodes.push(make_pair(neighbor->smallest_reachability_distance, neighbor));
+				tweets_to_process.erase(neighbor);
+			}
+		}
 	}
 }
 
@@ -196,7 +245,7 @@ vector<vector<Tweet*>> extractClusters(vector<Tweet*> reachability_plot)
 		}
 		else if (in_cluster && *i-> smallest_reachability_distance > REACHABILITY_THRESHOLD)
 		{
-			auto cluster(cluster_start, i-1);
+			vector<Tweet*> cluster(cluster_start, i-1);
 			clusters.push_back(cluster);
 			in_cluster = false;
 		}
@@ -204,7 +253,8 @@ vector<vector<Tweet*>> extractClusters(vector<Tweet*> reachability_plot)
 	return clusters;
 }
 
-void compareTweets(const Tweet* &a, const Tweet* &b)
+// this function MUST be commutative, ie getDistance(a,b) == getDistance(b,a) for all tweets
+double getDistance(const Tweet* &a, const Tweet* &b)
 {
 	double x_dist = (a->lat - b->lat);
 	double y_dist = (a->lon - b->lon);
@@ -236,15 +286,9 @@ void compareTweets(const Tweet* &a, const Tweet* &b)
 	}
 
 	if (repeats)
-	{
-		double distance = (euclidean/repeats) - (similarity*similarity);
-		if (distance < EPS)
-		{
-			a->neighbors.insert(make_pair(distance, b));
-			b->neighbors.insert(make_pair(distance, a));
-			a->require_core_distance_update = b->require_core_distance_update = true;
-		}
-	}
+		return (euclidean/repeats) - (similarity*similarity);
+	else
+		return EPSILON + 1;
 }
 
 void updateLastRun()
