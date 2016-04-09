@@ -83,9 +83,9 @@ void updateTweets(deque<Tweet*> &tweets)
 	// delete tweets too old to be related to new tweets
 	while (last_runtime - tweets.at(0)->time > RECALL_SCOPE)
 	{
-		for (const auto &neighbor : tweets.at(0)->neighbors)
+		for (const auto &neighborPair : tweets.at(0)->neighbors)
 		{
-			neighbor->require_update = true;
+			neighborPair.second->require_update = true;
 		}
 		delete tweets.at(0);
 		tweets.pop_front();
@@ -107,7 +107,7 @@ void updateTweets(deque<Tweet*> &tweets)
 
 		for (const auto &tweet : tweets)
 		{
-			double distance = getDistance(new_tweet, tweet);
+			double distance = getDistance(*new_tweet, *tweet);
 			new_tweet->distances[tweet] = tweet->distances[new_tweet] = distance;
 			if (distance <= EPSILON)
 			{
@@ -148,8 +148,9 @@ void updateTweets(deque<Tweet*> &tweets)
 			// noise is denoted by a smallest reachability distance greater than epsilon
 			tweet->smallest_reachability_distance = EPSILON + 1;
 
-			for (const auto &neighbor : tweet->neighbors)
+			for (const auto &neighborPair : tweet->neighbors)
 			{
+				const auto &neighbor = neighborPair.second;
 				// tweet cannot be directly density-reachable from a non-core object
 				if (neighbor->core_distance > EPSILON)
 					continue;
@@ -172,7 +173,7 @@ void updateTweets(deque<Tweet*> &tweets)
 vector<Tweet*> getReachabilityPlot(const deque<Tweet*> &tweets)
 {
 	// construct a container of all non-noise tweets for processing
-	unsorted_set<Tweet*> tweets_to_process;
+	unordered_set<Tweet*> tweets_to_process;
 	for (const auto &tweet : tweets)
 	{
 		if (tweet->smallest_reachability_distance > EPSILON)
@@ -190,7 +191,7 @@ vector<Tweet*> getReachabilityPlot(const deque<Tweet*> &tweets)
 		// branch from an unprocessed core object with the smallest value of its smallest reachability distance
 		// this node is not special, but it is likely to be in the most dense tweet region
 		// this selectivity also makes the algorithm more deterministic, though not perfectly
-		double smallest_value_of_smallest_reachability_distance = EPS + 1;
+		double smallest_value_of_smallest_reachability_distance = EPSILON + 1;
 		Tweet* seed;
 		for (const auto &tweet : tweets_to_process)
 		{
@@ -229,21 +230,22 @@ vector<Tweet*> getReachabilityPlot(const deque<Tweet*> &tweets)
 			}
 		}
 	}
+	return reachability_plot;
 }
 
 vector<vector<Tweet*>> extractClusters(vector<Tweet*> reachability_plot)
 {
 	vector<vector<Tweet*>> clusters;
 	bool in_cluster = false;
-	iterator cluster_start;
-	for (auto i = reachability_plot.begin(), i != reachability_plot.end(); i++)
+	vector<Tweet*>::iterator cluster_start;
+	for (auto i = reachability_plot.begin(); i != reachability_plot.end(); i++)
 	{
-		if (!in_cluster && *i->smallest_reachability_distance <= REACHABILITY_THRESHOLD)
+		if (!in_cluster && (*i)->smallest_reachability_distance <= REACHABILITY_THRESHOLD)
 		{
 			cluster_start = i;
 			in_cluster = true;
 		}
-		else if (in_cluster && *i-> smallest_reachability_distance > REACHABILITY_THRESHOLD)
+		else if (in_cluster && (*i)-> smallest_reachability_distance > REACHABILITY_THRESHOLD)
 		{
 			vector<Tweet*> cluster(cluster_start, i-1);
 			clusters.push_back(cluster);
@@ -254,32 +256,32 @@ vector<vector<Tweet*>> extractClusters(vector<Tweet*> reachability_plot)
 }
 
 // this function MUST be commutative, ie getDistance(a,b) == getDistance(b,a) for all tweets
-double getDistance(const Tweet* &a, const Tweet* &b)
+double getDistance(const Tweet &a, const Tweet &b)
 {
-	double x_dist = (a->lat - b->lat);
-	double y_dist = (a->lon - b->lon);
+	double x_dist = (a.lat - b.lat);
+	double y_dist = (a.lon - b.lon);
 	double euclidean = sqrt(x_dist * x_dist + y_dist * y_dist);
 
 	double similarity = 0;
 	int repeats = 0;
-	if (a->text.size() < b->text.size())
+	if (a.text.size() < b.text.size())
 	{
-		for (const auto &word : a->text)
+		for (const auto &word : a.text)
 		{
-			if (b->text.count(word))
+			if (b.text.count(word))
 			{
-				similarity += 1/a->text.size();
+				similarity += 1/a.text.size();
 				repeats++;
 			}
 		}
 	}
 	else
 	{
-		for (const auto &word : b->text)
+		for (const auto &word : b.text)
 		{
-			if (a->text.count(word))
+			if (a.text.count(word))
 			{
-				similarity += 1/b->text.size();
+				similarity += 1/b.text.size();
 				repeats++;
 			}
 		}

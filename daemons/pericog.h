@@ -54,7 +54,7 @@ template<typename T> void getArg(T &arg, string section, string option);
 // YEAH LET'S DO IT
 void Initialize(int argc, char* argv[]);
 void updateTweets(deque<Tweet*> &tweets);
-double getDistance(const Tweet* &a, const Tweet* &b);
+double getDistance(const Tweet &a, const Tweet &b);
 vector<Tweet*> getReachabilityPlot(const deque<Tweet*> &tweets);
 vector<vector<Tweet*>> extractClusters(vector<Tweet*> reachability_plot);
 void updateLastRun();
