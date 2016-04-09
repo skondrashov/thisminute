@@ -1,5 +1,5 @@
 <?php
-$db = new mysqli("localhost", "press", file_get_contents('/srv/etc/auth/press.pw'));
+$db = new mysqli("localhost", "press", file_get_contents('/srv/auth/press.pw'));
 $where = "WHERE 1=1";
 if (isset($_GET['start']))
 {

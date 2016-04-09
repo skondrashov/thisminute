@@ -7,7 +7,7 @@ if (!$last_runtime)
 	$last_runtime = time() - $config['timing']['period'];
 }
 
-$db = new mysqli("localhost", DAEMON, file_get_contents("/srv/etc/auth/daemons/" . DAEMON . ".pw"));
+$db = new mysqli("localhost", DAEMON, file_get_contents("/srv/auth/daemons/" . DAEMON . ".pw"));
 if ($db->connect_error)
 {
 	error_log("Database connection failed for " . DAEMON . " daemon: " . $db->connect_error);

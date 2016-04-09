@@ -55,7 +55,7 @@ int main(int argc, char* argv[])
 	sql::Connection* connection;
 	sql::Driver* driver = get_driver_instance();
 	{
-		ifstream passwordFile("/srv/etc/auth/daemons/cartographer.pw");
+		ifstream passwordFile("/srv/auth/daemons/cartographer.pw");
 		auto password = static_cast<ostringstream&>(ostringstream{} << passwordFile.rdbuf()).str();
 		connection = driver->connect("tcp://127.0.0.1:3306", "cartographer", password);
 	}

@@ -72,7 +72,7 @@ void Initialize(int argc, char* argv[])
 	// create a connection
 	sql::Driver* driver(get_driver_instance());
 	{
-		ifstream passwordFile("/srv/etc/auth/daemons/pericog.pw");
+		ifstream passwordFile("/srv/auth/daemons/pericog.pw");
 		auto password = static_cast<ostringstream&>(ostringstream{} << passwordFile.rdbuf()).str();
 		connection = driver->connect("tcp://127.0.0.1:3306", "pericog", password);
 	}

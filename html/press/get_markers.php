@@ -1,5 +1,5 @@
 <?php
-$db = new mysqli("localhost", "press", file_get_contents('/srv/etc/auth/press.pw'));
+$db = new mysqli("localhost", "press", file_get_contents('/srv/auth/press.pw'));
 $config = parse_ini_file("/srv/etc/config/daemons.ini", true);
 
 $result = $db->query("SELECT * FROM NYC.event_tweets WHERE event_id IN (SELECT * FROM (SELECT id FROM NYC.superevents WHERE end_time < FROM_UNIXTIME(UNIX_TIMESTAMP() - " . $config['display']['lookahead'] .
