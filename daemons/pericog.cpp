@@ -48,6 +48,8 @@ int main(int argc, char* argv[])
 			auto reachability_plot = getReachabilityPlot(tweets);
 			profiler.start("extractClusters");
 			auto clusters = extractClusters(reachability_plot);
+			profiler.start("detectEvents");
+			detectEvents(clusters);
 			profiler.start("updateLastRun");
 			updateLastRun();
 		}
@@ -84,6 +86,19 @@ void Initialize(int argc, char* argv[])
 	}
 }
 
+void detectEvents(auto clusters)
+{
+	for (auto cluster : cluster)
+	{
+		for (auto tweet : cluster)
+		{
+			
+		}
+	}
+}
+
+
+
 void updateTweets(deque<Tweet*> &tweets)
 {
 	// delete tweets too old to be related to new tweets
@@ -96,11 +111,10 @@ void updateTweets(deque<Tweet*> &tweets)
 		delete tweets.at(0);
 		tweets.pop_front();
 	}
-
-	unique_ptr<sql::ResultSet> dbTweets(connection->createStatement()->executeQuery(
-		"SELECT *, UNIX_TIMESTAMP(time) as unix_time FROM NYC.tweets WHERE time BETWEEN FROM_UNIXTIME(" + to_string(last_runtime - PERIOD) + ") AND FROM_UNIXTIME(" + to_string(last_runtime) + ") ORDER BY time ASC;")
-		);
-
+	
+	// unique_ptr<sql::ResultSet> dbTweets(connection->createStatement()->executeQuery(
+	// 	"SELECT *, UNIX_TIMESTAMP(time) as unix_time FROM NYC.tweets WHERE time BETWEEN FROM_UNIXTIME(" + to_string(last_runtime - PERIOD) + ") AND FROM_UNIXTIME(" + to_string(last_runtime) + ") ORDER BY time ASC;")
+	// 	);
 	while (dbTweets->next())
 	{
 		Tweet* new_tweet = new Tweet(
