@@ -24,15 +24,17 @@ Tweet::Tweet(string time, string lat, string lon, string user, string _text)
 	time = stoi(time);
 	lat = stod(lat);
 	lon = stod(lon);
-	text = explode(_text);
+	text = _text;
+	words = explode(_text);
 	for (const string &word : STOPWORDS)
-		text.erase(word);
+		words.erase(word);
 }
 
 int main(int argc, char* argv[])
 {
 	TimeKeeper profiler;
 	deque<Tweet*> tweets;
+
 	profiler.start("Initialize");
 	Initialize(argc, argv);
 
@@ -40,9 +42,13 @@ int main(int argc, char* argv[])
 	{
 		if (time(0) - last_runtime > PERIOD)
 		{
+			profiler.start("updateTweets");
 			updateTweets(tweets);
+			profiler.start("getReachabilityPlot");
 			auto reachability_plot = getReachabilityPlot(tweets);
+			profiler.start("extractClusters");
 			auto clusters = extractClusters(reachability_plot);
+			profiler.start("updateLastRun");
 			updateLastRun();
 		}
 	}
@@ -81,7 +87,7 @@ void Initialize(int argc, char* argv[])
 void updateTweets(deque<Tweet*> &tweets)
 {
 	// delete tweets too old to be related to new tweets
-	while (last_runtime - tweets.at(0)->time > RECALL_SCOPE)
+	while (tweets.size() && last_runtime - tweets.at(0)->time > RECALL_SCOPE)
 	{
 		for (const auto &neighborPair : tweets.at(0)->neighbors)
 		{
@@ -264,26 +270,20 @@ double getDistance(const Tweet &a, const Tweet &b)
 
 	double similarity = 0;
 	int repeats = 0;
-	if (a.text.size() < b.text.size())
+	if (a.words.size() < b.words.size())
 	{
-		for (const auto &word : a.text)
+		for (const auto &word : a.words)
 		{
-			if (b.text.count(word))
-			{
-				similarity += 1/a.text.size();
-				repeats++;
-			}
+			similarity += 1/a.words.size();
+			repeats++;
 		}
 	}
 	else
 	{
-		for (const auto &word : b.text)
+		for (const auto &word : b.words)
 		{
-			if (a.text.count(word))
-			{
-				similarity += 1/b.text.size();
-				repeats++;
-			}
+			similarity += 1/b.words.size();
+			repeats++;
 		}
 	}
 

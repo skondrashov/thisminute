@@ -39,8 +39,8 @@ struct Tweet
 
 	double lat, lon;
 	unsigned int time;
-	unordered_set<string> text;
-	string id;
+	unordered_set<string> words;
+	string id, text;
 	multimap<double, Tweet*> neighbors;
 	unordered_map<Tweet*, double> distances;
 
