@@ -1,33 +1,88 @@
 #include "pericog.h"
-#define STOPWORDS {"the", "and", "amp", "of", "you", "i", "a"}
 
-const double EPSILON = 1;
-const int MIN_PTS = 3;
-const double REACHABILITY_THRESHOLD = 1;
+#define MAX_DEGREES_LATITUDE 90
+#define MAX_DEGREES_LONGITUDE 180
 
-unsigned int last_runtime = 0, RECALL_SCOPE, PERIOD;
-
-double WEST_BOUNDARY, EAST_BOUNDARY, NORTH_BOUNDARY, SOUTH_BOUNDARY;
-
-const int THREAD_COUNT = 1;
+unsigned int last_runtime = 0, RECALL_SCOPE, PERIOD, MIN_PTS;
+double EPSILON, REACHABILITY_THRESHOLD, MAX_SPACIAL_DISTANCE, CELL_SIZE;
 
 sql::Connection* connection;
 
-Tweet::Tweet(string time, string lat, string lon, string user, string _text)
+vector<vector<Cell>> Cell::cells;
+
+Tweet::Tweet(string _time, string _lat, string _lon, string _text)
+	: text(_text)
 {
 	regex mentionsAndUrls("((\\B@)|(\\bhttps?:\\/\\/))[^\\s]+");
 	regex nonWord("[^\\w]+");
 	_text = regex_replace(_text, mentionsAndUrls, string(" "));
 	_text = regex_replace(_text, nonWord, string(" "));
 
-	id = time + "-" + user;
-	time = stoi(time);
-	lat = stod(lat);
-	lon = stod(lon);
-	text = _text;
+	time = stoi(_time);
+	lon = stod(_lon);
+	lat = stod(_lat);
+	x = floor((lon + MAX_DEGREES_LONGITUDE)/CELL_SIZE);
+	y = floor((lat + MAX_DEGREES_LATITUDE)/CELL_SIZE);
 	words = explode(_text);
-	for (const string &word : STOPWORDS)
-		words.erase(word);
+
+	auto &tweet_cell = Cell::cells[x][y];
+
+	unsigned int regional_tweet_count = 0;
+	unordered_map<string, unsigned int> regional_word_counts;
+	for (const auto &regional_cell : tweet_cell.region)
+	{
+		regional_tweet_count += regional_cell->tweet_count;
+		for (const auto &word : words)
+		{
+			if (!regional_word_counts.count(word))
+				regional_word_counts[word] = 0;
+
+			if (regional_cell->tweets_by_word.count(word))
+			{
+				regional_word_counts[word] += regional_cell->tweets_by_word.at(word).size();
+			}
+		}
+	}
+
+	for (const auto &word : words)
+	{
+		if (regional_word_counts.count(word))
+			regional_word_rates[word] = (double)regional_word_counts.at(word) / regional_tweet_count;
+		else
+			regional_word_rates[word] = 0;
+	}
+
+	for (const auto &word : words)
+	{
+		tweet_cell.tweets_by_word[word].insert(this);
+	}
+	tweet_cell.tweet_count++;
+}
+
+Tweet::~Tweet()
+{
+	auto &tweets_by_word = Cell::cells[x][y].tweets_by_word;
+	for (const auto &word : words)
+	{
+		tweets_by_word[word].erase(this);
+		if (tweets_by_word[word].empty())
+			tweets_by_word.erase(word);
+	}
+	Cell::cells[x][y].tweet_count--;
+
+	// remove neighbor references to the tweet we are deleting from all neighbors
+	for (const auto &optics_neighbor_pair : optics_neighbors)
+	{
+		auto &optics_neighbor = *(optics_neighbor_pair.second);
+		optics_neighbor.require_update = true;
+		for (const auto &neighbor_pair_of_neighbor : optics_neighbor.optics_neighbors)
+		{
+			if (neighbor_pair_of_neighbor.second == this)
+			{
+				optics_neighbor.optics_neighbors.erase(neighbor_pair_of_neighbor.first);
+			}
+		}
+	}
 }
 
 int main(int argc, char* argv[])
@@ -48,22 +103,22 @@ int main(int argc, char* argv[])
 			auto reachability_plot = getReachabilityPlot(tweets);
 			profiler.start("extractClusters");
 			auto clusters = extractClusters(reachability_plot);
-			profiler.start("detectEvents");
-			detectEvents(clusters);
 			profiler.start("updateLastRun");
 			updateLastRun();
 		}
+		usleep(10);
 	}
 }
 
 void Initialize(int argc, char* argv[])
 {
-	getArg(RECALL_SCOPE,                  "timing",    "history");
-	getArg(PERIOD,                        "timing",    "period");
-	getArg(WEST_BOUNDARY,                 "grid",      "west");
-	getArg(EAST_BOUNDARY,                 "grid",      "east");
-	getArg(SOUTH_BOUNDARY,                "grid",      "south");
-	getArg(NORTH_BOUNDARY,                "grid",      "north");
+	getArg(RECALL_SCOPE,           "timing", "history");
+	getArg(PERIOD,                 "timing", "period");
+	getArg(CELL_SIZE,              "grid",   "cell_size");
+	getArg(EPSILON,                "optics", "epsilon");
+	getArg(MIN_PTS,                "optics", "minimum_points");
+	getArg(REACHABILITY_THRESHOLD, "optics", "reachability_threshold");
+	getArg(MAX_SPACIAL_DISTANCE,   "optics", "regional_radius");
 
 	char tmp;
 	while ((tmp = getopt(argc, argv, "l:cov:1:2:3:4:")) != -1)
@@ -77,6 +132,42 @@ void Initialize(int argc, char* argv[])
 	}
 	assert(last_runtime != 0);
 
+	// generate grid
+	int x = 0, y;
+	Cell::cells.resize((MAX_DEGREES_LONGITUDE*2)/CELL_SIZE);
+	for (auto &column : Cell::cells)
+	{
+		y = 0;
+		column.resize((MAX_DEGREES_LATITUDE*2)/CELL_SIZE);
+		for (auto &cell : column)
+		{
+			cell.x = x;
+			cell.y = y;
+			y++;
+		}
+		x++;
+	}
+
+	// TODO: make this not square
+	const auto RADIUS = MAX_SPACIAL_DISTANCE/CELL_SIZE;
+	for (auto &column : Cell::cells)
+	{
+		for (auto &cell : column)
+		{
+			for (unsigned int i = floor(cell.x-RADIUS); i <= ceil(cell.x+RADIUS); i++)
+			{
+				for (unsigned int j = floor(cell.y-RADIUS); j <= ceil(cell.y+RADIUS); j++)
+				{
+					// regions end at the poles and the international date line
+					if (i >= Cell::cells.size() || j >= Cell::cells[0].size())
+						continue;
+
+					cell.region.push_back(&(Cell::cells[i][j]));
+				}
+			}
+		}
+	}
+
 	// create a connection
 	sql::Driver* driver(get_driver_instance());
 	{
@@ -86,54 +177,63 @@ void Initialize(int argc, char* argv[])
 	}
 }
 
-void detectEvents(auto clusters)
-{
-	for (auto cluster : cluster)
-	{
-		for (auto tweet : cluster)
-		{
-			
-		}
-	}
-}
-
-
-
 void updateTweets(deque<Tweet*> &tweets)
 {
-	// delete tweets too old to be related to new tweets
-	while (tweets.size() && last_runtime - tweets.at(0)->time > RECALL_SCOPE)
+	// delete tweets too old to be related to new tweets, and all references to them
+	while (tweets.size())
 	{
-		for (const auto &neighborPair : tweets.at(0)->neighbors)
-		{
-			neighborPair.second->require_update = true;
-		}
-		delete tweets.at(0);
+		Tweet* &tweet = tweets.at(0);
+
+		// the first tweet in tweets is always the oldest, so if it isn't old enough to be deleted, neither are any of the others
+		if (tweet->time - last_runtime > RECALL_SCOPE)
+			break;
+
+		delete tweet;
 		tweets.pop_front();
 	}
-	
-	// unique_ptr<sql::ResultSet> dbTweets(connection->createStatement()->executeQuery(
-	// 	"SELECT *, UNIX_TIMESTAMP(time) as unix_time FROM NYC.tweets WHERE time BETWEEN FROM_UNIXTIME(" + to_string(last_runtime - PERIOD) + ") AND FROM_UNIXTIME(" + to_string(last_runtime) + ") ORDER BY time ASC;")
-	// 	);
+
+	unique_ptr<sql::ResultSet> dbTweets(connection->createStatement()->executeQuery(
+		"SELECT *, UNIX_TIMESTAMP(time) AS unix_time FROM NYC.tweets WHERE time BETWEEN FROM_UNIXTIME(" + to_string(last_runtime - PERIOD) + ") AND FROM_UNIXTIME(" + to_string(last_runtime) + ") ORDER BY time ASC;")
+		);
+
+
 	while (dbTweets->next())
 	{
 		Tweet* new_tweet = new Tweet(
 			dbTweets->getString("unix_time"),
 			dbTweets->getString("lat"),
 			dbTweets->getString("lon"),
-			dbTweets->getString("user"),
 			dbTweets->getString("text")
 			);
 
-		for (const auto &tweet : tweets)
+		// remove tweets consisting only of stopwords or other ignored strings
+		if (!new_tweet->words.size())
 		{
-			double distance = getDistance(*new_tweet, *tweet);
-			new_tweet->distances[tweet] = tweet->distances[new_tweet] = distance;
-			if (distance <= EPSILON)
+			delete new_tweet;
+			continue;
+		}
+
+		for (const auto &word : new_tweet->words)
+		{
+			for (const auto &cell : Cell::cells[new_tweet->x][new_tweet->y].region)
 			{
-				new_tweet->neighbors.insert(make_pair(distance, tweet));
-				tweet->neighbors.insert(make_pair(distance, new_tweet));
-				tweet->require_update = true;
+				if (cell->tweets_by_word.count(word))
+				{
+					for (const auto &tweet : cell->tweets_by_word.at(word))
+					{
+						const double &optics_distance = getOpticsDistance(*new_tweet, *tweet);
+
+						new_tweet->optics_distances[tweet] = tweet->optics_distances[new_tweet] = optics_distance;
+
+						// add neighbor references between the new tweet and all its neighbors
+						if (optics_distance <= EPSILON)
+						{
+							new_tweet->optics_neighbors.insert(make_pair(optics_distance, tweet));
+							tweet->optics_neighbors.insert(make_pair(optics_distance, new_tweet));
+							tweet->require_update = true;
+						}
+					}
+				}
 			}
 		}
 
@@ -148,13 +248,13 @@ void updateTweets(deque<Tweet*> &tweets)
 		if (tweet->require_update)
 		{
 			// non-core objects (borders and noise) are denoted by a core distance greater than epsilon
-			if (tweet->neighbors.size() < MIN_PTS)
+			if (tweet->optics_neighbors.size() < MIN_PTS)
 			{
 				tweet->core_distance = EPSILON + 1;
 				continue;
 			}
 
-			auto iterator = tweet->neighbors.begin();
+			auto iterator = tweet->optics_neighbors.begin();
 			advance(iterator, MIN_PTS-1);
 			tweet->core_distance = iterator->first;
 		}
@@ -168,16 +268,17 @@ void updateTweets(deque<Tweet*> &tweets)
 			// noise is denoted by a smallest reachability distance greater than epsilon
 			tweet->smallest_reachability_distance = EPSILON + 1;
 
-			for (const auto &neighborPair : tweet->neighbors)
+			for (const auto &optics_neighbor_pair : tweet->optics_neighbors)
 			{
-				const auto &neighbor = neighborPair.second;
+				const auto &optics_neighbor = optics_neighbor_pair.second;
+
 				// tweet cannot be directly density-reachable from a non-core object
-				if (neighbor->core_distance > EPSILON)
+				if (optics_neighbor->core_distance > EPSILON)
 					continue;
 
 				double reachability_distance;
-				if (tweet->distances.at(neighbor) > neighbor->core_distance)
-					reachability_distance = tweet->distances.at(neighbor);
+				if (tweet->optics_distances.at(optics_neighbor) > optics_neighbor->core_distance)
+					reachability_distance = tweet->optics_distances.at(optics_neighbor);
 				else
 					reachability_distance = tweet->core_distance;
 
@@ -198,6 +299,7 @@ vector<Tweet*> getReachabilityPlot(const deque<Tweet*> &tweets)
 	{
 		if (tweet->smallest_reachability_distance > EPSILON)
 			continue;
+
 		tweets_to_process.insert(tweet);
 	}
 
@@ -215,16 +317,11 @@ vector<Tweet*> getReachabilityPlot(const deque<Tweet*> &tweets)
 		Tweet* seed;
 		for (const auto &tweet : tweets_to_process)
 		{
-			// exclude border objects
-			if (tweet->core_distance > EPSILON)
-				continue;
-
-			if (smallest_value_of_smallest_reachability_distance > tweet->smallest_reachability_distance)
+			if (smallest_value_of_smallest_reachability_distance >= tweet->smallest_reachability_distance)
 			{
 				smallest_value_of_smallest_reachability_distance = tweet->smallest_reachability_distance;
 				seed = tweet;
 			}
-
 		}
 		nodes.push(make_pair(0, seed));
 		tweets_to_process.erase(seed);
@@ -240,13 +337,13 @@ vector<Tweet*> getReachabilityPlot(const deque<Tweet*> &tweets)
 			if (tweet->core_distance > EPSILON)
 				continue;
 
-			for (const auto &pair : tweet->neighbors)
+			for (const auto &pair : tweet->optics_neighbors)
 			{
-				const auto &neighbor = pair.second;
-				if (!tweets_to_process.count(neighbor))
+				const auto &optics_neighbor = pair.second;
+				if (!tweets_to_process.count(optics_neighbor))
 					continue;
-				nodes.push(make_pair(neighbor->smallest_reachability_distance, neighbor));
-				tweets_to_process.erase(neighbor);
+				nodes.push(make_pair(optics_neighbor->smallest_reachability_distance, optics_neighbor));
+				tweets_to_process.erase(optics_neighbor);
 			}
 		}
 	}
@@ -275,36 +372,27 @@ vector<vector<Tweet*>> extractClusters(vector<Tweet*> reachability_plot)
 	return clusters;
 }
 
-// this function MUST be commutative, ie getDistance(a,b) == getDistance(b,a) for all tweets
-double getDistance(const Tweet &a, const Tweet &b)
+// MUST be commutative, ie getDistance(a,b) == getDistance(b,a) for all tweets
+// MUST NOT return a negative value
+double getOpticsDistance(const Tweet &a, const Tweet &b)
 {
-	double x_dist = (a.lat - b.lat);
-	double y_dist = (a.lon - b.lon);
-	double euclidean = sqrt(x_dist * x_dist + y_dist * y_dist);
-
 	double similarity = 0;
-	int repeats = 0;
-	if (a.words.size() < b.words.size())
+	const double size = a.words.size() > b.words.size() ? a.words.size() : b.words.size();
+	for (const auto &word : a.words)
 	{
-		for (const auto &word : a.words)
+		if (b.words.count(word))
 		{
-			similarity += 1/a.words.size();
-			repeats++;
-		}
-	}
-	else
-	{
-		for (const auto &word : b.words)
-		{
-			similarity += 1/b.words.size();
-			repeats++;
+			const double word_weight_a = 1 - a.regional_word_rates.at(word);
+			const double word_weight_b = 1 - b.regional_word_rates.at(word);
+			const double word_weight = word_weight_a > word_weight_b ? word_weight_a : word_weight_b;
+			similarity += word_weight/size;
 		}
 	}
 
-	if (repeats)
-		return (euclidean/repeats) - (similarity*similarity);
-	else
+	if (!similarity)
 		return EPSILON + 1;
+
+	return 1-similarity;
 }
 
 void updateLastRun()

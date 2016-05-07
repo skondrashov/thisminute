@@ -15,10 +15,12 @@
 #include <memory>
 #include <utility>
 #include <thread>
+#include <chrono>
 #include <mutex>
 #include <queue>
 #include <ctime>
 #include <iterator>
+#include <unistd.h>
 
 #include "mysql_connection.h"
 
@@ -38,13 +40,24 @@ struct Tweet
 	double core_distance, smallest_reachability_distance;
 
 	double lat, lon;
-	unsigned int time;
+	unsigned int x, y, time;
 	unordered_set<string> words;
-	string id, text;
-	multimap<double, Tweet*> neighbors;
-	unordered_map<Tweet*, double> distances;
+	string text;
+	multimap<double, Tweet*> optics_neighbors;
+	unordered_map<Tweet*, double> optics_distances;
+	unordered_map<string, double> regional_word_rates;
 
-	Tweet(string time, string lat, string lon, string user, string _text);
+	Tweet(string _time, string _lat, string _lon, string _text);
+	~Tweet();
+};
+
+struct Cell
+{
+	static vector<vector<Cell>> cells;
+
+	unsigned int tweet_count = 0, x, y;
+	unordered_map<string, unordered_set<Tweet*>> tweets_by_word;
+	vector<Cell*> region;
 };
 
 // utility functions
@@ -54,7 +67,7 @@ template<typename T> void getArg(T &arg, string section, string option);
 // YEAH LET'S DO IT
 void Initialize(int argc, char* argv[]);
 void updateTweets(deque<Tweet*> &tweets);
-double getDistance(const Tweet &a, const Tweet &b);
+double getOpticsDistance(const Tweet &a, const Tweet &b);
 vector<Tweet*> getReachabilityPlot(const deque<Tweet*> &tweets);
 vector<vector<Tweet*>> extractClusters(vector<Tweet*> reachability_plot);
 void updateLastRun();
