@@ -3,14 +3,15 @@
 #define MAX_DEGREES_LATITUDE 90
 #define MAX_DEGREES_LONGITUDE 180
 
-unsigned int last_runtime = 0, RECALL_SCOPE, PERIOD, MIN_PTS;
+unsigned int last_runtime = 0, RECALL_SCOPE, PERIOD, MIN_PTS, MIN_TWEETS = 3;
 double EPSILON, REACHABILITY_THRESHOLD, MAX_SPACIAL_DISTANCE, CELL_SIZE;
 
 sql::Connection* connection;
 
 vector<vector<Cell>> Cell::cells;
+Tweet* Tweet::delimiter;
 
-Tweet::Tweet(string _time, string _lat, string _lon, string _text)
+Tweet::Tweet(string _time, string _lat, string _lon, string _text, string _user, string _exact)
 	: text(_text)
 {
 	regex mentionsAndUrls("((\\B@)|(\\bhttps?:\\/\\/))[^\\s]+");
@@ -24,8 +25,17 @@ Tweet::Tweet(string _time, string _lat, string _lon, string _text)
 	x = floor((lon + MAX_DEGREES_LONGITUDE)/CELL_SIZE);
 	y = floor((lat + MAX_DEGREES_LATITUDE)/CELL_SIZE);
 	words = explode(_text);
+	user = _user;
+	exact = !!stoi(_exact);
 
 	auto &tweet_cell = Cell::cells[x][y];
+
+	// update cell
+	tweet_cell.tweet_count++;
+	for (const auto &word : words)
+	{
+		tweet_cell.tweets_by_word[word].insert(this);
+	}
 
 	unsigned int regional_tweet_count = 0;
 	unordered_map<string, unsigned int> regional_word_counts;
@@ -46,29 +56,26 @@ Tweet::Tweet(string _time, string _lat, string _lon, string _text)
 
 	for (const auto &word : words)
 	{
-		if (regional_word_counts.count(word))
+		if (regional_word_counts.count(word) && regional_tweet_count)
 			regional_word_rates[word] = (double)regional_word_counts.at(word) / regional_tweet_count;
 		else
 			regional_word_rates[word] = 0;
 	}
 
-	for (const auto &word : words)
-	{
-		tweet_cell.tweets_by_word[word].insert(this);
-	}
-	tweet_cell.tweet_count++;
 }
 
 Tweet::~Tweet()
 {
 	auto &tweets_by_word = Cell::cells[x][y].tweets_by_word;
+
+	// undo changes to cell
+	Cell::cells[x][y].tweet_count--;
 	for (const auto &word : words)
 	{
 		tweets_by_word[word].erase(this);
 		if (tweets_by_word[word].empty())
 			tweets_by_word.erase(word);
 	}
-	Cell::cells[x][y].tweet_count--;
 
 	// remove neighbor references to the tweet we are deleting from all neighbors
 	for (const auto &optics_neighbor_pair : optics_neighbors)
@@ -79,10 +86,33 @@ Tweet::~Tweet()
 		{
 			if (neighbor_pair_of_neighbor.second == this)
 			{
-				optics_neighbor.optics_neighbors.erase(neighbor_pair_of_neighbor.first);
+				// we have to make sure we don't accidentally delete different pairs with identical keys (possible in multimap)
+				// (C) guy on S/O: http://stackoverflow.com/questions/3952476/how-to-remove-a-specific-pair-from-a-c-multimap
+				typedef multimap<double, Tweet*>::iterator iterator;
+				std::pair<iterator, iterator> iterpair = optics_neighbor.optics_neighbors.equal_range(neighbor_pair_of_neighbor.first);
+				for (iterator it = iterpair.first; it != iterpair.second; ++it)
+				{
+					if (it->second == this)
+					{
+						optics_neighbor.optics_neighbors.erase(it);
+						break;
+					}
+				}
 			}
 		}
 	}
+}
+
+bool Tweet::discern(const Tweet &other_tweet)
+{
+	for (const auto &word : other_tweet.words)
+	{
+		if (!this->words.count(word))
+		{
+			return true;
+		}
+	}
+	return false;
 }
 
 int main(int argc, char* argv[])
@@ -97,12 +127,15 @@ int main(int argc, char* argv[])
 	{
 		if (time(0) - last_runtime > PERIOD)
 		{
+			cout << "\n----------------------\n" << endl;
 			profiler.start("updateTweets");
 			updateTweets(tweets);
 			profiler.start("getReachabilityPlot");
 			auto reachability_plot = getReachabilityPlot(tweets);
 			profiler.start("extractClusters");
 			auto clusters = extractClusters(reachability_plot);
+			profiler.start("writeClusters");
+			writeClusters(clusters);
 			profiler.start("updateLastRun");
 			updateLastRun();
 		}
@@ -114,23 +147,12 @@ void Initialize(int argc, char* argv[])
 {
 	getArg(RECALL_SCOPE,           "timing", "history");
 	getArg(PERIOD,                 "timing", "period");
+	getArg(last_runtime,           "timing", "start");
 	getArg(CELL_SIZE,              "grid",   "cell_size");
+	getArg(MAX_SPACIAL_DISTANCE,   "grid",   "regional_radius");
 	getArg(EPSILON,                "optics", "epsilon");
 	getArg(MIN_PTS,                "optics", "minimum_points");
 	getArg(REACHABILITY_THRESHOLD, "optics", "reachability_threshold");
-	getArg(MAX_SPACIAL_DISTANCE,   "optics", "regional_radius");
-
-	char tmp;
-	while ((tmp = getopt(argc, argv, "l:cov:1:2:3:4:")) != -1)
-	{
-		switch (tmp)
-		{
-		case 'l':
-			last_runtime = stoi(optarg);
-			break;
-		}
-	}
-	assert(last_runtime != 0);
 
 	// generate grid
 	int x = 0, y;
@@ -147,6 +169,9 @@ void Initialize(int argc, char* argv[])
 		}
 		x++;
 	}
+
+	Tweet::delimiter = new Tweet("0","0","0","DELIMIT","0","0");
+	Tweet::delimiter->smallest_reachability_distance = REACHABILITY_THRESHOLD + 1;
 
 	// TODO: make this not square
 	const auto RADIUS = MAX_SPACIAL_DISTANCE/CELL_SIZE;
@@ -180,22 +205,32 @@ void Initialize(int argc, char* argv[])
 void updateTweets(deque<Tweet*> &tweets)
 {
 	// delete tweets too old to be related to new tweets, and all references to them
-	while (tweets.size())
+	// while (tweets.size())
+	// {
+	// 	Tweet* &tweet = tweets.at(0);
+
+	// 	// the first tweet in tweets is always the oldest, so if it isn't old enough to be deleted, neither are any of the others
+	// 	if (last_runtime - tweet->time < RECALL_SCOPE)
+	// 		break;
+
+	// 	delete tweet;
+	// 	tweets.pop_front();
+	// }
+
+	TimeKeeper profiler;
+
+	profiler.start("1");
+	while (tweets.size() > 200000)
 	{
-		Tweet* &tweet = tweets.at(0);
-
-		// the first tweet in tweets is always the oldest, so if it isn't old enough to be deleted, neither are any of the others
-		if (tweet->time - last_runtime > RECALL_SCOPE)
-			break;
-
-		delete tweet;
+		delete tweets.at(0);
 		tweets.pop_front();
 	}
+	profiler.start("2");
 
 	unique_ptr<sql::ResultSet> dbTweets(connection->createStatement()->executeQuery(
-		"SELECT *, UNIX_TIMESTAMP(time) AS unix_time FROM NYC.tweets WHERE time BETWEEN FROM_UNIXTIME(" + to_string(last_runtime - PERIOD) + ") AND FROM_UNIXTIME(" + to_string(last_runtime) + ") ORDER BY time ASC;")
-		);
-
+		"SELECT *, UNIX_TIMESTAMP(time) AS unix_time FROM NYC.tweets WHERE time BETWEEN FROM_UNIXTIME(" + to_string(last_runtime - PERIOD) + ") AND FROM_UNIXTIME(" + to_string(last_runtime) + ") ORDER BY time ASC;"
+		));
+	profiler.start("3");
 
 	while (dbTweets->next())
 	{
@@ -203,7 +238,9 @@ void updateTweets(deque<Tweet*> &tweets)
 			dbTweets->getString("unix_time"),
 			dbTweets->getString("lat"),
 			dbTweets->getString("lon"),
-			dbTweets->getString("text")
+			dbTweets->getString("text"),
+			dbTweets->getString("user"),
+			dbTweets->getString("exact")
 			);
 
 		// remove tweets consisting only of stopwords or other ignored strings
@@ -221,6 +258,9 @@ void updateTweets(deque<Tweet*> &tweets)
 				{
 					for (const auto &tweet : cell->tweets_by_word.at(word))
 					{
+						if (tweet == new_tweet || new_tweet->optics_distances.count(tweet) || !tweet->discern(*new_tweet))
+							continue;
+
 						const double &optics_distance = getOpticsDistance(*new_tweet, *tweet);
 
 						new_tweet->optics_distances[tweet] = tweet->optics_distances[new_tweet] = optics_distance;
@@ -259,6 +299,7 @@ void updateTweets(deque<Tweet*> &tweets)
 			tweet->core_distance = iterator->first;
 		}
 	}
+	profiler.start("4");
 
 	// calculate smallest reachability distances
 	for (const auto &tweet : tweets)
@@ -289,6 +330,8 @@ void updateTweets(deque<Tweet*> &tweets)
 			tweet->require_update = false;
 		}
 	}
+	profiler.start("5");
+
 }
 
 vector<Tweet*> getReachabilityPlot(const deque<Tweet*> &tweets)
@@ -325,6 +368,7 @@ vector<Tweet*> getReachabilityPlot(const deque<Tweet*> &tweets)
 		}
 		nodes.push(make_pair(0, seed));
 		tweets_to_process.erase(seed);
+		reachability_plot.push_back(Tweet::delimiter);
 
 		// process the tree of nodes connected to the seed node in order of reachability
 		while (!nodes.empty())
@@ -362,20 +406,133 @@ vector<vector<Tweet*>> extractClusters(vector<Tweet*> reachability_plot)
 			cluster_start = i;
 			in_cluster = true;
 		}
-		else if (in_cluster && (*i)-> smallest_reachability_distance > REACHABILITY_THRESHOLD)
+		else if (in_cluster && (*i)->smallest_reachability_distance > REACHABILITY_THRESHOLD)
 		{
-			vector<Tweet*> cluster(cluster_start, i-1);
-			clusters.push_back(cluster);
+			vector<Tweet*> cluster(cluster_start, i);
+			if (cluster.size() > MIN_TWEETS)
+				clusters.push_back(cluster);
 			in_cluster = false;
 		}
 	}
+
 	return clusters;
+}
+
+void writeClusters(vector<vector<Tweet*>> clusters)
+{
+	TimeKeeper profiler;
+
+	profiler.start("1");
+	try
+	{
+		connection->createStatement()->execute("CREATE TABLE NYC.events_new LIKE NYC.events;");
+	}
+	catch (sql::SQLException e)
+	{
+		connection->createStatement()->execute("DROP TABLE NYC.events_new;");
+		connection->createStatement()->execute("CREATE TABLE NYC.events_new LIKE NYC.events;");
+	}
+	try
+	{
+		connection->createStatement()->execute("CREATE TABLE NYC.event_tweets_new LIKE NYC.event_tweets;");
+	}
+	catch (sql::SQLException e)
+	{
+		connection->createStatement()->execute("DROP TABLE NYC.event_tweets_new;");
+		connection->createStatement()->execute("CREATE TABLE NYC.event_tweets_new LIKE NYC.event_tweets;");
+	}
+	profiler.start("2");
+
+	// each cluster is an event containing time and location information as well as an id to access all of its child tweets
+	int i = 0;
+	for (const auto &cluster : clusters)
+	{
+		bool write_cluster = false;
+
+		const string &first_user = cluster[0]->user;
+		for (const auto &tweet : cluster)
+		{
+			if (tweet->user != first_user)
+			{
+				write_cluster = true;
+				break;
+			}
+		}
+
+		if (!write_cluster)
+			continue;
+
+		double avgX, avgY;
+		avgX = avgY = 0.0;
+		unsigned int start_time, end_time;
+		start_time = end_time = cluster[0]->time;
+		unordered_set<string> users;
+		for (const auto &tweet : cluster)
+		{
+			avgX += tweet->lon;
+			avgY += tweet->lat;
+			if (tweet->time < start_time)
+				start_time = tweet->time;
+			if (tweet->time > end_time)
+				end_time = tweet->time;
+			users.insert(tweet->user);
+		}
+		avgX /= cluster.size();
+		avgY /= cluster.size();
+
+		string query =
+			"INSERT INTO NYC.events_new (`id`, `lon`, `lat`, `start_time`, `end_time`, `users`) VALUES (" +
+				to_string(i) + "," +
+				to_string(avgX) + "," +
+				to_string(avgY) + "," +
+				"FROM_UNIXTIME(" + to_string(start_time) + ")," +
+				"FROM_UNIXTIME(" + to_string(end_time) + ")," +
+				to_string(users.size()) +
+			");";
+		connection->createStatement()->execute(query);
+
+		query = "INSERT INTO NYC.event_tweets_new (`event_id`, `time`, `lat`, `lon`, `exact`, `text`) VALUES ";
+		for (const auto &tweet : cluster)
+		{
+			string escaped_tweet_text = tweet->text;
+			size_t pos;
+			while ((pos = escaped_tweet_text.find("'")) != string::npos)
+			{
+				escaped_tweet_text.replace(pos, 0, "''");
+			}
+
+			query +=
+				"(" +
+					to_string(i) + "," +
+					"FROM_UNIXTIME(" + to_string(tweet->time) + ")," +
+					to_string(avgX) + "," +
+					to_string(avgY) + "," +
+					to_string(tweet->exact) + "," +
+					"'" + escaped_tweet_text + "'"
+				"),";
+		}
+		query.pop_back(); // take the extra comma out
+		query += ";";
+		connection->createStatement()->execute(query);
+
+		i++;
+	}
+	profiler.start("3");
+	connection->createStatement()->execute("RENAME TABLE NYC.events TO NYC.events_old, NYC.event_tweets TO NYC.event_tweets_old, NYC.events_new TO NYC.events, NYC.event_tweets_new TO NYC.event_tweets;");
+
+	profiler.start("4");
+	connection->createStatement()->execute("DROP TABLE NYC.events_old, NYC.event_tweets_old;");
+	profiler.start("5");
 }
 
 // MUST be commutative, ie getDistance(a,b) == getDistance(b,a) for all tweets
 // MUST NOT return a negative value
 double getOpticsDistance(const Tweet &a, const Tweet &b)
 {
+	// if less than fifty words were used around the two tweets on average, do not consider them neighbors
+	if (a.regional_word_rates.size() + b.regional_word_rates.size() < 5)
+		return EPSILON + 1;
+
 	double similarity = 0;
 	const double size = a.words.size() > b.words.size() ? a.words.size() : b.words.size();
 	for (const auto &word : a.words)

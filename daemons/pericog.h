@@ -36,19 +36,24 @@ using namespace std;
 
 struct Tweet
 {
+	static Tweet* delimiter;
+
 	bool require_update = true;
 	double core_distance, smallest_reachability_distance;
 
 	double lat, lon;
 	unsigned int x, y, time;
 	unordered_set<string> words;
-	string text;
+	string text, user;
+	bool exact;
 	multimap<double, Tweet*> optics_neighbors;
 	unordered_map<Tweet*, double> optics_distances;
 	unordered_map<string, double> regional_word_rates;
 
-	Tweet(string _time, string _lat, string _lon, string _text);
+	Tweet(string _time, string _lat, string _lon, string _text, string _user, string _exact);
 	~Tweet();
+
+	bool discern(const Tweet &other_tweet);
 };
 
 struct Cell
@@ -70,4 +75,5 @@ void updateTweets(deque<Tweet*> &tweets);
 double getOpticsDistance(const Tweet &a, const Tweet &b);
 vector<Tweet*> getReachabilityPlot(const deque<Tweet*> &tweets);
 vector<vector<Tweet*>> extractClusters(vector<Tweet*> reachability_plot);
+void writeClusters(vector<vector<Tweet*>> clusters);
 void updateLastRun();
