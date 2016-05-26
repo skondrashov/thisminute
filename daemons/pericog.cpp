@@ -4,7 +4,7 @@
 #define MAX_DEGREES_LONGITUDE 180
 
 unsigned int last_runtime = 0, RECALL_SCOPE, PERIOD, MIN_PTS, MIN_TWEETS = 3;
-double EPSILON, REACHABILITY_THRESHOLD, MAX_SPACIAL_DISTANCE, CELL_SIZE;
+double EPSILON, REACHABILITY_MAXIMUM, REACHABILITY_MINIMUM, MAX_SPACIAL_DISTANCE, CELL_SIZE;
 
 sql::Connection* connection;
 
@@ -115,7 +115,7 @@ bool Tweet::discern(const Tweet &other_tweet)
 	return false;
 }
 
-int main(int argc, char* argv[])
+int main()
 {
 	TimeKeeper profiler;
 	deque<Tweet*> tweets;
@@ -127,7 +127,6 @@ int main(int argc, char* argv[])
 	{
 		if (time(0) - last_runtime > PERIOD)
 		{
-			cout << "\n----------------------\n" << endl;
 			profiler.start("updateTweets");
 			updateTweets(tweets);
 			profiler.start("getReachabilityPlot");
@@ -138,6 +137,16 @@ int main(int argc, char* argv[])
 			writeClusters(clusters);
 			profiler.start("updateLastRun");
 			updateLastRun();
+			profiler.stop();
+			cout << "Tweets: " << tweets.size() << endl;
+			cout << "Time: " << last_runtime << endl;
+
+			int mem = 0;
+			for (const auto &tweet : tweets)
+			{
+				mem += sizeof(tweet);
+			}
+			cout << "Memory: " << mem << endl;
 		}
 		usleep(10);
 	}
@@ -145,14 +154,15 @@ int main(int argc, char* argv[])
 
 void Initialize(int argc, char* argv[])
 {
-	getArg(RECALL_SCOPE,           "timing", "history");
-	getArg(PERIOD,                 "timing", "period");
-	getArg(last_runtime,           "timing", "start");
-	getArg(CELL_SIZE,              "grid",   "cell_size");
-	getArg(MAX_SPACIAL_DISTANCE,   "grid",   "regional_radius");
-	getArg(EPSILON,                "optics", "epsilon");
-	getArg(MIN_PTS,                "optics", "minimum_points");
-	getArg(REACHABILITY_THRESHOLD, "optics", "reachability_threshold");
+	getArg(RECALL_SCOPE,         "timing", "history");
+	getArg(PERIOD,               "timing", "period");
+	getArg(last_runtime,         "timing", "start");
+	getArg(CELL_SIZE,            "grid",   "cell_size");
+	getArg(MAX_SPACIAL_DISTANCE, "grid",   "regional_radius");
+	getArg(EPSILON,              "optics", "epsilon");
+	getArg(MIN_PTS,              "optics", "minimum_points");
+	getArg(REACHABILITY_MAXIMUM, "optics", "reachability_max");
+	getArg(REACHABILITY_MINIMUM, "optics", "reachability_min");
 
 	// generate grid
 	int x = 0, y;
@@ -171,7 +181,7 @@ void Initialize(int argc, char* argv[])
 	}
 
 	Tweet::delimiter = new Tweet("0","0","0","DELIMIT","0","0");
-	Tweet::delimiter->smallest_reachability_distance = REACHABILITY_THRESHOLD + 1;
+	Tweet::delimiter->smallest_reachability_distance = REACHABILITY_MAXIMUM + 1;
 
 	// TODO: make this not square
 	const auto RADIUS = MAX_SPACIAL_DISTANCE/CELL_SIZE;
@@ -205,32 +215,21 @@ void Initialize(int argc, char* argv[])
 void updateTweets(deque<Tweet*> &tweets)
 {
 	// delete tweets too old to be related to new tweets, and all references to them
-	// while (tweets.size())
-	// {
-	// 	Tweet* &tweet = tweets.at(0);
-
-	// 	// the first tweet in tweets is always the oldest, so if it isn't old enough to be deleted, neither are any of the others
-	// 	if (last_runtime - tweet->time < RECALL_SCOPE)
-	// 		break;
-
-	// 	delete tweet;
-	// 	tweets.pop_front();
-	// }
-
-	TimeKeeper profiler;
-
-	profiler.start("1");
-	while (tweets.size() > 200000)
+	while (tweets.size())
 	{
+		Tweet* &tweet = tweets.at(0);
+
+		// the first tweet in tweets is always the oldest, so if it isn't old enough to be deleted, neither are any of the others
+		if (last_runtime - tweet->time < RECALL_SCOPE)
+			break;
+
 		delete tweets.at(0);
 		tweets.pop_front();
 	}
-	profiler.start("2");
 
 	unique_ptr<sql::ResultSet> dbTweets(connection->createStatement()->executeQuery(
 		"SELECT *, UNIX_TIMESTAMP(time) AS unix_time FROM NYC.tweets WHERE time BETWEEN FROM_UNIXTIME(" + to_string(last_runtime - PERIOD) + ") AND FROM_UNIXTIME(" + to_string(last_runtime) + ") ORDER BY time ASC;"
 		));
-	profiler.start("3");
 
 	while (dbTweets->next())
 	{
@@ -299,7 +298,6 @@ void updateTweets(deque<Tweet*> &tweets)
 			tweet->core_distance = iterator->first;
 		}
 	}
-	profiler.start("4");
 
 	// calculate smallest reachability distances
 	for (const auto &tweet : tweets)
@@ -330,8 +328,6 @@ void updateTweets(deque<Tweet*> &tweets)
 			tweet->require_update = false;
 		}
 	}
-	profiler.start("5");
-
 }
 
 vector<Tweet*> getReachabilityPlot(const deque<Tweet*> &tweets)
@@ -401,17 +397,30 @@ vector<vector<Tweet*>> extractClusters(vector<Tweet*> reachability_plot)
 	vector<Tweet*>::iterator cluster_start;
 	for (auto i = reachability_plot.begin(); i != reachability_plot.end(); i++)
 	{
-		if (!in_cluster && (*i)->smallest_reachability_distance <= REACHABILITY_THRESHOLD)
+		if (!in_cluster && (*i)->smallest_reachability_distance <= REACHABILITY_MAXIMUM
+			&& (*i)->smallest_reachability_distance >= REACHABILITY_MINIMUM
+			)
 		{
 			cluster_start = i;
 			in_cluster = true;
 		}
-		else if (in_cluster && (*i)->smallest_reachability_distance > REACHABILITY_THRESHOLD)
+		else if (in_cluster && (((*i)->smallest_reachability_distance > REACHABILITY_MAXIMUM)
+			|| ((*i)->smallest_reachability_distance < REACHABILITY_MINIMUM)))
 		{
 			vector<Tweet*> cluster(cluster_start, i);
-			if (cluster.size() > MIN_TWEETS)
-				clusters.push_back(cluster);
 			in_cluster = false;
+			if (cluster.size() > MIN_TWEETS)
+			{
+				const string &first_user = cluster[0]->user;
+				for (const auto &tweet : cluster)
+				{
+					if (tweet->user != first_user)
+					{
+						clusters.push_back(cluster);
+						break;
+					}
+				}
+			}
 		}
 	}
 
@@ -447,21 +456,6 @@ void writeClusters(vector<vector<Tweet*>> clusters)
 	int i = 0;
 	for (const auto &cluster : clusters)
 	{
-		bool write_cluster = false;
-
-		const string &first_user = cluster[0]->user;
-		for (const auto &tweet : cluster)
-		{
-			if (tweet->user != first_user)
-			{
-				write_cluster = true;
-				break;
-			}
-		}
-
-		if (!write_cluster)
-			continue;
-
 		double avgX, avgY;
 		avgX = avgY = 0.0;
 		unsigned int start_time, end_time;
