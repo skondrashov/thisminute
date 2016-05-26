@@ -1,48 +1,20 @@
 var MIN_OPACITY = .3;
 
 var map, markers = {}, info, icons = [], xhttp, default_icon;
-var colors = [
-	["#F0A3FF", "#000"],
-	["#0075DC", "#000"],
-	["#993F00", "#FFF"],
-	["#4C005C", "#FFF"],
-	["#191919", "#FFF"],
-	["#005C31", "#FFF"],
-	["#2BCE48", "#000"],
-	["#FFCC99", "#000"],
-	["#808080", "#000"],
-	["#94FFB5", "#000"],
-	["#8F7C00", "#000"],
-	["#9DCC00", "#000"],
-	["#C20088", "#000"],
-	["#003380", "#FFF"],
-	["#FFA405", "#000"],
-	["#FFA8BB", "#000"],
-	["#426600", "#FFF"],
-	["#FF0010", "#000"],
-	["#5EF1F2", "#000"],
-	["#00998F", "#FFF"],
-	["#E0FF66", "#000"],
-	["#740AFF", "#FFF"],
-	["#990000", "#FFF"],
-	["#FFFF80", "#000"],
-	["#FFFF00", "#000"],
-	["#FF5005", "#000"]
-];
 
 function initMap() {
 	map = new google.maps.Map(document.getElementById('map'), {
-		center: {lat: 40.712783, lng: -74.005942},
-		zoom: 12
+		center: {lat: 39.8333333, lng: -98.585522},
+		zoom: 5
 	});
 }
+
 function poll() {
 	xhttp = new XMLHttpRequest();
 	xhttp.onreadystatechange = function() {
 		if (xhttp.readyState == 4 && xhttp.status == 200) {
 			var result = JSON.parse(xhttp.responseText);
 			var ids = [];
-
 			for (var i = 0; i < result.length; i++)
 			{
 				// create unique id for each tweet received to ensure we don't create duplicates
@@ -58,7 +30,7 @@ function poll() {
 							title: result[i].time,
 							icon: default_icon
 						});
-					markers[id].event_num = result[i].event_id % colors.length;
+					markers[id].event_num = result[i].event_id;
 					markers[id].highlighted = false;
 					markers[id].text = result[i].text;
 
@@ -97,7 +69,7 @@ function highlight(id) {
 	if (markers[id].highlighted)
 		return;
 	markers[id].highlighted = true;
-	markers[id].setIcon(icons[markers[id].event_num]);
+	markers[id].setIcon(highlighted_icon);
 	update();
 }
 
@@ -125,23 +97,22 @@ function update() {
 
 window.onload = function() {
 	info = new google.maps.InfoWindow();
-	for (var i = 0; i < colors.length; i++) {
-		icons.push({
-			fillColor: colors[i][0],
+	highlighted_icon = {
+			fillColor: "#F77",
 			fillOpacity: 1,
-			strokeColor: colors[i][1],
+			strokeColor: "#222",
 			strokeWeight: 1,
-			path: google.maps.SymbolPath.BACKWARD_CLOSED_ARROW,
-			scale: 4
-		});
-	}
-
+			path: google.maps.SymbolPath.CIRCLE,
+			scale: 7
+		};
 	default_icon = {
-		strokeColor: "#000000",
-		strokeWeight: 1,
-		path: google.maps.SymbolPath.BACKWARD_CLOSED_ARROW,
-		scale: 4
-	};
+			fillColor: "#F88",
+			fillOpacity: .7,
+			strokeColor: "#222",
+			strokeWeight: 1,
+			path: google.maps.SymbolPath.CIRCLE,
+			scale: 7
+		};
 
 	var check = true;
 	google.maps.event.addListener(map, 'mousemove', function (event) {

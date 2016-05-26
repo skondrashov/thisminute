@@ -2,8 +2,7 @@
 <html>
 	<head>
 		<title>NYC Tweet Mapper</title>
-		<script src="http://code.jquery.com/jquery-2.2.2.min.js"></script>
-		<script src="lib/poll.js"></script>
+		<meta charset="utf-8">
 		<style type="text/css">
 			html, body { height: 100%; margin: 0; padding: 0; }
 			#header { height: 60px; background-color: #000; color: #FFF; margin-left: auto; text-align: center; font: 50px arial, sans-serif; }
@@ -13,10 +12,11 @@
 		</style>
 	</head>
 	<body>
+		<script src="lib/poll.js"></script>
 		<div id="header">ThisMinute</div>
 		<div id="box">
 			<div id="map"></div>
-			<div id="sidebar"></div>
+			<div id="sidebar">butt</div>
 		</div>
 		<script async defer
 			src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCLWGtBTbTki6xwphWDWOPfZ4Csl2CtqlI&callback=initMap">
