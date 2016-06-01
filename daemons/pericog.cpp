@@ -6,7 +6,7 @@
 unsigned int last_runtime = 0, RECALL_SCOPE, PERIOD, MIN_PTS, MIN_TWEETS = 3;
 double EPSILON, REACHABILITY_MAXIMUM, REACHABILITY_MINIMUM, MAX_SPACIAL_DISTANCE, CELL_SIZE;
 
-sql::Connection* connection;
+sql::Connection* admin_connection, * limited_connection;
 
 vector<vector<Cell>> Cell::cells;
 Tweet* Tweet::delimiter;
@@ -121,7 +121,7 @@ int main()
 	deque<Tweet*> tweets;
 
 	profiler.start("Initialize");
-	Initialize(argc, argv);
+	Initialize();
 
 	while (1)
 	{
@@ -140,19 +140,12 @@ int main()
 			profiler.stop();
 			cout << "Tweets: " << tweets.size() << endl;
 			cout << "Time: " << last_runtime << endl;
-
-			int mem = 0;
-			for (const auto &tweet : tweets)
-			{
-				mem += sizeof(tweet);
-			}
-			cout << "Memory: " << mem << endl;
 		}
 		usleep(10);
 	}
 }
 
-void Initialize(int argc, char* argv[])
+void Initialize()
 {
 	getArg(RECALL_SCOPE,         "timing", "history");
 	getArg(PERIOD,               "timing", "period");
@@ -203,12 +196,22 @@ void Initialize(int argc, char* argv[])
 		}
 	}
 
-	// create a connection
-	sql::Driver* driver(get_driver_instance());
+	// create a connection with limited permissions - relatively safe in the event of SQL injection
 	{
-		ifstream passwordFile("/srv/auth/daemons/pericog.pw");
+		sql::Driver* driver(get_driver_instance());
+		ifstream passwordFile("/srv/auth/daemons/pericog_limited.pw");
 		auto password = static_cast<ostringstream&>(ostringstream{} << passwordFile.rdbuf()).str();
-		connection = driver->connect("tcp://127.0.0.1:3306", "pericog", password);
+		limited_connection = driver->connect("tcp://127.0.0.1:3306", "pericog_limited", password);
+		limited_connection->createStatement()->execute("USE ThisMinute");
+	}
+
+	// create a connection that will only perform queries that are not constructed from user input
+	{
+		sql::Driver* driver(get_driver_instance());
+		ifstream passwordFile("/srv/auth/daemons/pericog_admin.pw");
+		auto password = static_cast<ostringstream&>(ostringstream{} << passwordFile.rdbuf()).str();
+		admin_connection = driver->connect("tcp://127.0.0.1:3306", "pericog_admin", password);
+		admin_connection->createStatement()->execute("USE ThisMinute");
 	}
 }
 
@@ -227,8 +230,8 @@ void updateTweets(deque<Tweet*> &tweets)
 		tweets.pop_front();
 	}
 
-	unique_ptr<sql::ResultSet> dbTweets(connection->createStatement()->executeQuery(
-		"SELECT *, UNIX_TIMESTAMP(time) AS unix_time FROM NYC.tweets WHERE time BETWEEN FROM_UNIXTIME(" + to_string(last_runtime - PERIOD) + ") AND FROM_UNIXTIME(" + to_string(last_runtime) + ") ORDER BY time ASC;"
+	unique_ptr<sql::ResultSet> dbTweets(admin_connection->createStatement()->executeQuery(
+		"SELECT *, UNIX_TIMESTAMP(time) AS unix_time FROM tweets WHERE time BETWEEN FROM_UNIXTIME(" + to_string(last_runtime - PERIOD) + ") AND FROM_UNIXTIME(" + to_string(last_runtime) + ") ORDER BY time ASC;"
 		));
 
 	while (dbTweets->next())
@@ -429,28 +432,24 @@ vector<vector<Tweet*>> extractClusters(vector<Tweet*> reachability_plot)
 
 void writeClusters(vector<vector<Tweet*>> clusters)
 {
-	TimeKeeper profiler;
-
-	profiler.start("1");
 	try
 	{
-		connection->createStatement()->execute("CREATE TABLE NYC.events_new LIKE NYC.events;");
+		admin_connection->createStatement()->execute("CREATE TABLE events_new LIKE events;");
 	}
 	catch (sql::SQLException e)
 	{
-		connection->createStatement()->execute("DROP TABLE NYC.events_new;");
-		connection->createStatement()->execute("CREATE TABLE NYC.events_new LIKE NYC.events;");
+		admin_connection->createStatement()->execute("DROP TABLE events_new;");
+		admin_connection->createStatement()->execute("CREATE TABLE events_new LIKE events;");
 	}
 	try
 	{
-		connection->createStatement()->execute("CREATE TABLE NYC.event_tweets_new LIKE NYC.event_tweets;");
+		admin_connection->createStatement()->execute("CREATE TABLE event_tweets_new LIKE event_tweets;");
 	}
 	catch (sql::SQLException e)
 	{
-		connection->createStatement()->execute("DROP TABLE NYC.event_tweets_new;");
-		connection->createStatement()->execute("CREATE TABLE NYC.event_tweets_new LIKE NYC.event_tweets;");
+		admin_connection->createStatement()->execute("DROP TABLE event_tweets_new;");
+		admin_connection->createStatement()->execute("CREATE TABLE event_tweets_new LIKE event_tweets;");
 	}
-	profiler.start("2");
 
 	// each cluster is an event containing time and location information as well as an id to access all of its child tweets
 	int i = 0;
@@ -475,17 +474,16 @@ void writeClusters(vector<vector<Tweet*>> clusters)
 		avgY /= cluster.size();
 
 		string query =
-			"INSERT INTO NYC.events_new (`id`, `lon`, `lat`, `start_time`, `end_time`, `users`) VALUES (" +
+			"INSERT INTO events_new (`id`, `lon`, `lat`, `start_time`, `end_time`, `users`, `keywords`) VALUES (" +
 				to_string(i) + "," +
 				to_string(avgX) + "," +
 				to_string(avgY) + "," +
 				"FROM_UNIXTIME(" + to_string(start_time) + ")," +
 				"FROM_UNIXTIME(" + to_string(end_time) + ")," +
-				to_string(users.size()) +
-			");";
-		connection->createStatement()->execute(query);
+				to_string(users.size()) + ",'temp');"; // TODO: make keywords a real thing
+		admin_connection->createStatement()->execute(query);
 
-		query = "INSERT INTO NYC.event_tweets_new (`event_id`, `time`, `lat`, `lon`, `exact`, `text`) VALUES ";
+		query = "INSERT INTO event_tweets_new (`event_id`, `time`, `lat`, `lon`, `exact`, `text`) VALUES ";
 		for (const auto &tweet : cluster)
 		{
 			string escaped_tweet_text = tweet->text;
@@ -507,16 +505,12 @@ void writeClusters(vector<vector<Tweet*>> clusters)
 		}
 		query.pop_back(); // take the extra comma out
 		query += ";";
-		connection->createStatement()->execute(query);
+		limited_connection->createStatement()->execute(query);
 
 		i++;
 	}
-	profiler.start("3");
-	connection->createStatement()->execute("RENAME TABLE NYC.events TO NYC.events_old, NYC.event_tweets TO NYC.event_tweets_old, NYC.events_new TO NYC.events, NYC.event_tweets_new TO NYC.event_tweets;");
-
-	profiler.start("4");
-	connection->createStatement()->execute("DROP TABLE NYC.events_old, NYC.event_tweets_old;");
-	profiler.start("5");
+	admin_connection->createStatement()->execute("RENAME TABLE events TO events_old, event_tweets TO event_tweets_old, events_new TO events, event_tweets_new TO event_tweets;");
+	admin_connection->createStatement()->execute("DROP TABLE events_old, event_tweets_old;");
 }
 
 // MUST be commutative, ie getDistance(a,b) == getDistance(b,a) for all tweets

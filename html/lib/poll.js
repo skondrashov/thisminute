@@ -1,6 +1,4 @@
-var MIN_OPACITY = .3;
-
-var map, markers = {}, info, icons = [], xhttp, default_icon;
+var map, markers = {}, tweets = {}, info, xhttp, default_icon, highlighted_icon;
 
 function initMap() {
 	map = new google.maps.Map(document.getElementById('map'), {
@@ -9,38 +7,59 @@ function initMap() {
 	});
 }
 
+String.prototype.hashCode = function(){
+	var hash = 0;
+	if (this.length == 0) return hash;
+	for (i = 0; i < this.length; i++) {
+		char = this.charCodeAt(i);
+		hash = ((hash<<5)-hash)+char;
+		hash = hash & hash; // Convert to 32bit integer
+	}
+	return hash;
+}
+
 function poll() {
 	xhttp = new XMLHttpRequest();
 	xhttp.onreadystatechange = function() {
-		if (xhttp.readyState == 4 && xhttp.status == 200) {
-			var result = JSON.parse(xhttp.responseText);
+		if (xhttp.readyState == 4 && xhttp.status == 200)
+		{
+			var result = JSON.parse(xhttp.responseText).events;
 			var ids = [];
 			for (var i = 0; i < result.length; i++)
 			{
 				// create unique id for each tweet received to ensure we don't create duplicates
-				var id = ids[i] = result[i].event_id + result[i].lon + result[i].lat + result[i].user;
+				var id = ids[i] = result[i].id;
 
 				// only create a new marker if its id has not been filled
 				if (!(id in markers))
 				{
-
 					markers[id] = new google.maps.Marker({
 							position: {lat: parseFloat(result[i].lat), lng: parseFloat(result[i].lon)},
 							map: map,
-							title: result[i].time,
 							icon: default_icon
 						});
 					markers[id].event_num = result[i].event_id;
 					markers[id].highlighted = false;
 					markers[id].text = result[i].text;
+					markers[id].id = id;
 
 					(function() {
-						var content = result[i].text;
 						var marker = markers[id];
 						marker.addListener('click', function() {
-							info.close();
-							info.setContent(content);
-							info.open(map, marker);
+							});
+						marker.addListener('mouseover', function() {
+								if (marker.highlighted)
+									return;
+								marker.highlighted = true;
+								marker.setIcon(highlighted_icon);
+								$("#sidebar").append($('<div id="marker_' + marker.id + '" class="infobox">' + marker.text + '</div>"'));
+							});
+						marker.addListener('mouseout', function() {
+								if (!marker.highlighted)
+									return;
+								marker.highlighted = false;
+								marker.setIcon(default_icon);
+								$("#marker_" + marker.id).remove();
 							});
 					})();
 				}
@@ -58,41 +77,39 @@ function poll() {
 					}
 				}
 			}
+
+			result = JSON.parse(xhttp.responseText).tweets;
+			ids = [];
+			for (var i = 0; i < result.length; i++)
+			{
+				// create unique id for each tweet received to ensure we don't create duplicates
+				var id = ids[i] = "tweet_" + (result[i].time + result[i].text).hashCode();
+
+				// only create a new marker if its id has not been filled
+				if (!(id in tweets))
+				{
+					tweets[id] = {};
+					tweets[id].id = id;
+					$("#sidebar").prepend($('<div id="tweet' + id + '" class="infobox">' + result[i].text + '</div>"'));
+				}
+			}
+
+			// remove tweets that exist locally but were not passed from the server
+			for (var tweet in tweets)
+			{
+				if (tweets.hasOwnProperty(tweet))
+				{
+					if (ids.indexOf(tweet) === -1)
+					{
+						$("#tweet_" + tweet.id).remove();
+					}
+				}
+			}
 		}
 	};
 	xhttp.open("GET", "press/get_markers.php", true);
 	xhttp.send();
 	setTimeout(poll, 5000);
-}
-
-function highlight(id) {
-	if (markers[id].highlighted)
-		return;
-	markers[id].highlighted = true;
-	markers[id].setIcon(highlighted_icon);
-	update();
-}
-
-function dim(id) {
-	if (!markers[id].highlighted)
-		return;
-	markers[id].highlighted = false;
-	markers[id].setIcon(default_icon);
-	update();
-}
-
-function update() {
-	$("#sidebar").empty();
-
-	for (var marker in markers)
-	{
-		if (markers[marker].highlighted)
-		{
-			$("#sidebar").append($('<div class="infobox">' + markers[marker].text + '</div>"'));
-			$("#sidebar:last-child").css('background-color', colors[markers[marker].event_num][0]);
-			$("#sidebar:last-child").css('color', colors[markers[marker].event_num][1]);
-		}
-	}
 }
 
 window.onload = function() {
@@ -103,7 +120,7 @@ window.onload = function() {
 			strokeColor: "#222",
 			strokeWeight: 1,
 			path: google.maps.SymbolPath.CIRCLE,
-			scale: 7
+			scale: 10
 		};
 	default_icon = {
 			fillColor: "#F88",
@@ -111,39 +128,8 @@ window.onload = function() {
 			strokeColor: "#222",
 			strokeWeight: 1,
 			path: google.maps.SymbolPath.CIRCLE,
-			scale: 7
+			scale: 10
 		};
-
-	var check = true;
-	google.maps.event.addListener(map, 'mousemove', function (event) {
-			if (check)
-			{
-				var mouse_lat = event.latLng.lat();
-				var mouse_lng = event.latLng.lng();
-
-				var lat_distance, lng_distance, distance;
-				for (var marker in markers)
-				{
-					lat_distance = mouse_lat-markers[marker].getPosition().lat();
-					if (lat_distance < .01 && lat_distance > -.01)
-					{
-						lng_distance = mouse_lng-markers[marker].getPosition().lng();
-						if (lng_distance < .01 && lng_distance > -.01)
-						{
-							distance = Math.pow(lat_distance*lat_distance+lng_distance*lng_distance, 0.5);
-							if (distance < .01)
-							{
-								highlight(marker);
-								continue;
-							}
-						}
-					}
-					dim(marker);
-				}
-				check = false;
-				setTimeout(function(){check=true;}, 10);
-			}
-		});
 
 	poll();
 };

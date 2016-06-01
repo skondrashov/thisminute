@@ -1,5 +1,5 @@
 <?php
-$db = new mysqli("localhost", "press", file_get_contents('/srv/auth/press.pw'));
+$db = new mysqli("localhost", "press", file_get_contents('/srv/auth/press.pw'), "ThisMinute");
 $where = "WHERE 1=1";
 if (isset($_GET['start']))
 {
@@ -10,7 +10,7 @@ if (isset($_GET['start']))
 	}
 }
 
-$result = $db->query("SELECT word, start_time AS time FROM NYC.superevents $where ORDER BY start_time DESC;");
+$result = $db->query("SELECT word, start_time AS time FROM superevents $where ORDER BY start_time DESC;");
 if ($result)
 	echo json_encode($result->fetch_all(MYSQLI_ASSOC));
 $result->close();

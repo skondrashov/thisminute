@@ -70,7 +70,7 @@ unordered_set<string> explode(string const &s);
 template<typename T> void getArg(T &arg, string section, string option);
 
 // YEAH LET'S DO IT
-void Initialize(int argc, char* argv[]);
+void Initialize();
 void updateTweets(deque<Tweet*> &tweets);
 double getOpticsDistance(const Tweet &a, const Tweet &b);
 vector<Tweet*> getReachabilityPlot(const deque<Tweet*> &tweets);
