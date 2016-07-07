@@ -14,17 +14,29 @@ Tweet* Tweet::delimiter;
 Tweet::Tweet(string _time, string _lat, string _lon, string _text, string _user, string _exact)
 	: text(_text)
 {
-	regex mentionsAndUrls("((\\B@)|(\\bhttps?:\\/\\/))[^\\s]+");
-	regex nonWord("[^\\w]+");
+	static regex mentionsAndUrls("((\\B@)|(\\bhttps?:\\/\\/))[^\\s]+");
+	static regex nonWord("[^\\w]+");
+
 	_text = regex_replace(_text, mentionsAndUrls, string(" "));
 	_text = regex_replace(_text, nonWord, string(" "));
+	transform(_text.begin(), _text.end(), _text.begin(), ::tolower);
+	_text.erase(0, _text.find_first_not_of(" "));
+	_text.erase(_text.find_last_not_of(" ") + 1);
+	clean_text = _text;
+
+	if (
+		clean_text == "stay away from the walmart on georgia" ||
+		clean_text == "keep amarillo and the people involved with the walmart shooting in your prayers" ||
+		clean_text == "shooter is an employee of the wal mart shooting amarillo"
+		)
+		important = true;
 
 	time = stoi(_time);
 	lon = stod(_lon);
 	lat = stod(_lat);
 	x = floor((lon + MAX_DEGREES_LONGITUDE)/CELL_SIZE);
 	y = floor((lat + MAX_DEGREES_LATITUDE)/CELL_SIZE);
-	words = explode(_text);
+	words = explode(clean_text);
 	user = _user;
 	exact = !!stoi(_exact);
 
@@ -129,10 +141,10 @@ int main()
 		{
 			profiler.start("updateTweets");
 			updateTweets(tweets);
-			profiler.start("getReachabilityPlot");
-			auto reachability_plot = getReachabilityPlot(tweets);
-			profiler.start("extractClusters");
-			auto clusters = extractClusters(reachability_plot);
+			profiler.start("getClusters");
+			auto clusters = getClusters(tweets);
+			profiler.start("filterClusters");
+			filterClusters(clusters);
 			profiler.start("writeClusters");
 			writeClusters(clusters);
 			profiler.start("updateLastRun");
@@ -260,18 +272,18 @@ void updateTweets(deque<Tweet*> &tweets)
 				{
 					for (const auto &tweet : cell->tweets_by_word.at(word))
 					{
-						if (tweet == new_tweet || new_tweet->optics_distances.count(tweet) || !tweet->discern(*new_tweet))
+						if (tweet == new_tweet || new_tweet->optics_distances.count(tweet))
 							continue;
 
-						const double &optics_distance = getOpticsDistance(*new_tweet, *tweet);
+						const Distances &optics_distance = getDistances(*tweet, *new_tweet);
 
 						new_tweet->optics_distances[tweet] = tweet->optics_distances[new_tweet] = optics_distance;
 
 						// add neighbor references between the new tweet and all its neighbors
-						if (optics_distance <= EPSILON)
+						if (optics_distance.enough_data && optics_distance.optics <= EPSILON)
 						{
-							new_tweet->optics_neighbors.insert(make_pair(optics_distance, tweet));
-							tweet->optics_neighbors.insert(make_pair(optics_distance, new_tweet));
+							new_tweet->optics_neighbors.insert(make_pair(optics_distance.optics, tweet));
+							tweet->optics_neighbors.insert(make_pair(optics_distance.optics, new_tweet));
 							tweet->require_update = true;
 						}
 					}
@@ -319,8 +331,8 @@ void updateTweets(deque<Tweet*> &tweets)
 					continue;
 
 				double reachability_distance;
-				if (tweet->optics_distances.at(optics_neighbor) > optics_neighbor->core_distance)
-					reachability_distance = tweet->optics_distances.at(optics_neighbor);
+				if (tweet->optics_distances.at(optics_neighbor).optics > optics_neighbor->core_distance)
+					reachability_distance = tweet->optics_distances.at(optics_neighbor).optics;
 				else
 					reachability_distance = tweet->core_distance;
 
@@ -333,8 +345,23 @@ void updateTweets(deque<Tweet*> &tweets)
 	}
 }
 
-vector<Tweet*> getReachabilityPlot(const deque<Tweet*> &tweets)
+vector<vector<Tweet*>> getClusters(const deque<Tweet*> &tweets)
 {
+	for (const auto &tweet : tweets)
+	{
+		if (tweet->important)
+		{
+			cout << "important tweet: " << tweet->clean_text << endl;
+			cout << "neighbors: " << '\n';
+			for (const auto &pair : tweet->optics_distances)
+			{
+				const auto &optics_neighbor = pair.first;
+				cout << optics_neighbor->clean_text << '\t' << pair.second.kondrashov << '\t' << pair.second.levenshtein << '\n';
+			}
+			cout << '\n' << endl;
+		}
+	}
+
 	// construct a container of all non-noise tweets for processing
 	unordered_set<Tweet*> tweets_to_process;
 	for (const auto &tweet : tweets)
@@ -390,11 +417,7 @@ vector<Tweet*> getReachabilityPlot(const deque<Tweet*> &tweets)
 			}
 		}
 	}
-	return reachability_plot;
-}
 
-vector<vector<Tweet*>> extractClusters(vector<Tweet*> reachability_plot)
-{
 	vector<vector<Tweet*>> clusters;
 	bool in_cluster = false;
 	vector<Tweet*>::iterator cluster_start;
@@ -430,7 +453,38 @@ vector<vector<Tweet*>> extractClusters(vector<Tweet*> reachability_plot)
 	return clusters;
 }
 
-void writeClusters(vector<vector<Tweet*>> clusters)
+void filterClusters(vector<vector<Tweet*>> &clusters)
+{
+	for (const auto &cluster : clusters)
+	{
+		if (cluster.size() > 30)
+		{
+			cout << "skipping large cluster" << endl;
+			continue;
+		}
+
+		Distances avg;
+		int count = 0;
+
+		for (const auto &tweet_a : cluster)
+		{
+			for (const auto &tweet_b : cluster)
+			{
+				if (tweet_a == tweet_b)
+					continue;
+
+				count++;
+				const Distances all_distances = getDistances(*tweet_a, *tweet_b);
+				avg.kondrashov  += all_distances.kondrashov;
+				avg.levenshtein += all_distances.levenshtein;
+			}
+		}
+		avg.kondrashov /= count;
+		avg.levenshtein /= count;
+	}
+}
+
+void writeClusters(vector<vector<Tweet*>> &clusters)
 {
 	try
 	{
@@ -513,31 +567,56 @@ void writeClusters(vector<vector<Tweet*>> clusters)
 	admin_connection->createStatement()->execute("DROP TABLE events_old, event_tweets_old;");
 }
 
-// MUST be commutative, ie getDistance(a,b) == getDistance(b,a) for all tweets
-// MUST NOT return a negative value
-double getOpticsDistance(const Tweet &a, const Tweet &b)
+// SHOULD be commutative, ie getDistance(a,b) == getDistance(b,a) for all tweets
+// all distance functions return a value between 0 and 1
+Distances getDistances(const Tweet &a, const Tweet &b)
 {
+	Distances distances;
+
+	distances.enough_data = true;
+
 	// if less than fifty words were used around the two tweets on average, do not consider them neighbors
 	if (a.regional_word_rates.size() + b.regional_word_rates.size() < 5)
-		return EPSILON + 1;
+		distances.enough_data = false;
 
 	double similarity = 0;
 	const double size = a.words.size() > b.words.size() ? a.words.size() : b.words.size();
 	for (const auto &word : a.words)
 	{
-		if (b.words.count(word))
-		{
-			const double word_weight_a = 1 - a.regional_word_rates.at(word);
-			const double word_weight_b = 1 - b.regional_word_rates.at(word);
-			const double word_weight = word_weight_a > word_weight_b ? word_weight_a : word_weight_b;
-			similarity += word_weight/size;
-		}
+		if (!b.words.count(word))
+			continue;
+
+		const double word_weight_a = 1 - a.regional_word_rates.at(word);
+		const double word_weight_b = 1 - b.regional_word_rates.at(word);
+		const double word_weight = word_weight_a > word_weight_b ? word_weight_a : word_weight_b;
+		similarity += word_weight/size;
 	}
 
-	if (!similarity)
-		return EPSILON + 1;
+	distances.kondrashov = similarity ? 1-similarity : 1;
 
-	return 1-similarity;
+	unordered_map<int, vector<string>> offsets;
+	int matches = 0;
+	for (const auto &word : a.words)
+	{
+		if (b.clean_text.find(word) == string::npos)
+			continue;
+		matches++;
+
+		size_t char_pos_a = a.clean_text.find(word);
+		int word_pos_a = count(a.clean_text.begin(), a.clean_text.begin() + char_pos_a, ' ');
+		size_t char_pos_b = b.clean_text.find(word);
+		int word_pos_b = count(b.clean_text.begin(), b.clean_text.begin() + char_pos_b, ' ');
+		int word_offset = word_pos_b - word_pos_a;
+		offsets[word_offset].push_back(word);
+	}
+
+	distances.levenshtein =
+		matches ?
+		((double)(a.words.size()-matches)/a.words.size()) * ((double)offsets.size()/matches)
+		: 1;
+
+	distances.optics = distances.kondrashov;
+	return distances;
 }
 
 void updateLastRun()
@@ -554,7 +633,6 @@ unordered_set<string> explode(string const &s)
 
 	for (string token; getline(iss, token, ' '); )
 	{
-		transform(token.begin(), token.end(), token.begin(), ::tolower);
 		if (token != "" && token != " ")
 			result.insert(token);
 	}

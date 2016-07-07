@@ -34,9 +34,20 @@
 
 using namespace std;
 
+struct Distances
+{
+	bool enough_data;
+	double optics;
+	double kondrashov;
+	double levenshtein;
+	Distances() : enough_data(true), optics(0), levenshtein(0) {};
+};
+
 struct Tweet
 {
 	static Tweet* delimiter;
+
+	bool important = false;
 
 	bool require_update = true;
 	double core_distance, smallest_reachability_distance;
@@ -44,10 +55,10 @@ struct Tweet
 	double lat, lon;
 	unsigned int x, y, time;
 	unordered_set<string> words;
-	string text, user;
+	string text, clean_text, user;
 	bool exact;
 	multimap<double, Tweet*> optics_neighbors;
-	unordered_map<Tweet*, double> optics_distances;
+	unordered_map<Tweet*, Distances> optics_distances;
 	unordered_map<string, double> regional_word_rates;
 
 	Tweet(string _time, string _lat, string _lon, string _text, string _user, string _exact);
@@ -72,8 +83,8 @@ template<typename T> void getArg(T &arg, string section, string option);
 // YEAH LET'S DO IT
 void Initialize();
 void updateTweets(deque<Tweet*> &tweets);
-double getOpticsDistance(const Tweet &a, const Tweet &b);
-vector<Tweet*> getReachabilityPlot(const deque<Tweet*> &tweets);
-vector<vector<Tweet*>> extractClusters(vector<Tweet*> reachability_plot);
-void writeClusters(vector<vector<Tweet*>> clusters);
+Distances getDistances(const Tweet &a, const Tweet &b);
+vector<vector<Tweet*>> getClusters(const deque<Tweet*> &tweets);
+void filterClusters(vector<vector<Tweet*>> &clusters);
+void writeClusters(vector<vector<Tweet*>> &clusters);
 void updateLastRun();
