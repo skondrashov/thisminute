@@ -40,7 +40,6 @@ $queries = [
 
         "CREATE TABLE ThisMinute.events_old LIKE ThisMinute.events",
         "GRANT CREATE, DROP, INSERT ON ThisMinute.events_old TO 'pericog_admin'@'localhost'",
-        "DROP TABLE ThisMinute.events_old",
 
         "CREATE TABLE ThisMinute.event_tweets (
                 event_id BIGINT    NOT NULL,
@@ -61,7 +60,6 @@ $queries = [
 
         "CREATE TABLE ThisMinute.event_tweets_old LIKE ThisMinute.event_tweets",
         "GRANT CREATE, DROP, INSERT ON ThisMinute.event_tweets_old TO 'pericog_admin'@'localhost'",
-        "DROP TABLE ThisMinute.event_tweets_old",
     ];
 foreach ($queries as $query)
     echo "$query : \n RESULT: " . var_export($db->query($query), true) . "\n\n";

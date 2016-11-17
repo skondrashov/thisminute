@@ -543,8 +543,17 @@ void writeClusters(vector<vector<Tweet*>> &clusters)
 
 		i++;
 	}
+
+	try
+	{
+		admin_connection->createStatement()->execute("DROP TABLE events_old, event_tweets_old;");
+	}
+	catch (sql::SQLException e)
+	{
+		cout << "WARNING: no events_old, event_tweets_old tables found (first run?)\n";
+	}
+
 	admin_connection->createStatement()->execute("RENAME TABLE events TO events_old, event_tweets TO event_tweets_old, events_new TO events, event_tweets_new TO event_tweets;");
-	admin_connection->createStatement()->execute("DROP TABLE events_old, event_tweets_old;");
 }
 
 // SHOULD be commutative, ie getDistance(a,b) == getDistance(b,a) for all tweets
