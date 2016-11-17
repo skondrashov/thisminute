@@ -508,13 +508,13 @@ void writeClusters(vector<vector<Tweet*>> &clusters)
 		avgY /= cluster.size();
 
 		string query =
-			"INSERT INTO events_new (`id`, `lon`, `lat`, `start_time`, `end_time`, `users`, `keywords`) VALUES (" +
+			"INSERT INTO events_new (`id`, `lon`, `lat`, `start_time`, `end_time`, `users`) VALUES (" +
 				to_string(i) + "," +
 				to_string(avgX) + "," +
 				to_string(avgY) + "," +
 				"FROM_UNIXTIME(" + to_string(start_time) + ")," +
 				"FROM_UNIXTIME(" + to_string(end_time) + ")," +
-				to_string(users.size()) + ",'temp');"; // TODO: make keywords a real thing
+				to_string(users.size()) + ");";
 		admin_connection->createStatement()->execute(query);
 
 		query = "INSERT INTO event_tweets_new (`event_id`, `time`, `lat`, `lon`, `exact`, `text`) VALUES ";
