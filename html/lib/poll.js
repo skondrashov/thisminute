@@ -1,3 +1,5 @@
+var latest_server_events, latest_server_tweets;
+
 var map, markers = {}, tweets = {}, info, xhttp, default_icon, highlighted_icon;
 
 function initMap() {
@@ -18,79 +20,111 @@ String.prototype.hashCode = function(){
 	return hash;
 }
 
+function updateList(newData, oldData, dataType)
+{
+	for (var id in oldData)
+	{
+		if (oldData.hasOwnProperty(id))
+		{
+			oldData[id].keep = false;
+		}
+	}
+
+	for (var i = 0; i < newData.length; i++)
+	{
+		var id = dataType.generateId(newData[i]);
+
+		if (!oldData.hasOwnProperty(id))
+		{
+			oldData[id] = new dataType(newData[i]);
+		}
+		oldData[id].keep = true;
+	}
+
+	for (var id in oldData)
+	{
+		if (oldData.hasOwnProperty(id))
+		{
+			if (!oldData[id].keep)
+			{
+				if (oldData.hasOwnProperty("destroy"))
+					oldData[id].destroy();
+				delete oldData[id];
+			}
+		}
+	}
+}
+
+function EventMarker(data, id)
+{
+	var t = this;
+	var marker = new google.maps.Marker({
+			position: {lat: parseFloat(data.lat), lng: parseFloat(data.lon)},
+			map: map,
+			icon: default_icon
+		});
+	marker.highlighted = false;
+	marker.text = data.text;
+
+	marker.addListener('click', function() {
+		});
+
+	marker.addListener('mouseover', function() {
+			if (marker.highlighted)
+				return;
+			marker.highlighted = true;
+			marker.setIcon(highlighted_icon);
+			$("#sidebar").prepend($('<div id="tweet_infobox_' + id + '" class="tweet_infobox infobox">' + marker.text + '</div>"'));
+		});
+
+	marker.addListener('mouseout', function() {
+			if (!marker.highlighted)
+				return;
+			marker.highlighted = false;
+			marker.setIcon(default_icon);
+			$("#tweet_infobox_" + id).remove();
+		});
+
+	t.destroy = function() {
+			marker.setMap(null);
+		};
+}
+
+EventMarker.generateId = function(data) {
+	return data.id;
+};
+
+function TweetInfobox(data, id)
+{
+	var t = this;
+	var tweet = {};
+	tweet.id = id;
+	$("#sidebar").prepend($('<div id="tweet' + id + '" class="infobox">' + result[i].text + '</div>"'));
+	t.destroy = function () {
+			$("#tweet_" + tweet.id).remove();
+		};
+}
+
+TweetInfobox.generateId = function(data) {
+	return (result[i].time + result[i].text).hashCode();
+};
+
 function poll() {
 	xhttp = new XMLHttpRequest();
 	xhttp.onreadystatechange = function() {
 		if (xhttp.readyState == 4 && xhttp.status == 200)
 		{
-			var result = JSON.parse(xhttp.responseText).events;
-			var ids = [];
-			for (var i = 0; i < result.length; i++)
-			{
-				// create unique id for each tweet received to ensure we don't create duplicates
-				var id = ids[i] = result[i].id;
-
-				// only create a new marker if its id has not been filled
-				if (!(id in markers))
-				{
-					markers[id] = new google.maps.Marker({
-							position: {lat: parseFloat(result[i].lat), lng: parseFloat(result[i].lon)},
-							map: map,
-							icon: default_icon
-						});
-					markers[id].event_num = result[i].event_id;
-					markers[id].highlighted = false;
-					markers[id].text = result[i].text;
-					markers[id].id = id;
-
-					(function() {
-						var marker = markers[id];
-						marker.addListener('click', function() {
-							});
-						marker.addListener('mouseover', function() {
-								if (marker.highlighted)
-									return;
-								marker.highlighted = true;
-								marker.setIcon(highlighted_icon);
-								$("#sidebar").append($('<div id="marker_' + marker.id + '" class="infobox">' + marker.text + '</div>"'));
-							});
-						marker.addListener('mouseout', function() {
-								if (!marker.highlighted)
-									return;
-								marker.highlighted = false;
-								marker.setIcon(default_icon);
-								$("#marker_" + marker.id).remove();
-							});
-					})();
-				}
-			}
-
-			// remove markers that exist locally but were not passed from the server
-			for (var marker in markers)
-			{
-				if (markers.hasOwnProperty(marker))
-				{
-					if (ids.indexOf(marker) === -1)
-					{
-						markers[marker].setMap(null);
-						delete markers[marker];
-					}
-				}
-			}
+			updateList(JSON.parse(xhttp.responseText).events, markers, EventMarker);
+			updateList(JSON.parse(xhttp.responseText).tweets, );
 
 			result = JSON.parse(xhttp.responseText).tweets;
 			ids = [];
 			for (var i = 0; i < result.length; i++)
 			{
-				// create unique id for each tweet received to ensure we don't create duplicates
-				var id = ids[i] = "tweet_" + (result[i].time + result[i].text).hashCode();
 
 				// only create a new marker if its id has not been filled
 				if (!(id in tweets))
 				{
-					tweets[id] = {};
-					tweets[id].id = id;
-					$("#sidebar").prepend($('<div id="tweet' + id + '" class="infobox">' + result[i].text + '</div>"'));
 				}
 			}
 
@@ -101,7 +135,6 @@ function poll() {
 				{
 					if (ids.indexOf(tweet) === -1)
 					{
-						$("#tweet_" + tweet.id).remove();
 					}
 				}
 			}

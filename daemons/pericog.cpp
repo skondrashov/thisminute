@@ -24,13 +24,6 @@ Tweet::Tweet(string _time, string _lat, string _lon, string _text, string _user,
 	_text.erase(_text.find_last_not_of(" ") + 1);
 	clean_text = _text;
 
-	if (
-		clean_text == "stay away from the walmart on georgia" ||
-		clean_text == "keep amarillo and the people involved with the walmart shooting in your prayers" ||
-		clean_text == "shooter is an employee of the wal mart shooting amarillo"
-		)
-		important = true;
-
 	time = stoi(_time);
 	lon = stod(_lon);
 	lat = stod(_lat);
@@ -38,7 +31,7 @@ Tweet::Tweet(string _time, string _lat, string _lon, string _text, string _user,
 	y = floor((lat + MAX_DEGREES_LATITUDE)/CELL_SIZE);
 	words = explode(clean_text);
 	user = _user;
-	exact = !!stoi(_exact);
+	exact = (bool)stoi(_exact);
 
 	auto &tweet_cell = Cell::cells[x][y];
 
@@ -243,7 +236,9 @@ void updateTweets(deque<Tweet*> &tweets)
 	}
 
 	unique_ptr<sql::ResultSet> dbTweets(admin_connection->createStatement()->executeQuery(
-		"SELECT *, UNIX_TIMESTAMP(time) AS unix_time FROM tweets WHERE time BETWEEN FROM_UNIXTIME(" + to_string(last_runtime - PERIOD) + ") AND FROM_UNIXTIME(" + to_string(last_runtime) + ") ORDER BY time ASC;"
+		"SELECT *, UNIX_TIMESTAMP(time) AS unix_time FROM tweets WHERE time BETWEEN FROM_UNIXTIME(" +
+			to_string(last_runtime - PERIOD) + ") AND FROM_UNIXTIME(" + to_string(last_runtime) +
+			") ORDER BY time ASC"
 		));
 
 	while (dbTweets->next())
@@ -347,21 +342,6 @@ void updateTweets(deque<Tweet*> &tweets)
 
 vector<vector<Tweet*>> getClusters(const deque<Tweet*> &tweets)
 {
-	for (const auto &tweet : tweets)
-	{
-		if (tweet->important)
-		{
-			cout << "important tweet: " << tweet->clean_text << endl;
-			cout << "neighbors: " << '\n';
-			for (const auto &pair : tweet->optics_distances)
-			{
-				const auto &optics_neighbor = pair.first;
-				cout << optics_neighbor->clean_text << '\t' << pair.second.kondrashov << '\t' << pair.second.levenshtein << '\n';
-			}
-			cout << '\n' << endl;
-		}
-	}
-
 	// construct a container of all non-noise tweets for processing
 	unordered_set<Tweet*> tweets_to_process;
 	for (const auto &tweet : tweets)

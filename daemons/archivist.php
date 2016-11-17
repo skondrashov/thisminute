@@ -1,7 +1,7 @@
 #!/usr/bin/env php
 <?php
-require "vendor/autoload.php";
-require "lib/Consumer.php";
+require_once "phirehose/lib/OauthPhirehose.php";
+require_once "lib/Consumer.php";
 
 use Fennb\Phirehose\OauthPhirehose;
 

@@ -40,13 +40,8 @@ class Consumer extends OauthPhirehose
 			$exact = 0;
 		}
 
-		$db->query('INSERT INTO tweets (lon, lat, exact, user, text) values ('
-			. $lon . ','
-			. $lat . ','
-			. $exact . ','
-			. $stream_item->user->id_str . ","
-			. "'" . $text . "'"
-			. ');');
+		$db->query("INSERT INTO tweets (lon, lat, exact, user, text)
+			VALUES ($lon, $lat, $exact, {$stream_item->user->id_str}, '$text');");
 	}
 
 	public function log($message, $level = 'notice')
