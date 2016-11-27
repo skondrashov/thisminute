@@ -1,7 +1,0 @@
-[Unit]
-Requires=mysql
-
-[Service]
-ExecStart=/srv/etc/daemons/archivist.php > /dev/null 2>/dev/null
-Type=simple
-Restart=on-failure
