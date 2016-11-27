@@ -25,11 +25,11 @@ $queries = [
 
         "CREATE DATABASE ThisMinute",
 
-        // ******************************
-        // DO NOT EVER:
-        // - DROP DATABASE ThisMinute
-        // - DROP TABLE ThisMinute.tweets
-        // ******************************
+        /*********************************
+        * DO NOT EVER:                   *
+        * - DROP DATABASE ThisMinute     *
+        * - DROP TABLE ThisMinute.tweets *
+        *********************************/
         "DROP TABLE IF EXISTS
             ThisMinute.events,
             ThisMinute.events_new,

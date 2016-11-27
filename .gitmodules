@@ -1,3 +1,12 @@
 [submodule "archivist/lib/phirehose"]
 	path = archivist/lib/phirehose
 	url = https://github.com/fennb/phirehose.git
+[submodule "lib/boost"]
+	path = lib/boost
+	url = https://github.com/boostorg/boost.git
+[submodule "lib/inih"]
+	path = lib/inih
+	url = https://github.com/benhoyt/inih.git
+[submodule "lib/mysql-connector-cpp"]
+	path = lib/mysql-connector-cpp
+	url = https://github.com/mysql/mysql-connector-cpp.git
