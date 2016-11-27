@@ -1,6 +1,15 @@
 <?php
 class Consumer extends OauthPhirehose
 {
+	private $target;
+
+	public function __construct($username, $password, $method = Phirehose::METHOD_SAMPLE, $format = self::FORMAT_JSON, $lang = FALSE)
+	{
+		parent::__construct($username, $password, $method, $format, $lang);
+		$config = parse_ini_file("/srv/config/daemons.ini", true);
+		$this->target = $config['connections'][$config['connections']['active']];
+	}
+
 	// This function is called automatically by the Phirehose class
 	// when a new tweet is received with the JSON data in $status
 	public function enqueueStatus($status)
@@ -9,7 +18,7 @@ class Consumer extends OauthPhirehose
 		if (!isset($db))
 		{
 			$db = new mysqli(
-				$config['connections'][$config['connections']['active']],
+				$this->target,
 				"archivist",
 				file_get_contents("/srv/auth/daemons/archivist.pw"),
 				"ThisMinute");
