@@ -5,6 +5,7 @@
 
 unsigned int last_runtime = 0, RECALL_SCOPE, PERIOD, MIN_PTS, MIN_TWEETS = 3;
 double EPSILON, REACHABILITY_MAXIMUM, REACHABILITY_MINIMUM, MAX_SPACIAL_DISTANCE, CELL_SIZE;
+string ACTIVE_ZONE, TARGET_IP;
 
 sql::Connection* admin_connection, * limited_connection;
 
@@ -152,15 +153,17 @@ int main()
 
 void Initialize()
 {
-	getArg(RECALL_SCOPE,         "timing", "history");
-	getArg(PERIOD,               "timing", "period");
-	getArg(last_runtime,         "timing", "start");
-	getArg(CELL_SIZE,            "grid",   "cell_size");
-	getArg(MAX_SPACIAL_DISTANCE, "grid",   "regional_radius");
-	getArg(EPSILON,              "optics", "epsilon");
-	getArg(MIN_PTS,              "optics", "minimum_points");
-	getArg(REACHABILITY_MAXIMUM, "optics", "reachability_max");
-	getArg(REACHABILITY_MINIMUM, "optics", "reachability_min");
+	getArg(RECALL_SCOPE,         "timing",      "history");
+	getArg(PERIOD,               "timing",      "period");
+	getArg(last_runtime,         "timing",      "start");
+	getArg(CELL_SIZE,            "grid",        "cell_size");
+	getArg(MAX_SPACIAL_DISTANCE, "grid",        "regional_radius");
+	getArg(EPSILON,              "optics",      "epsilon");
+	getArg(MIN_PTS,              "optics",      "minimum_points");
+	getArg(REACHABILITY_MAXIMUM, "optics",      "reachability_max");
+	getArg(REACHABILITY_MINIMUM, "optics",      "reachability_min");
+	getArg(ACTIVE_ZONE,          "connections", "active");
+	getArg(TARGET_IP,            "connections", ACTIVE_ZONE);
 
 	// generate grid
 	int x = 0, y;
@@ -206,8 +209,8 @@ void Initialize()
 		sql::Driver* driver(get_driver_instance());
 		ifstream passwordFile("/srv/auth/daemons/pericog_limited.pw");
 		auto password = static_cast<ostringstream&>(ostringstream{} << passwordFile.rdbuf()).str();
-		limited_connection = driver->connect("tcp://127.0.0.1:3306", "pericog_limited", password);
-		limited_connection->createStatement()->execute("USE ThisMinute");
+		limited_connection = driver->connect("tcp://" + TARGET_IP + ":3306", "pericog_limited", password);
+		limited_connection->setSchema("ThisMinute");
 	}
 
 	// create a connection that will only perform queries that are not constructed from user input
@@ -215,8 +218,8 @@ void Initialize()
 		sql::Driver* driver(get_driver_instance());
 		ifstream passwordFile("/srv/auth/daemons/pericog_admin.pw");
 		auto password = static_cast<ostringstream&>(ostringstream{} << passwordFile.rdbuf()).str();
-		admin_connection = driver->connect("tcp://127.0.0.1:3306", "pericog_admin", password);
-		admin_connection->createStatement()->execute("USE ThisMinute");
+		admin_connection = driver->connect("tcp://" + TARGET_IP + ":3306", "pericog_admin", password);
+		admin_connection->setSchema("ThisMinute");
 	}
 }
 
@@ -545,8 +548,6 @@ void writeClusters(vector<vector<Tweet*>> &clusters)
 	}
 
 	admin_connection->createStatement()->execute("DROP TABLE IF EXISTS events_old, event_tweets_old;");
-	cout << "WARNING: no events_old, event_tweets_old tables found (first run?)\n";
-
 	admin_connection->createStatement()->execute("RENAME TABLE events TO events_old, event_tweets TO event_tweets_old, events_new TO events, event_tweets_new TO event_tweets;");
 }
 
@@ -623,10 +624,26 @@ unordered_set<string> explode(string const &s)
 	return result;
 }
 
-template<typename T> void getArg(T &arg, string section, string option)
+string getArg(string section, string option)
 {
-	static INIReader reader("/srv/etc/config/daemons.ini");
-	static double errorValue = -9999;
-	arg = (T)reader.GetReal(section, option, errorValue);
+	static INIReader reader("/srv/config/daemons.ini");
+	static string errorValue = "INI_READ_ERROR";
+	string arg = reader.Get(section, option, errorValue);
 	assert(arg != errorValue);
+	return arg;
+}
+
+void getArg(unsigned int &arg, string section, string option)
+{
+	arg = stoi(getArg(section, option));
+}
+
+void getArg(double &arg, string section, string option)
+{
+	arg = stod(getArg(section, option));
+}
+
+void getArg(string &arg, string section, string option)
+{
+	arg = getArg(section, option);
 }

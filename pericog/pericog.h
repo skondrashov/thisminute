@@ -78,7 +78,10 @@ struct Cell
 
 // utility functions
 unordered_set<string> explode(string const &s);
-template<typename T> void getArg(T &arg, string section, string option);
+string getArg(string section, string option);
+void getArg(unsigned int &arg, string section, string option);
+void getArg(double &arg, string section, string option);
+void getArg(string &arg, string section, string option);
 
 // YEAH LET'S DO IT
 void Initialize();
