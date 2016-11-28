@@ -1,478 +1,612 @@
 #include "pericog.h"
 
-int LOOKBACK_TIME = -1, RECALL_SCOPE, PERIOD, PERIODS_IN_HISTORY;
-int MAP_HEIGHT, MAP_WIDTH;
-bool SCAN_EVENTS = false, VERBOSE_OUTPUT = false, USE_CACHE = false;
+#define MAX_DEGREES_LATITUDE 90
+#define MAX_DEGREES_LONGITUDE 180
 
-double WEST_BOUNDARY, EAST_BOUNDARY, NORTH_BOUNDARY, SOUTH_BOUNDARY, RESOLUTION, SPACIAL_PERCENTAGE_THRESHOLD, TEMPORAL_PERCENTAGE_THRESHOLD, SPACIAL_DEVIATIONS_THRESHOLD, TEMPORAL_DEVIATIONS_THRESHOLD;
+unsigned int last_runtime = 0, RECALL_SCOPE, PERIOD, MIN_PTS, MIN_TWEETS = 3;
+double EPSILON, REACHABILITY_MAXIMUM, REACHABILITY_MINIMUM, MAX_SPACIAL_DISTANCE, CELL_SIZE;
 
-const int THREAD_COUNT = 1;
+sql::Connection* admin_connection, * limited_connection;
 
-sql::Connection* connection;
-ofstream verboseOutputFile;
-string verboseOutputFileName;
+vector<vector<Cell>> Cell::cells;
+Tweet* Tweet::delimiter;
 
-int main(int argc, char* argv[])
+Tweet::Tweet(string _time, string _lat, string _lon, string _text, string _user, string _exact)
+	: text(_text)
 {
-	TimeKeeper profiler;
+	static regex mentionsAndUrls("((\\B@)|(\\bhttps?:\\/\\/))[^\\s]+");
+	static regex nonWord("[^\\w]+");
 
-	profiler.start("Initialize");
-	Initialize(argc, argv);
-	Stats stats;
+	_text = regex_replace(_text, mentionsAndUrls, string(" "));
+	_text = regex_replace(_text, nonWord, string(" "));
+	transform(_text.begin(), _text.end(), _text.begin(), ::tolower);
+	_text.erase(0, _text.find_first_not_of(" "));
+	_text.erase(_text.find_last_not_of(" ") + 1);
+	clean_text = _text;
 
-	profiler.start("readCache");
-	if (!USE_CACHE || !readCache(stats))
+	time = stoi(_time);
+	lon = stod(_lon);
+	lat = stod(_lat);
+	x = floor((lon + MAX_DEGREES_LONGITUDE)/CELL_SIZE);
+	y = floor((lat + MAX_DEGREES_LATITUDE)/CELL_SIZE);
+	words = explode(clean_text);
+	user = _user;
+	exact = (bool)stoi(_exact);
+
+	auto &tweet_cell = Cell::cells[x][y];
+
+	// update cell
+	tweet_cell.tweet_count++;
+	for (const auto &word : words)
 	{
-		// save all tweets since the specified time to an array
-		profiler.start("getUserIdToTweetMap");
-		auto userIdToTweetMap = getUserIdToTweetMap();
-
-		profiler.start("refineTweetsAndGetTweetCountPerCell");
-		stats.tweetCounts = refineTweetsAndGetTweetCountPerCell(userIdToTweetMap);
-
-		profiler.start("getCurrentWordCountPerCell");
-		getCurrentWordCountPerCell(stats, userIdToTweetMap);
-
-		profiler.start("getCurrentLocalAndGlobalRatesForWord");
-		getCurrentLocalAndGlobalRatesForWord(stats);
-
-		profiler.start("getHistoricWordRatesAndDeviation");
-		getHistoricWordRatesAndDeviation(stats);
-
-		profiler.start("commitRates");
-		commitStats(stats);
+		tweet_cell.tweets_by_word[word].insert(this);
 	}
 
-	if (SCAN_EVENTS)
+	unsigned int regional_tweet_count = 0;
+	unordered_map<string, unsigned int> regional_word_counts;
+	for (const auto &regional_cell : tweet_cell.region)
 	{
-		profiler.start("detectEvents");
-		detectEvents(stats);
-	}
-
-	profiler.stop();
-	return 0;
-}
-
-void Initialize(int argc, char* argv[])
-{
-	getArg(RECALL_SCOPE,                  "timing",    "history");
-	getArg(PERIOD,                        "timing",    "period");
-	getArg(WEST_BOUNDARY,                 "grid",      "west");
-	getArg(EAST_BOUNDARY,                 "grid",      "east");
-	getArg(SOUTH_BOUNDARY,                "grid",      "south");
-	getArg(NORTH_BOUNDARY,                "grid",      "north");
-	getArg(RESOLUTION,                    "grid",      "cell_size");
-	getArg(SPACIAL_PERCENTAGE_THRESHOLD,  "threshold", "spacial_percentage");
-	getArg(TEMPORAL_PERCENTAGE_THRESHOLD, "threshold", "temporal_percentage");
-	getArg(SPACIAL_DEVIATIONS_THRESHOLD,  "threshold", "spacial_deviations");
-	getArg(TEMPORAL_DEVIATIONS_THRESHOLD, "threshold", "temporal_deviations");
-
-	char tmp;
-	while ((tmp = getopt(argc, argv, "l:cov:1:2:3:4:")) != -1)
-	{
-		switch (tmp)
+		regional_tweet_count += regional_cell->tweet_count;
+		for (const auto &word : words)
 		{
-		case 'l':
-			LOOKBACK_TIME = stoi(optarg);
-			break;
-		case 'o':
-			SCAN_EVENTS = true;
-			break;
-		case 'c':
-			USE_CACHE = true;
-			break;
-		case 'v':
-			VERBOSE_OUTPUT = true;
-			verboseOutputFileName = optarg;
-			break;
-		case '1':
-			SPACIAL_PERCENTAGE_THRESHOLD = stod(optarg);
-			break;
-		case '2':
-			TEMPORAL_PERCENTAGE_THRESHOLD = stod(optarg);
-			break;
-		case '3':
-			SPACIAL_DEVIATIONS_THRESHOLD = stod(optarg);
-			break;
-		case '4':
-			TEMPORAL_DEVIATIONS_THRESHOLD = stod(optarg);
-			break;
+			if (!regional_word_counts.count(word))
+				regional_word_counts[word] = 0;
+
+			if (regional_cell->tweets_by_word.count(word))
+			{
+				regional_word_counts[word] += regional_cell->tweets_by_word.at(word).size();
+			}
 		}
 	}
-	assert(LOOKBACK_TIME != -1);
 
-	MAP_WIDTH = static_cast<int>(round(abs((WEST_BOUNDARY - EAST_BOUNDARY) / RESOLUTION)));
-	MAP_HEIGHT = static_cast<int>(round(abs((SOUTH_BOUNDARY - NORTH_BOUNDARY) / RESOLUTION)));
-	PERIODS_IN_HISTORY = RECALL_SCOPE / PERIOD;
-
-	// create a connection
-	sql::Driver* driver(get_driver_instance());
+	for (const auto &word : words)
 	{
-		ifstream passwordFile("/srv/etc/auth/daemons/pericog.pw");
+		if (regional_word_counts.count(word) && regional_tweet_count)
+			regional_word_rates[word] = (double)regional_word_counts.at(word) / regional_tweet_count;
+		else
+			regional_word_rates[word] = 0;
+	}
+
+}
+
+Tweet::~Tweet()
+{
+	auto &tweets_by_word = Cell::cells[x][y].tweets_by_word;
+
+	// undo changes to cell
+	Cell::cells[x][y].tweet_count--;
+	for (const auto &word : words)
+	{
+		tweets_by_word[word].erase(this);
+		if (tweets_by_word[word].empty())
+			tweets_by_word.erase(word);
+	}
+
+	// remove neighbor references to the tweet we are deleting from all neighbors
+	for (const auto &optics_neighbor_pair : optics_neighbors)
+	{
+		auto &optics_neighbor = *(optics_neighbor_pair.second);
+		optics_neighbor.require_update = true;
+		for (const auto &neighbor_pair_of_neighbor : optics_neighbor.optics_neighbors)
+		{
+			if (neighbor_pair_of_neighbor.second == this)
+			{
+				// we have to make sure we don't accidentally delete different pairs with identical keys (possible in multimap)
+				// (C) guy on S/O: http://stackoverflow.com/questions/3952476/how-to-remove-a-specific-pair-from-a-c-multimap
+				typedef multimap<double, Tweet*>::iterator iterator;
+				std::pair<iterator, iterator> iterpair = optics_neighbor.optics_neighbors.equal_range(neighbor_pair_of_neighbor.first);
+				for (iterator it = iterpair.first; it != iterpair.second; ++it)
+				{
+					if (it->second == this)
+					{
+						optics_neighbor.optics_neighbors.erase(it);
+						break;
+					}
+				}
+			}
+		}
+	}
+}
+
+bool Tweet::discern(const Tweet &other_tweet)
+{
+	for (const auto &word : other_tweet.words)
+	{
+		if (!this->words.count(word))
+		{
+			return true;
+		}
+	}
+	return false;
+}
+
+int main()
+{
+	TimeKeeper profiler;
+	deque<Tweet*> tweets;
+
+	profiler.start("Initialize");
+	Initialize();
+
+	while (1)
+	{
+		if (time(0) - last_runtime > PERIOD)
+		{
+			profiler.start("updateTweets");
+			updateTweets(tweets);
+			profiler.start("getClusters");
+			auto clusters = getClusters(tweets);
+			profiler.start("filterClusters");
+			filterClusters(clusters);
+			profiler.start("writeClusters");
+			writeClusters(clusters);
+			profiler.start("updateLastRun");
+			updateLastRun();
+			profiler.stop();
+			cout << "Tweets: " << tweets.size() << endl;
+			cout << "Time: " << last_runtime << endl;
+		}
+		usleep(10);
+	}
+}
+
+void Initialize()
+{
+	getArg(RECALL_SCOPE,         "timing", "history");
+	getArg(PERIOD,               "timing", "period");
+	getArg(last_runtime,         "timing", "start");
+	getArg(CELL_SIZE,            "grid",   "cell_size");
+	getArg(MAX_SPACIAL_DISTANCE, "grid",   "regional_radius");
+	getArg(EPSILON,              "optics", "epsilon");
+	getArg(MIN_PTS,              "optics", "minimum_points");
+	getArg(REACHABILITY_MAXIMUM, "optics", "reachability_max");
+	getArg(REACHABILITY_MINIMUM, "optics", "reachability_min");
+
+	// generate grid
+	int x = 0, y;
+	Cell::cells.resize((MAX_DEGREES_LONGITUDE*2)/CELL_SIZE);
+	for (auto &column : Cell::cells)
+	{
+		y = 0;
+		column.resize((MAX_DEGREES_LATITUDE*2)/CELL_SIZE);
+		for (auto &cell : column)
+		{
+			cell.x = x;
+			cell.y = y;
+			y++;
+		}
+		x++;
+	}
+
+	Tweet::delimiter = new Tweet("0","0","0","DELIMIT","0","0");
+	Tweet::delimiter->smallest_reachability_distance = REACHABILITY_MAXIMUM + 1;
+
+	// TODO: make this not square
+	const auto RADIUS = MAX_SPACIAL_DISTANCE/CELL_SIZE;
+	for (auto &column : Cell::cells)
+	{
+		for (auto &cell : column)
+		{
+			for (unsigned int i = floor(cell.x-RADIUS); i <= ceil(cell.x+RADIUS); i++)
+			{
+				for (unsigned int j = floor(cell.y-RADIUS); j <= ceil(cell.y+RADIUS); j++)
+				{
+					// regions end at the poles and the international date line
+					if (i >= Cell::cells.size() || j >= Cell::cells[0].size())
+						continue;
+
+					cell.region.push_back(&(Cell::cells[i][j]));
+				}
+			}
+		}
+	}
+
+	// create a connection with limited permissions - relatively safe in the event of SQL injection
+	{
+		sql::Driver* driver(get_driver_instance());
+		ifstream passwordFile("/srv/auth/daemons/pericog_limited.pw");
 		auto password = static_cast<ostringstream&>(ostringstream{} << passwordFile.rdbuf()).str();
-		connection = driver->connect("tcp://127.0.0.1:3306", "pericog", password);
+		limited_connection = driver->connect("tcp://127.0.0.1:3306", "pericog_limited", password);
+		limited_connection->createStatement()->execute("USE ThisMinute");
 	}
-}
 
-bool readCache(Stats &stats)
-{
-	unique_ptr<sql::ResultSet> dbStats(connection->createStatement()->executeQuery(
-		"SELECT * FROM NYC.stat_cache WHERE time = FROM_UNIXTIME(" + to_string(LOOKBACK_TIME) + ");"
-		));
-
-	// no cache found
-	if (dbStats->rowsCount() == 0)
-		return false;
-
-	while (dbStats->next())
+	// create a connection that will only perform queries that are not constructed from user input
 	{
-		const auto &word = dbStats->getString("word");
-		const auto &x = stoi(dbStats->getString("x"));
-		const auto &y = stoi(dbStats->getString("y"));
-
-		stats.perWord[word].currentCounts[x][y]      = stoi(dbStats->getString("count"));
-		stats.perWord[word].currentRates[x][y]       = stod(dbStats->getString("rate"));
-		stats.perWord[word].historicMeanRates[x][y]  = stod(dbStats->getString("historic_mean"));
-		stats.perWord[word].historicDeviations[x][y] = stod(dbStats->getString("historic_deviation"));
-
-		// this tweet count should be accurate for any cell no matter what word we're using. can use this for sanity checks
-		if (stats.tweetCounts[x][y] == 0 && stats.perWord[word].currentCounts[x][y] > 0)
-			stats.tweetCounts[x][y] = stats.perWord[word].currentCounts[x][y] / stats.perWord[word].currentRates[x][y];
+		sql::Driver* driver(get_driver_instance());
+		ifstream passwordFile("/srv/auth/daemons/pericog_admin.pw");
+		auto password = static_cast<ostringstream&>(ostringstream{} << passwordFile.rdbuf()).str();
+		admin_connection = driver->connect("tcp://127.0.0.1:3306", "pericog_admin", password);
+		admin_connection->createStatement()->execute("USE ThisMinute");
 	}
-
-	getCurrentLocalAndGlobalRatesForWord(stats);
-
-	return true;
 }
 
-unordered_map<int, Tweet> getUserIdToTweetMap()
+void updateTweets(deque<Tweet*> &tweets)
 {
-	unordered_map<int, Tweet> tweets;
+	// delete tweets too old to be related to new tweets, and all references to them
+	while (tweets.size())
+	{
+		Tweet* &tweet = tweets.at(0);
 
-	unique_ptr<sql::ResultSet> dbTweets(connection->createStatement()->executeQuery(
-		"SELECT * FROM NYC.tweets WHERE time BETWEEN FROM_UNIXTIME(" + to_string(LOOKBACK_TIME - PERIOD) + ") AND FROM_UNIXTIME(" + to_string(LOOKBACK_TIME) + ");")
-		);
+		// the first tweet in tweets is always the oldest, so if it isn't old enough to be deleted, neither are any of the others
+		if (last_runtime - tweet->time < RECALL_SCOPE)
+			break;
+
+		delete tweets.at(0);
+		tweets.pop_front();
+	}
+
+	unique_ptr<sql::ResultSet> dbTweets(admin_connection->createStatement()->executeQuery(
+		"SELECT *, UNIX_TIMESTAMP(time) AS unix_time FROM tweets WHERE time BETWEEN FROM_UNIXTIME(" +
+			to_string(last_runtime - PERIOD) + ") AND FROM_UNIXTIME(" + to_string(last_runtime) +
+			") ORDER BY time ASC"
+		));
 
 	while (dbTweets->next())
 	{
-		const double lon = stod(dbTweets->getString("lon"));
-		const double lat = stod(dbTweets->getString("lat"));
+		Tweet* new_tweet = new Tweet(
+			dbTweets->getString("unix_time"),
+			dbTweets->getString("lat"),
+			dbTweets->getString("lon"),
+			dbTweets->getString("text"),
+			dbTweets->getString("user"),
+			dbTweets->getString("exact")
+			);
 
-		// if a tweet is located outside of the grid, ignore it and go to the next tweet
-		if (lon < WEST_BOUNDARY || lon > EAST_BOUNDARY
-			|| lat < SOUTH_BOUNDARY || lat > NORTH_BOUNDARY)
+		// remove tweets consisting only of stopwords or other ignored strings
+		if (!new_tweet->words.size())
+		{
+			delete new_tweet;
 			continue;
-
-		int userId = stoi(dbTweets->getString("user"));
-
-		auto tweetIter = tweets.find(userId);
-		if (tweetIter == tweets.end())
-		{
-			const int
-				x = floor((lon - WEST_BOUNDARY) / RESOLUTION),
-				y = floor((lat - SOUTH_BOUNDARY) / RESOLUTION);
-
-			Tweet tweet(x, y, dbTweets->getString("text"));
-
-			tweets.insert({ userId, tweet });
 		}
-		else
+
+		for (const auto &word : new_tweet->words)
 		{
-			tweetIter->second.text += " " + dbTweets->getString("text");
-		}
-	}
-
-	return tweets;
-}
-
-// refine each tweet into usable information
-Grid<int> refineTweetsAndGetTweetCountPerCell(unordered_map<int, Tweet> &userIdTweetMap)
-{
-	auto tweetsPerCell = makeGrid<int>();
-
-	queue<Tweet*> tweetQueue;
-	for (auto &pair : userIdTweetMap)
-		tweetQueue.push(&pair.second);
-
-	mutex tweetQueueLock;
-	mutex tweetsPerCellLock;
-
-	auto processTweets = [&]()
-		{
-			while (true)
+			for (const auto &cell : Cell::cells[new_tweet->x][new_tweet->y].region)
 			{
-				tweetQueueLock.lock();
-				if (tweetQueue.empty())
+				if (cell->tweets_by_word.count(word))
 				{
-					tweetQueueLock.unlock();
-					return;
-				}
-				Tweet &tweet = *tweetQueue.front();
-				tweetQueue.pop();
-				tweetQueueLock.unlock();
-
-				// remove mentions and URLs
-				regex mentionsAndUrls("((\\B@)|(\\bhttps?:\\/\\/))[^\\s]+");
-				tweet.text = regex_replace(tweet.text, mentionsAndUrls, string(" "));
-
-				// remove all non-word characters
-				regex nonWord("[^\\w]+");
-				tweet.text = regex_replace(tweet.text, nonWord, string(" "));
-
-				tweetsPerCellLock.lock();
-				tweetsPerCell[tweet.x][tweet.y]++;
-				tweetsPerCellLock.unlock();
-			}
-		};
-
-	vector<thread> threads;
-	for (int i = 0; i < THREAD_COUNT; i++)
-		threads.emplace_back(processTweets);
-
-	for (int i = 0; i < THREAD_COUNT; i++)
-		threads[i].join();
-
-	return tweetsPerCell;
-}
-
-// refine each tweet into usable information
-void getCurrentWordCountPerCell(Stats &stats, const unordered_map<int, Tweet> &userIdTweetMap)
-{
-	static const int DISCARD_WORDS_WITH_LESS_COUNT = 2; // discard words counted < 2 times
-
-	unordered_map<string, int> wordCount;
-
-	for (const auto &pair : userIdTweetMap)
-	{
-		auto tweet = pair.second;
-
-		auto words = explode(tweet.text);
-		for (const auto &word : words)
-		{
-			stats.perWord[word].currentCounts[tweet.x][tweet.y]++;
-			wordCount[word]++;
-		}
-	}
-
-	// the '&' character is interpreted as the word "amp"... squelch for now
-	stats.perWord.erase("amp");
-
-	// the word ' ' shows up sometimes... squelch for now
-	stats.perWord.erase(" ");
-
-	for (const auto& wordCountPair : wordCount)
-	{
-		if (wordCountPair.second < DISCARD_WORDS_WITH_LESS_COUNT)
-			stats.perWord.erase(wordCountPair.first);
-	}
-}
-
-void getHistoricWordRatesAndDeviation(Stats &stats)
-{
-	TimeKeeper profiler;
-	profiler.start("getHistoricWordRatesAndDeviation query");
-	unique_ptr<sql::ResultSet> dbWordStats(connection->createStatement()->executeQuery(
-		"SELECT * FROM NYC.stat_cache WHERE time BETWEEN FROM_UNIXTIME(" +
-		to_string(LOOKBACK_TIME - RECALL_SCOPE) + ") AND FROM_UNIXTIME(" + to_string(LOOKBACK_TIME) + ");"
-		));
-
-	unordered_map<string, Grid<vector<double>>> rates;
-
-	profiler.start("getHistoricWordRatesAndDeviation getrates");
-	while (dbWordStats->next())
-	{
-		const auto &word = dbWordStats->getString("word");
-		const auto &x    = stoi(dbWordStats->getString("x"));
-		const auto &y    = stoi(dbWordStats->getString("y"));
-		const auto &rate = stod(dbWordStats->getString("rate"));
-
-		if (!rates.count(word))
-		{
-			rates[word].resize(MAP_WIDTH);
-			for (int i = 0; i < MAP_WIDTH; i++)
-				rates[word][i].resize(MAP_HEIGHT);
-		}
-		rates[word][x][y].push_back(rate);
-	}
-
-	profiler.start("getHistoricWordRatesAndDeviation math");
-	for (auto &pair : rates)
-	{
-		for (int i = 0; i < MAP_WIDTH; i++)
-		{
-			for (int j = 0; j < MAP_HEIGHT; j++)
-			{
-				double historicMeanRate = 0, historicDeviation = 0;
-				for (auto &rate : pair.second[i][j])
-					historicMeanRate += rate / PERIODS_IN_HISTORY;
-
-				for (auto &rate : pair.second[i][j])
-					historicDeviation += pow(rate - historicMeanRate, 2) / PERIODS_IN_HISTORY;
-
-				historicDeviation = pow(historicDeviation, 0.5);
-
-				stats.perWord[pair.first].historicMeanRates[i][j] = historicMeanRate;
-				stats.perWord[pair.first].historicDeviations[i][j] = historicDeviation;
-			}
-		}
-	}
-
-	profiler.stop();
-}
-
-// calculate the usage rate of each word at the current time in each cell and the average regional use
-void getCurrentLocalAndGlobalRatesForWord(Stats &stats)
-{
-	for (auto &pair : stats.perWord)
-	{
-		const auto &localWordCounts = pair.second.currentCounts;
-		auto &globalWordRate = pair.second.currentGlobalRate;
-		auto &localWordRates = pair.second.currentRates;
-		int totalTweets = 0;
-		for (int i = 0; i < MAP_WIDTH; i++)
-		{
-			for (int j = 0; j < MAP_HEIGHT; j++)
-			{
-				const auto &tweetCount = stats.tweetCounts[i][j];
-				if (tweetCount)
-				{
-					localWordRates[i][j] = (double)localWordCounts[i][j]/tweetCount;
-					globalWordRate += localWordCounts[i][j];
-					totalTweets += tweetCount;
-				}
-				else
-				{
-					localWordRates[i][j] = 0;
-				}
-			}
-		}
-		globalWordRate /= totalTweets;
-	}
-}
-
-void commitStats(const Stats &stats)
-{
-	string sqlValuesString = "";
-	for (const auto &pair : stats.perWord)
-	{
-		const auto &word = pair.first;
-		const auto &statsPerWord = pair.second;
-
-		for (int i = 0; i < MAP_WIDTH; i++)
-		{
-			for (int j = 0; j < MAP_HEIGHT; j++)
-			{
-				if (statsPerWord.currentCounts[i][j] > 1)
-				{
-					sqlValuesString += string("(") +
-						"FROM_UNIXTIME(" + to_string(LOOKBACK_TIME) + ")" + "," +
-						"'" + word + "'"                                  + "," +
-						to_string(i)                                      + "," +
-						to_string(j)                                      + "," +
-						to_string(statsPerWord.currentCounts[i][j])       + "," +
-						to_string(statsPerWord.currentRates[i][j])        + "," +
-						to_string(statsPerWord.historicMeanRates[i][j])   + "," +
-						to_string(statsPerWord.historicDeviations[i][j])  + "),";
-				}
-			}
-		}
-	}
-	sqlValuesString.pop_back();
-
-	connection->createStatement()->execute(
-		"INSERT INTO NYC.stat_cache (time,word,x,y,count,rate,historic_mean,historic_deviation) VALUES " + sqlValuesString + " ON DUPLICATE KEY UPDATE time=time;"
-		);
-}
-
-void detectEvents(const Stats &stats)
-{
-	mutex listLock;
-	queue<string> wordQueue;
-	for (const auto &pair : stats.perWord)
-	{
-		wordQueue.push(pair.first);
-	}
-
-	auto detectEventForWord = [&]()
-		{
-			while (true)
-			{
-				listLock.lock();
-				if (wordQueue.empty())
-				{
-					listLock.unlock();
-					return;
-				}
-				string word = wordQueue.front();
-				wordQueue.pop();
-				listLock.unlock();
-
-				const auto &globalWordRate = stats.perWord.at(word).currentGlobalRate;
-
-				double globalDeviation = 0;
-				for (int i = 0; i < MAP_WIDTH; i++)
-				{
-					for (int j = 0; j < MAP_HEIGHT; j++)
+					for (const auto &tweet : cell->tweets_by_word.at(word))
 					{
-						globalDeviation += pow(stats.perWord.at(word).currentRates[i][j] - globalWordRate, 2);
-					}
-				}
-				globalDeviation /= MAP_WIDTH * MAP_HEIGHT;
-				globalDeviation = pow(globalDeviation, 0.5);
+						if (tweet == new_tweet || new_tweet->optics_distances.count(tweet))
+							continue;
 
-				// detect events!! and adjust historic rates
-				for (int i = 0; i < MAP_WIDTH; i++)
-				{
-					for (int j = 0; j < MAP_HEIGHT; j++)
-					{
-						const auto
-							&currentLocalWordCount = stats.perWord.at(word).currentCounts[i][j];
-						const auto
-							&currentLocalWordRate  = stats.perWord.at(word).currentRates[i][j],
-							&historicWordRate      = stats.perWord.at(word).historicMeanRates[i][j],
-							&historicDeviation     = stats.perWord.at(word).historicDeviations[i][j];
+						const Distances &optics_distance = getDistances(*tweet, *new_tweet);
 
-						if (
-							(currentLocalWordCount > 5) &&
-							// checks if a word is a appearing with a greater percentage in one cell than in other cells in the city grid
-							(currentLocalWordRate > globalWordRate + SPACIAL_PERCENTAGE_THRESHOLD) &&
-							// checks if a word is appearing more frequently in a cell than it has historically in that cell
-							(currentLocalWordRate > historicWordRate + TEMPORAL_PERCENTAGE_THRESHOLD) &&
-							(currentLocalWordRate > globalWordRate + globalDeviation * SPACIAL_DEVIATIONS_THRESHOLD) &&
-							(currentLocalWordRate > historicWordRate + historicDeviation * TEMPORAL_DEVIATIONS_THRESHOLD)
-							)
+						new_tweet->optics_distances[tweet] = tweet->optics_distances[new_tweet] = optics_distance;
+
+						// add neighbor references between the new tweet and all its neighbors
+						if (optics_distance.enough_data && optics_distance.optics <= EPSILON)
 						{
-							connection->createStatement()->execute(
-								"INSERT INTO NYC.events (time, word, x, y) VALUES (FROM_UNIXTIME(" + to_string(LOOKBACK_TIME) + "), '" + word + "'," + to_string(i) + "," + to_string(j) + ");"
-								);
-							if (VERBOSE_OUTPUT)
-							{
-								if (!verboseOutputFile.is_open())
-									verboseOutputFile.open(verboseOutputFileName, std::ofstream::out | std::ofstream::app);
-								verboseOutputFile <<
-									word                            + " " +
-									to_string(currentLocalWordRate) + " " +
-									to_string(globalWordRate)       + " " +
-									to_string(historicWordRate)     + " " +
-									to_string(globalDeviation)      + " " +
-									to_string(historicDeviation)    + "\n";
-							}
+							new_tweet->optics_neighbors.insert(make_pair(optics_distance.optics, tweet));
+							tweet->optics_neighbors.insert(make_pair(optics_distance.optics, new_tweet));
+							tweet->require_update = true;
 						}
 					}
 				}
 			}
-		};
+		}
 
-	vector<thread> threads;
-	for (int i = 0; i < THREAD_COUNT; i++)
-	{
-		threads.emplace_back(detectEventForWord);
+		tweets.push_back(new_tweet);
 	}
 
-	for (int i = 0; i < THREAD_COUNT; i++)
+	tweets.shrink_to_fit();
+
+	// calculate core distances
+	for (const auto &tweet : tweets)
 	{
-		threads[i].join();
+		if (tweet->require_update)
+		{
+			// non-core objects (borders and noise) are denoted by a core distance greater than epsilon
+			if (tweet->optics_neighbors.size() < MIN_PTS)
+			{
+				tweet->core_distance = EPSILON + 1;
+				continue;
+			}
+
+			auto iterator = tweet->optics_neighbors.begin();
+			advance(iterator, MIN_PTS-1);
+			tweet->core_distance = iterator->first;
+		}
 	}
+
+	// calculate smallest reachability distances
+	for (const auto &tweet : tweets)
+	{
+		if (tweet->require_update)
+		{
+			// noise is denoted by a smallest reachability distance greater than epsilon
+			tweet->smallest_reachability_distance = EPSILON + 1;
+
+			for (const auto &optics_neighbor_pair : tweet->optics_neighbors)
+			{
+				const auto &optics_neighbor = optics_neighbor_pair.second;
+
+				// tweet cannot be directly density-reachable from a non-core object
+				if (optics_neighbor->core_distance > EPSILON)
+					continue;
+
+				double reachability_distance;
+				if (tweet->optics_distances.at(optics_neighbor).optics > optics_neighbor->core_distance)
+					reachability_distance = tweet->optics_distances.at(optics_neighbor).optics;
+				else
+					reachability_distance = tweet->core_distance;
+
+				if (tweet->smallest_reachability_distance > reachability_distance)
+					tweet->smallest_reachability_distance = reachability_distance;
+			}
+
+			tweet->require_update = false;
+		}
+	}
+}
+
+vector<vector<Tweet*>> getClusters(const deque<Tweet*> &tweets)
+{
+	// construct a container of all non-noise tweets for processing
+	unordered_set<Tweet*> tweets_to_process;
+	for (const auto &tweet : tweets)
+	{
+		if (tweet->smallest_reachability_distance > EPSILON)
+			continue;
+
+		tweets_to_process.insert(tweet);
+	}
+
+	vector<Tweet*> reachability_plot;
+	reachability_plot.reserve(tweets_to_process.size());
+
+	priority_queue<pair<double, Tweet*>, deque<pair<double, Tweet*>>> nodes;
+
+	while (!tweets_to_process.empty())
+	{
+		// branch from an unprocessed core object with the smallest value of its smallest reachability distance
+		// this node is not special, but it is likely to be in the most dense tweet region
+		// this selectivity also makes the algorithm more deterministic, though not perfectly
+		double smallest_value_of_smallest_reachability_distance = EPSILON + 1;
+		Tweet* seed;
+		for (const auto &tweet : tweets_to_process)
+		{
+			if (smallest_value_of_smallest_reachability_distance >= tweet->smallest_reachability_distance)
+			{
+				smallest_value_of_smallest_reachability_distance = tweet->smallest_reachability_distance;
+				seed = tweet;
+			}
+		}
+		nodes.push(make_pair(0, seed));
+		tweets_to_process.erase(seed);
+		reachability_plot.push_back(Tweet::delimiter);
+
+		// process the tree of nodes connected to the seed node in order of reachability
+		while (!nodes.empty())
+		{
+			auto &tweet = nodes.top().second;
+			nodes.pop();
+			reachability_plot.push_back(tweet);
+
+			// acquire, but do not branch through border objects
+			if (tweet->core_distance > EPSILON)
+				continue;
+
+			for (const auto &pair : tweet->optics_neighbors)
+			{
+				const auto &optics_neighbor = pair.second;
+				if (!tweets_to_process.count(optics_neighbor))
+					continue;
+				nodes.push(make_pair(optics_neighbor->smallest_reachability_distance, optics_neighbor));
+				tweets_to_process.erase(optics_neighbor);
+			}
+		}
+	}
+
+	vector<vector<Tweet*>> clusters;
+	bool in_cluster = false;
+	vector<Tweet*>::iterator cluster_start;
+	for (auto i = reachability_plot.begin(); i != reachability_plot.end(); i++)
+	{
+		if (!in_cluster && (*i)->smallest_reachability_distance <= REACHABILITY_MAXIMUM
+			&& (*i)->smallest_reachability_distance >= REACHABILITY_MINIMUM
+			)
+		{
+			cluster_start = i;
+			in_cluster = true;
+		}
+		else if (in_cluster && (((*i)->smallest_reachability_distance > REACHABILITY_MAXIMUM)
+			|| ((*i)->smallest_reachability_distance < REACHABILITY_MINIMUM)))
+		{
+			vector<Tweet*> cluster(cluster_start, i);
+			in_cluster = false;
+			if (cluster.size() > MIN_TWEETS)
+			{
+				const string &first_user = cluster[0]->user;
+				for (const auto &tweet : cluster)
+				{
+					if (tweet->user != first_user)
+					{
+						clusters.push_back(cluster);
+						break;
+					}
+				}
+			}
+		}
+	}
+
+	return clusters;
+}
+
+void filterClusters(vector<vector<Tweet*>> &clusters)
+{
+	for (const auto &cluster : clusters)
+	{
+		if (cluster.size() > 30)
+		{
+			cout << "skipping large cluster" << endl;
+			continue;
+		}
+
+		Distances avg;
+		int count = 0;
+
+		for (const auto &tweet_a : cluster)
+		{
+			for (const auto &tweet_b : cluster)
+			{
+				if (tweet_a == tweet_b)
+					continue;
+
+				count++;
+				const Distances all_distances = getDistances(*tweet_a, *tweet_b);
+				avg.kondrashov  += all_distances.kondrashov;
+				avg.levenshtein += all_distances.levenshtein;
+			}
+		}
+		avg.kondrashov /= count;
+		avg.levenshtein /= count;
+	}
+}
+
+void writeClusters(vector<vector<Tweet*>> &clusters)
+{
+	try
+	{
+		admin_connection->createStatement()->execute("CREATE TABLE events_new LIKE events;");
+	}
+	catch (sql::SQLException e)
+	{
+		admin_connection->createStatement()->execute("DROP TABLE events_new;");
+		admin_connection->createStatement()->execute("CREATE TABLE events_new LIKE events;");
+	}
+	try
+	{
+		admin_connection->createStatement()->execute("CREATE TABLE event_tweets_new LIKE event_tweets;");
+	}
+	catch (sql::SQLException e)
+	{
+		admin_connection->createStatement()->execute("DROP TABLE event_tweets_new;");
+		admin_connection->createStatement()->execute("CREATE TABLE event_tweets_new LIKE event_tweets;");
+	}
+
+	// each cluster is an event containing time and location information as well as an id to access all of its child tweets
+	int i = 0;
+	for (const auto &cluster : clusters)
+	{
+		double avgX, avgY;
+		avgX = avgY = 0.0;
+		unsigned int start_time, end_time;
+		start_time = end_time = cluster[0]->time;
+		unordered_set<string> users;
+		for (const auto &tweet : cluster)
+		{
+			avgX += tweet->lon;
+			avgY += tweet->lat;
+			if (tweet->time < start_time)
+				start_time = tweet->time;
+			if (tweet->time > end_time)
+				end_time = tweet->time;
+			users.insert(tweet->user);
+		}
+		avgX /= cluster.size();
+		avgY /= cluster.size();
+
+		string query =
+			"INSERT INTO events_new (`id`, `lon`, `lat`, `start_time`, `end_time`, `users`) VALUES (" +
+				to_string(i) + "," +
+				to_string(avgX) + "," +
+				to_string(avgY) + "," +
+				"FROM_UNIXTIME(" + to_string(start_time) + ")," +
+				"FROM_UNIXTIME(" + to_string(end_time) + ")," +
+				to_string(users.size()) + ");";
+		admin_connection->createStatement()->execute(query);
+
+		query = "INSERT INTO event_tweets_new (`event_id`, `time`, `lat`, `lon`, `exact`, `text`) VALUES ";
+		for (const auto &tweet : cluster)
+		{
+			string escaped_tweet_text = tweet->text;
+			size_t pos;
+			while ((pos = escaped_tweet_text.find("'")) != string::npos)
+			{
+				escaped_tweet_text.replace(pos, 0, "''");
+			}
+
+			query +=
+				"(" +
+					to_string(i) + "," +
+					"FROM_UNIXTIME(" + to_string(tweet->time) + ")," +
+					to_string(avgX) + "," +
+					to_string(avgY) + "," +
+					to_string(tweet->exact) + "," +
+					"'" + escaped_tweet_text + "'"
+				"),";
+		}
+		query.pop_back(); // take the extra comma out
+		query += ";";
+		limited_connection->createStatement()->execute(query);
+
+		i++;
+	}
+
+	admin_connection->createStatement()->execute("DROP TABLE IF EXISTS events_old, event_tweets_old;");
+	cout << "WARNING: no events_old, event_tweets_old tables found (first run?)\n";
+
+	admin_connection->createStatement()->execute("RENAME TABLE events TO events_old, event_tweets TO event_tweets_old, events_new TO events, event_tweets_new TO event_tweets;");
+}
+
+// SHOULD be commutative, ie getDistance(a,b) == getDistance(b,a) for all tweets
+// all distance functions return a value between 0 and 1
+Distances getDistances(const Tweet &a, const Tweet &b)
+{
+	Distances distances;
+
+	distances.enough_data = true;
+
+	// if less than fifty words were used around the two tweets on average, do not consider them neighbors
+	if (a.regional_word_rates.size() + b.regional_word_rates.size() < 5)
+		distances.enough_data = false;
+
+	double similarity = 0;
+	const double size = a.words.size() > b.words.size() ? a.words.size() : b.words.size();
+	for (const auto &word : a.words)
+	{
+		if (!b.words.count(word))
+			continue;
+
+		const double word_weight_a = 1 - a.regional_word_rates.at(word);
+		const double word_weight_b = 1 - b.regional_word_rates.at(word);
+		const double word_weight = word_weight_a > word_weight_b ? word_weight_a : word_weight_b;
+		similarity += word_weight/size;
+	}
+
+	distances.kondrashov = similarity ? 1-similarity : 1;
+
+	unordered_map<int, vector<string>> offsets;
+	int matches = 0;
+	for (const auto &word : a.words)
+	{
+		if (b.clean_text.find(word) == string::npos)
+			continue;
+		matches++;
+
+		size_t char_pos_a = a.clean_text.find(word);
+		int word_pos_a = count(a.clean_text.begin(), a.clean_text.begin() + char_pos_a, ' ');
+		size_t char_pos_b = b.clean_text.find(word);
+		int word_pos_b = count(b.clean_text.begin(), b.clean_text.begin() + char_pos_b, ' ');
+		int word_offset = word_pos_b - word_pos_a;
+		offsets[word_offset].push_back(word);
+	}
+
+	distances.levenshtein =
+		matches ?
+		((double)(a.words.size()-matches)/a.words.size()) * ((double)offsets.size()/matches)
+		: 1;
+
+	distances.optics = distances.kondrashov;
+	return distances;
+}
+
+void updateLastRun()
+{
+	ofstream last_runtime_file("/srv/lastrun/pericog");
+	last_runtime_file << last_runtime;
+	last_runtime += PERIOD;
 }
 
 unordered_set<string> explode(string const &s)
@@ -482,20 +616,11 @@ unordered_set<string> explode(string const &s)
 
 	for (string token; getline(iss, token, ' '); )
 	{
-		transform(token.begin(), token.end(), token.begin(), ::tolower);
-		result.insert(token);
+		if (token != "" && token != " ")
+			result.insert(token);
 	}
 
 	return result;
-}
-
-template<typename T> Grid<T> makeGrid()
-{
-	Grid<T> grid(MAP_WIDTH);
-	for (int i = 0; i < MAP_WIDTH; i++)
-		grid[i] = vector<T>(MAP_HEIGHT, 0);
-
-	return grid;
 }
 
 template<typename T> void getArg(T &arg, string section, string option)
@@ -504,77 +629,4 @@ template<typename T> void getArg(T &arg, string section, string option)
 	static double errorValue = -9999;
 	arg = (T)reader.GetReal(section, option, errorValue);
 	assert(arg != errorValue);
-}
-
-// returns pointer to a gaussian blurred 2d array with given dimensions
-Grid<double> gaussBlur(const Grid<double> &unblurred_array)
-{
-	static const double gaussValueMatrix[3] = { 0.22508352, 0.11098164, 0.05472157 }; // mid, perp, diag
-
-	auto& width = MAP_WIDTH;
-	auto& height = MAP_HEIGHT;
-
-	// declare a new 2d array to store the blurred values
-	auto blurred_array = makeGrid<double>();
-
-	// for each value in the unblurred array, sum the products of that value and each value in the gaussValueMatrix
-	for (int j = 0; j < height; j++)
-	{
-		for (int i = 0; i < width; i++)
-		{
-			bool left_bound = i == 0, right_bound = i == (width - 1);
-			bool top_bound = j == 0, bottom_bound = j == (height - 1);
-
-			// blur the middle
-			blurred_array[i][j] += unblurred_array[i][j] * gaussValueMatrix[0];
-
-			if (!left_bound)
-			{
-				// blur the middle left
-				blurred_array[i][j] += unblurred_array[i - 1][j] * gaussValueMatrix[1];
-
-				if (!top_bound)
-				{
-					//blur the top left
-					blurred_array[i][j] += unblurred_array[i - 1][j - 1] * gaussValueMatrix[2];
-				}
-				if (!bottom_bound)
-				{
-					// blur the bottom left
-					blurred_array[i][j] += unblurred_array[i - 1][j + 1] * gaussValueMatrix[2];
-				}
-			}
-
-			if (!right_bound)
-			{
-				// blur the middle right
-				blurred_array[i][j] += unblurred_array[i + 1][j] * gaussValueMatrix[1];
-
-				if (!top_bound)
-				{
-					// blur the top right
-					blurred_array[i][j] += unblurred_array[i + 1][j - 1] * gaussValueMatrix[2];
-				}
-				if (!bottom_bound)
-				{
-					// blur the bottom right
-					blurred_array[i][j] += unblurred_array[i + 1][j + 1] * gaussValueMatrix[2];
-				}
-			}
-
-			if (!top_bound)
-			{
-				// blur the top middle
-				blurred_array[i][j] += unblurred_array[i][j - 1] * gaussValueMatrix[1];
-			}
-
-			if (!bottom_bound)
-			{
-				// blur the bottom middle
-				blurred_array[i][j] += unblurred_array[i][j + 1] * gaussValueMatrix[1];
-			}
-		}
-	}
-
-	return blurred_array;
 }
