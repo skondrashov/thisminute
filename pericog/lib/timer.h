@@ -15,13 +15,25 @@ class TimeKeeper {
 	void print();
 
 public:
+	static int levels;
 
+	TimeKeeper();
+	~TimeKeeper();
 	void start(std::string);
 	void stop();
 	double duration();
 
 	void sleep();
 };
+
+TimeKeeper::TimeKeeper()
+{
+	levels++;
+}
+TimeKeeper::~TimeKeeper()
+{
+	levels--;
+}
 
 void TimeKeeper::start(std::string s) {
 	if (running)
@@ -48,9 +60,13 @@ double TimeKeeper::duration() {
 
 
 void TimeKeeper::print() {
+	std::cout << ">";
+	for (int i = 0; i < levels; ++i)
+		std::cout << "  ";
 	std::cout << title << ": " << std::chrono::duration_cast<std::chrono::milliseconds>(programDuration).count() << std::endl;
 }
 
 void TimeKeeper::sleep() {
 	std::this_thread::sleep_for(std::chrono::seconds(10000));
 }
+int TimeKeeper::levels = 0;

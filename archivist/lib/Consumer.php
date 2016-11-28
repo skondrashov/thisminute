@@ -1,6 +1,15 @@
 <?php
 class Consumer extends OauthPhirehose
 {
+	private $target;
+
+	public function __construct($username, $password, $method = Phirehose::METHOD_SAMPLE, $format = self::FORMAT_JSON, $lang = FALSE)
+	{
+		parent::__construct($username, $password, $method, $format, $lang);
+		$config = parse_ini_file("/srv/config/daemons.ini", true);
+		$this->target = $config['connections'][$config['connections']['active']];
+	}
+
 	// This function is called automatically by the Phirehose class
 	// when a new tweet is received with the JSON data in $status
 	public function enqueueStatus($status)
@@ -8,7 +17,11 @@ class Consumer extends OauthPhirehose
 		static $db;
 		if (!isset($db))
 		{
-			$db = new mysqli("localhost", "archivist", file_get_contents("/srv/etc/auth/daemons/archivist.pw"), "NYC");
+			$db = new mysqli(
+				$this->target,
+				"archivist",
+				file_get_contents("/srv/auth/daemons/archivist.pw"),
+				"ThisMinute");
 		}
 
 		$stream_item = json_decode($status);
@@ -40,13 +53,8 @@ class Consumer extends OauthPhirehose
 			$exact = 0;
 		}
 
-		$db->query('INSERT INTO tweets (lon, lat, exact, user, text) values ('
-			. $lon . ','
-			. $lat . ','
-			. $exact . ','
-			. $stream_item->user->id_str . ","
-			. "'" . $text . "'"
-			. ');');
+		$db->query("INSERT INTO tweets (lon, lat, exact, user, text)
+			VALUES ($lon, $lat, $exact, {$stream_item->user->id_str}, '$text');");
 	}
 
 	public function log($message, $level = 'notice')
