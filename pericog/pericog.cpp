@@ -59,7 +59,6 @@ Tweet::Tweet(string _time, string _lat, string _lon, string _text, string _user,
 			}
 		}
 	}
-
 	for (const auto &word : words)
 	{
 		if (regional_word_counts.count(word) && regional_tweet_count)
@@ -67,14 +66,12 @@ Tweet::Tweet(string _time, string _lat, string _lon, string _text, string _user,
 		else
 			regional_word_rates[word] = 0;
 	}
-
 }
 
 Tweet::~Tweet()
 {
-	auto &tweets_by_word = Cell::cells[x][y].tweets_by_word;
-
 	// undo changes to cell
+	auto &tweets_by_word = Cell::cells[x][y].tweets_by_word;
 	Cell::cells[x][y].tweet_count--;
 	for (const auto &word : words)
 	{
@@ -239,23 +236,23 @@ void updateTweets(deque<Tweet*> &tweets)
 	}
 
 	unique_ptr<sql::ResultSet> dbTweets(admin_connection->createStatement()->executeQuery(
-		"SELECT *, UNIX_TIMESTAMP(time) AS unix_time FROM tweets WHERE time BETWEEN FROM_UNIXTIME(" +
-			to_string(last_runtime - PERIOD) + ") AND FROM_UNIXTIME(" + to_string(last_runtime) +
-			") ORDER BY time ASC"
+			"SELECT *, UNIX_TIMESTAMP(time) AS unix_time FROM tweets WHERE time BETWEEN FROM_UNIXTIME(" +
+				to_string(last_runtime - PERIOD) + ") AND FROM_UNIXTIME(" + to_string(last_runtime) +
+				") ORDER BY time ASC"
 		));
 
 	while (dbTweets->next())
 	{
 		Tweet* new_tweet = new Tweet(
-			dbTweets->getString("unix_time"),
-			dbTweets->getString("lat"),
-			dbTweets->getString("lon"),
-			dbTweets->getString("text"),
-			dbTweets->getString("user"),
-			dbTweets->getString("exact")
+				dbTweets->getString("unix_time"),
+				dbTweets->getString("lat"),
+				dbTweets->getString("lon"),
+				dbTweets->getString("text"),
+				dbTweets->getString("user"),
+				dbTweets->getString("exact")
 			);
 
-		// remove tweets consisting only of stopwords or other ignored strings
+		// ignore tweets consisting only of stopwords or other ignored strings
 		if (!new_tweet->words.size())
 		{
 			delete new_tweet;
@@ -266,24 +263,24 @@ void updateTweets(deque<Tweet*> &tweets)
 		{
 			for (const auto &cell : Cell::cells[new_tweet->x][new_tweet->y].region)
 			{
-				if (cell->tweets_by_word.count(word))
+				if (!(cell->tweets_by_word.count(word)))
+					continue;
+
+				for (const auto &tweet : cell->tweets_by_word.at(word))
 				{
-					for (const auto &tweet : cell->tweets_by_word.at(word))
+					if (tweet == new_tweet || new_tweet->optics_distances.count(tweet))
+						continue;
+
+					const Distances &optics_distance = getDistances(*tweet, *new_tweet);
+
+					new_tweet->optics_distances[tweet] = tweet->optics_distances[new_tweet] = optics_distance;
+
+					// add neighbor references between the new tweet and all its neighbors
+					if (optics_distance.enough_data && optics_distance.optics <= EPSILON)
 					{
-						if (tweet == new_tweet || new_tweet->optics_distances.count(tweet))
-							continue;
-
-						const Distances &optics_distance = getDistances(*tweet, *new_tweet);
-
-						new_tweet->optics_distances[tweet] = tweet->optics_distances[new_tweet] = optics_distance;
-
-						// add neighbor references between the new tweet and all its neighbors
-						if (optics_distance.enough_data && optics_distance.optics <= EPSILON)
-						{
-							new_tweet->optics_neighbors.insert(make_pair(optics_distance.optics, tweet));
-							tweet->optics_neighbors.insert(make_pair(optics_distance.optics, new_tweet));
-							tweet->require_update = true;
-						}
+						new_tweet->optics_neighbors.insert(make_pair(optics_distance.optics, tweet));
+						tweet->optics_neighbors.insert(make_pair(optics_distance.optics, new_tweet));
+						tweet->require_update = true;
 					}
 				}
 			}
@@ -440,12 +437,6 @@ void filterClusters(vector<vector<Tweet*>> &clusters)
 {
 	for (const auto &cluster : clusters)
 	{
-		if (cluster.size() > 30)
-		{
-			cout << "skipping large cluster" << endl;
-			continue;
-		}
-
 		Distances avg;
 		int count = 0;
 
@@ -469,24 +460,9 @@ void filterClusters(vector<vector<Tweet*>> &clusters)
 
 void writeClusters(vector<vector<Tweet*>> &clusters)
 {
-	try
-	{
-		admin_connection->createStatement()->execute("CREATE TABLE events_new LIKE events;");
-	}
-	catch (sql::SQLException e)
-	{
-		admin_connection->createStatement()->execute("DROP TABLE events_new;");
-		admin_connection->createStatement()->execute("CREATE TABLE events_new LIKE events;");
-	}
-	try
-	{
-		admin_connection->createStatement()->execute("CREATE TABLE event_tweets_new LIKE event_tweets;");
-	}
-	catch (sql::SQLException e)
-	{
-		admin_connection->createStatement()->execute("DROP TABLE event_tweets_new;");
-		admin_connection->createStatement()->execute("CREATE TABLE event_tweets_new LIKE event_tweets;");
-	}
+	admin_connection->createStatement()->execute("DROP TABLE IF EXISTS events_new, event_tweets_new;");
+	admin_connection->createStatement()->execute("CREATE TABLE events_new LIKE events;");
+	admin_connection->createStatement()->execute("CREATE TABLE event_tweets_new LIKE event_tweets;");
 
 	// each cluster is an event containing time and location information as well as an id to access all of its child tweets
 	int i = 0;
@@ -510,17 +486,17 @@ void writeClusters(vector<vector<Tweet*>> &clusters)
 		avgX /= cluster.size();
 		avgY /= cluster.size();
 
-		string query =
-			"INSERT INTO events_new (`id`, `lon`, `lat`, `start_time`, `end_time`, `users`) VALUES (" +
-				to_string(i) + "," +
-				to_string(avgX) + "," +
-				to_string(avgY) + "," +
-				"FROM_UNIXTIME(" + to_string(start_time) + ")," +
-				"FROM_UNIXTIME(" + to_string(end_time) + ")," +
-				to_string(users.size()) + ");";
-		admin_connection->createStatement()->execute(query);
+		admin_connection->createStatement()->execute(
+				"INSERT INTO events_new (`id`, `lon`, `lat`, `start_time`, `end_time`, `users`) VALUES (" +
+					to_string(i) + "," +
+					to_string(avgX) + "," +
+					to_string(avgY) + "," +
+					"FROM_UNIXTIME(" + to_string(start_time) + ")," +
+					"FROM_UNIXTIME(" + to_string(end_time) + ")," +
+					to_string(users.size()) + ");"
+			);
 
-		query = "INSERT INTO event_tweets_new (`event_id`, `time`, `lat`, `lon`, `exact`, `text`) VALUES ";
+		string query = "INSERT INTO event_tweets_new (`event_id`, `time`, `lat`, `lon`, `exact`, `text`) VALUES ";
 		for (const auto &tweet : cluster)
 		{
 			string escaped_tweet_text = tweet->text;
@@ -548,7 +524,13 @@ void writeClusters(vector<vector<Tweet*>> &clusters)
 	}
 
 	admin_connection->createStatement()->execute("DROP TABLE IF EXISTS events_old, event_tweets_old;");
-	admin_connection->createStatement()->execute("RENAME TABLE events TO events_old, event_tweets TO event_tweets_old, events_new TO events, event_tweets_new TO event_tweets;");
+	admin_connection->createStatement()->execute(
+			"RENAME TABLE " +
+				"events TO events_old," +
+				"event_tweets TO event_tweets_old," +
+				"events_new TO events," +
+				"event_tweets_new TO event_tweets;"
+		);
 }
 
 // SHOULD be commutative, ie getDistance(a,b) == getDistance(b,a) for all tweets
