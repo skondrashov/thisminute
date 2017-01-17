@@ -6,7 +6,7 @@ class Consumer extends OauthPhirehose
 	public function __construct($username, $password, $method = Phirehose::METHOD_SAMPLE, $format = self::FORMAT_JSON, $lang = FALSE)
 	{
 		parent::__construct($username, $password, $method, $format, $lang);
-		$config = parse_ini_file("/srv/config/daemons.ini", true);
+		$config = parse_ini_file("/srv/config.ini", true);
 		$this->target = $config['connections'][$config['connections']['active']];
 	}
 

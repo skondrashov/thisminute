@@ -46,6 +46,7 @@ for tweet_id, text in db_cursor.fetchall():
 		tweets.append(TaggedDocument(words, [tweet_id]))
 
 print "Training model"
+
 d2v = Doc2Vec(
 		dm=1, dbow_words=1, dm_mean=0, dm_concat=0, dm_tag_count=1,
 		hs=1,
@@ -72,6 +73,7 @@ d2v = Doc2Vec(
 
 		documents=tweets,
 	)
+
 print "Training complete"
 
 while True:

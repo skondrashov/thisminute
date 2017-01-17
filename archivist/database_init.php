@@ -1,8 +1,7 @@
 #!/usr/bin/env php
 <?php
-// this file uses spaces for indentation to make the queries easier to write
 
-$config = parse_ini_file("/srv/config/daemons.ini", true);
+$config = parse_ini_file("/srv/config.ini", true);
 $db_name = $config['connections']['active'];
 
 $root_password            = $argv[1];
@@ -10,6 +9,14 @@ $sentinel_password        = file_get_contents("/srv/auth/daemons/sentinel.pw");
 $archivist_password       = file_get_contents("/srv/auth/daemons/archivist.pw");
 $pericog_limited_password = file_get_contents("/srv/auth/daemons/pericog_limited.pw");
 $pericog_admin_password   = file_get_contents("/srv/auth/daemons/pericog_admin.pw");
+$tweet2vec_password       = file_get_contents("/srv/auth/daemons/tweet2vec.pw");
+
+$tweet2vec_vector = [];
+foreach (range(0, $config['tweet2vec']['vector_size'] - 1) as $i)
+{
+	$tweet2vec_vector[] = "v{$i} DOUBLE DEFAULT NULL";
+}
+$tweet2vec_vector = implode(',', $tweet2vec_vector);
 
 $queries = [
 		"DROP USER IF EXISTS
@@ -131,11 +138,20 @@ $error = false;
 $db = new mysqli($config['connections'][$db_name], "root", $root_password);
 foreach ($queries as $query)
 {
+	$query = str_replace("\t", ' ', $query);
 	$result = var_export($db->query($query), true);
-	echo "$query : \n RESULT: $result\n\n";
+	echo "$query : \n RESULT: ";
 	if ($result == 'false')
+	{
 		$error = true;
+		echo "Error: " . $db->error;
+	}
+	else
+	{
+		echo "Success";
+	}
+	echo "\n\n";
 }
 
 if ($error)
-	echo "\n\n*** SOME QUERIES FAILED, PLEASE REVIEW THE LOG ***\n\n\n";
+	echo "\n\n*** SOME QUERIES FAILED, PLEASE REVIEW THE LOG FOR ERRORS ***\n\n\n";
