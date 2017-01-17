@@ -5,7 +5,7 @@ require_once "Consumer.php";
 
 use Fennb\Phirehose\OauthPhirehose;
 
-$config = parse_ini_file("/srv/config/daemons.ini", true);
+$config = parse_ini_file("/srv/config.ini", true);
 
 define('TWITTER_CONSUMER_KEY',    file_get_contents('/srv/auth/twitter/consumer_key'));
 define('TWITTER_CONSUMER_SECRET', file_get_contents('/srv/auth/twitter/consumer_secret'));
