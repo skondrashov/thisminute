@@ -105,4 +105,4 @@ while True:
 		""", (str(id),))
 
 	db_connection.commit()
-	time.sleep(0.1)
+	time.sleep(1)
