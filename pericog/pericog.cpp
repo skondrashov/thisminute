@@ -464,11 +464,17 @@ void writeClusters(vector<vector<Tweet*>> &clusters)
 		string query = "INSERT INTO event_tweets_new (`event_id`, `time`, `lat`, `lon`, `exact`, `text`) VALUES ";
 		for (const auto &tweet : cluster)
 		{
-			string escaped_tweet_text = tweet->text;
-			size_t pos;
-			while ((pos = escaped_tweet_text.find("'")) != string::npos)
+			string escaped_tweet_text = "";
+			for (auto i = 0u; i < tweet->text.length(); ++i)
 			{
-				escaped_tweet_text.replace(pos, 0, "''");
+				if (tweet->text[i] == '\'')
+				{
+					escaped_tweet_text += "''";
+				}
+				else
+				{
+					escaped_tweet_text += tweet->text[i];
+				}
 			}
 
 			query +=
