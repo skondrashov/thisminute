@@ -15,8 +15,10 @@ logging.basicConfig(format='%(asctime)s : %(levelname)s : %(message)s', level=lo
 
 config = ConfigParser.RawConfigParser()
 config.read('/srv/config.ini')
-ACTIVE_ZONE = config.get('connections', 'active')
-TARGET_IP   = config.get('connections', ACTIVE_ZONE)
+
+TARGET_IP   = config.get('connections', config.get('connections', 'active'))
+VECTOR_SIZE = int(config.get('tweet2vec', 'vector_size'))
+THREAD_COUNT = int(config.get('optimization', 'thread_count'))
 
 db_connection = mysql.connector.connect(
 		user='tweet2vec',
@@ -26,35 +28,24 @@ db_connection = mysql.connector.connect(
 	)
 db_cursor = db_connection.cursor()
 
-VECTOR_SIZE = int(config.get('tweet2vec', 'vector_size'))
-
 def get_words(tweet):
 	tweet = re.sub('((\B@)|(\\bhttps?:\/\/))[^\\s]+', " ", tweet)
 	tweet = re.sub('[^\w]+', " ", tweet)
 	tweet = tweet.lower().strip()
 	tweet = unicode(unidecode(tweet))
-	if not tweet:
-		return False
 	return tweet.split()
 
-def tweets():
-	db_cursor.execute('SELECT tweet_id, text FROM training_tweets')
-	while 1:
-		results = db_cursor.fetchmany(size=100000)
-		if not results:
-			break;
-		for tweet_id, text in results:
-			words = get_words(text)
-			if words:
-				yield TaggedDocument(get_words(text), [tweet_id])
-		print "."
-	print
-
 print "Loading tweets"
-tweets = [ tweet for tweet in tweets() ]
+db_cursor.execute('SELECT tweet_id, text FROM training_tweets')
+
+# prolly multithread this: build chunks in workers then concat them together into one list
+tweets = []
+for tweet_id, text in db_cursor.fetchall():
+	words = get_words(text)
+	if words:
+		tweets.append(TaggedDocument(words, [tweet_id]))
 
 print "Training model"
-
 d2v = Doc2Vec(
 		dm=1, dbow_words=1, dm_mean=0, dm_concat=0, dm_tag_count=1,
 		hs=1,
@@ -68,7 +59,7 @@ d2v = Doc2Vec(
 		iter=10,
 
 		max_vocab_size=None,
-		workers=7,
+		workers=THREAD_COUNT,
 		batch_words=1000000,
 		min_alpha=0.0001,
 		seed=1,
@@ -81,7 +72,6 @@ d2v = Doc2Vec(
 
 		documents=tweets,
 	)
-
 print "Training complete"
 
 while True:
