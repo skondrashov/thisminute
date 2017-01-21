@@ -13,60 +13,20 @@ sql::Connection* admin_connection, * limited_connection;
 vector<vector<Cell>> Cell::cells;
 Tweet* Tweet::delimiter;
 
-Tweet::Tweet(string _time, string _lat, string _lon, string _text, string _user, string _exact, vector<double> _feature_vector)
-	: text(_text), feature_vector(_feature_vector)
+void Tweet::clean()
 {
 	static regex mentionsAndUrls("((\\B@)|(\\bhttps?:\\/\\/))[^\\s]+");
 	static regex nonWord("[^\\w]+");
+	string clean_text = regex_replace(text, mentionsAndUrls, string(" "));
+	clean_text = regex_replace(clean_text, nonWord, string(" "));
+	transform(clean_text.begin(), clean_text.end(), clean_text.begin(), ::tolower);
+	clean_text.erase(0, clean_text.find_first_not_of(" "));
+	clean_text.erase(clean_text.find_last_not_of(" ") + 1);
 
-	_text = regex_replace(_text, mentionsAndUrls, string(" "));
-	_text = regex_replace(_text, nonWord, string(" "));
-	transform(_text.begin(), _text.end(), _text.begin(), ::tolower);
-	_text.erase(0, _text.find_first_not_of(" "));
-	_text.erase(_text.find_last_not_of(" ") + 1);
-	clean_text = _text;
+	words = explode(clean_text);
 
-	time = stoi(_time);
-	lon = stod(_lon);
-	lat = stod(_lat);
 	x = floor((lon + MAX_DEGREES_LONGITUDE)/CELL_SIZE);
 	y = floor((lat + MAX_DEGREES_LATITUDE)/CELL_SIZE);
-	words = explode(clean_text);
-	user = _user;
-	exact = (bool)stoi(_exact);
-
-	auto &tweet_cell = Cell::cells[x][y];
-
-	// update cell
-	tweet_cell.tweet_count++;
-	for (const auto &word : words)
-	{
-		tweet_cell.tweets_by_word[word].insert(this);
-	}
-
-	unsigned int regional_tweet_count = 0;
-	unordered_map<string, unsigned int> regional_word_counts;
-	for (const auto &regional_cell : tweet_cell.region)
-	{
-		regional_tweet_count += regional_cell->tweet_count;
-		for (const auto &word : words)
-		{
-			if (!regional_word_counts.count(word))
-				regional_word_counts[word] = 0;
-
-			if (regional_cell->tweets_by_word.count(word))
-			{
-				regional_word_counts[word] += regional_cell->tweets_by_word.at(word).size();
-			}
-		}
-	}
-	for (const auto &word : words)
-	{
-		if (regional_word_counts.count(word) && regional_tweet_count)
-			regional_word_rates[word] = (double)regional_word_counts.at(word) / regional_tweet_count;
-		else
-			regional_word_rates[word] = 0;
-	}
 }
 
 Tweet::~Tweet()
@@ -554,20 +514,6 @@ void updateLastRun()
 	ofstream last_runtime_file("/srv/lastrun/pericog");
 	last_runtime_file << last_runtime;
 	last_runtime += PERIOD;
-}
-
-unordered_set<string> explode(string const &s)
-{
-	unordered_set<string> result;
-	istringstream iss(s);
-
-	for (string token; getline(iss, token, ' '); )
-	{
-		if (token != "" && token != " ")
-			result.insert(token);
-	}
-
-	return result;
 }
 
 string getArg(string section, string option)

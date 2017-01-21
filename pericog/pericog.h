@@ -31,39 +31,15 @@
 
 #include "INIReader.h"
 #include "timer.h"
+#include "tweet.h"
 
 using namespace std;
-
-struct Tweet
-{
-	static Tweet* delimiter;
-
-	bool important = false;
-
-	bool require_update = true;
-	double core_distance, smallest_reachability_distance;
-
-	double lat, lon;
-	unsigned int x, y, time;
-	string text, clean_text, user;
-	unordered_set<string> words;
-	vector<double> feature_vector;
-	bool exact;
-	multimap<double, Tweet*> optics_neighbors;
-	unordered_map<Tweet*, double> optics_distances;
-	unordered_map<string, double> regional_word_rates;
-
-	Tweet(string _time, string _lat, string _lon, string _text, string _user, string _exact, vector<double> _feature_vector);
-	~Tweet();
-
-	bool discern(const Tweet &other_tweet);
-};
 
 struct Cell
 {
 	static vector<vector<Cell>> cells;
 
-	unsigned int tweet_count = 0, x, y;
+	unsigned int x, y;
 	unordered_map<string, unordered_set<Tweet*>> tweets_by_word;
 	vector<Cell*> region;
 };
