@@ -1,7 +1,8 @@
 #include "pericog.h"
 
-#define MAX_DEGREES_LATITUDE 90
-#define MAX_DEGREES_LONGITUDE 180
+const int
+	MAX_DEGREES_LATITUDE = 90,
+	MAX_DEGREES_LONGITUDE = 180;
 
 unsigned int last_runtime = 0, RECALL_SCOPE, PERIOD, MIN_PTS, MIN_TWEETS = 3, VECTOR_SIZE;
 double EPSILON, REACHABILITY_MAXIMUM, REACHABILITY_MINIMUM, MAX_SPACIAL_DISTANCE, CELL_SIZE;
@@ -72,7 +73,6 @@ Tweet::~Tweet()
 {
 	// undo changes to cell
 	auto &tweets_by_word = Cell::cells[x][y].tweets_by_word;
-	Cell::cells[x][y].tweet_count--;
 	for (const auto &word : words)
 	{
 		tweets_by_word[word].erase(this);
@@ -104,18 +104,6 @@ Tweet::~Tweet()
 			}
 		}
 	}
-}
-
-bool Tweet::discern(const Tweet &other_tweet)
-{
-	for (const auto &word : other_tweet.words)
-	{
-		if (!this->words.count(word))
-		{
-			return true;
-		}
-	}
-	return false;
 }
 
 int main()
@@ -180,7 +168,7 @@ void Initialize()
 	}
 
 	vector<double> temp;
-	Tweet::delimiter = new Tweet("0","0","0","DELIMIT","0","0", temp);
+	Tweet::delimiter = new Tweet(0, 0.0, 0.0, "DELIMIT", "0", false, temp);
 	Tweet::delimiter->smallest_reachability_distance = REACHABILITY_MAXIMUM + 1;
 
 	// TODO: make this not square
@@ -189,9 +177,9 @@ void Initialize()
 	{
 		for (auto &cell : column)
 		{
-			for (unsigned int i = floor(cell.x-RADIUS); i <= ceil(cell.x+RADIUS); i++)
+			for (auto i = floor(cell.x-RADIUS); i <= ceil(cell.x+RADIUS); i++)
 			{
-				for (unsigned int j = floor(cell.y-RADIUS); j <= ceil(cell.y+RADIUS); j++)
+				for (auto j = floor(cell.y-RADIUS); j <= ceil(cell.y+RADIUS); j++)
 				{
 					// regions end at the poles and the international date line
 					if (i >= Cell::cells.size() || j >= Cell::cells[0].size())
@@ -208,7 +196,7 @@ void Initialize()
 		sql::Driver* driver(get_driver_instance());
 		ifstream passwordFile("/srv/auth/daemons/pericog_limited.pw");
 		auto password = static_cast<ostringstream&>(ostringstream{} << passwordFile.rdbuf()).str();
-		limited_connection = driver->connect("tcp://" + TARGET_IP + ":3306", "pericog_limited", password);
+		limited_connection = driver->connect("tcp://" +TARGET_IP+ ":3306", "pericog_limited", password);
 		limited_connection->setSchema("ThisMinute");
 	}
 
@@ -217,7 +205,7 @@ void Initialize()
 		sql::Driver* driver(get_driver_instance());
 		ifstream passwordFile("/srv/auth/daemons/pericog_admin.pw");
 		auto password = static_cast<ostringstream&>(ostringstream{} << passwordFile.rdbuf()).str();
-		admin_connection = driver->connect("tcp://" + TARGET_IP + ":3306", "pericog_admin", password);
+		admin_connection = driver->connect("tcp://" +TARGET_IP+ ":3306", "pericog_admin", password);
 		admin_connection->setSchema("ThisMinute");
 	}
 }
@@ -226,8 +214,8 @@ void updateTweets(deque<Tweet*> &tweets)
 {
 	// insert new tweets into tweet_vector table for processing
 	admin_connection->createStatement()->execute(
-			"INSERT INTO tweet_vectors (`tweet_id`) SELECT id FROM tweets WHERE time BETWEEN FROM_UNIXTIME(" +
-				to_string(last_runtime - PERIOD) + ") AND FROM_UNIXTIME(" + to_string(last_runtime) + ")"
+			"INSERT INTO tweet_vectors (`tweet_id`) SELECT id FROM tweets WHERE time BETWEEN FROM_UNIXTIME("
+				+to_string(last_runtime - PERIOD)+ ") AND FROM_UNIXTIME(" +to_string(last_runtime)+ ")"
 		);
 
 	// delete tweets too old to be related to new tweets, and all references to them
@@ -474,9 +462,12 @@ void filterClusters(vector<vector<Tweet*>> &clusters)
 
 void writeClusters(vector<vector<Tweet*>> &clusters)
 {
-	admin_connection->createStatement()->execute("DROP TABLE IF EXISTS events_new, event_tweets_new;");
-	admin_connection->createStatement()->execute("CREATE TABLE events_new LIKE events;");
-	admin_connection->createStatement()->execute("CREATE TABLE event_tweets_new LIKE event_tweets;");
+	if (clusters.empty())
+		return;
+
+	admin_connection->createStatement()->execute("DROP TABLE IF EXISTS events_new, event_tweets_new");
+	admin_connection->createStatement()->execute("CREATE TABLE events_new LIKE events");
+	admin_connection->createStatement()->execute("CREATE TABLE event_tweets_new LIKE event_tweets");
 
 	// each cluster is an event containing time and location information as well as an id to access all of its child tweets
 	int i = 0;
@@ -501,14 +492,14 @@ void writeClusters(vector<vector<Tweet*>> &clusters)
 		avgY /= cluster.size();
 
 		admin_connection->createStatement()->execute(
-				"INSERT INTO events_new (`id`, `lon`, `lat`, `start_time`, `end_time`, `users`) VALUES (" +
-					to_string(i) + "," +
-					to_string(avgX) + "," +
-					to_string(avgY) + "," +
-					"FROM_UNIXTIME(" + to_string(start_time) + ")," +
-					"FROM_UNIXTIME(" + to_string(end_time) + ")," +
-					to_string(users.size()) + ");"
-			);
+			"INSERT INTO events_new (`id`, `lon`, `lat`, `start_time`, `end_time`, `users`) VALUES ("
+					+to_string(i)+ ","
+					+to_string(avgX)+ ","
+					+to_string(avgY)+ ","
+					"FROM_UNIXTIME(" +to_string(start_time)+ "),"
+					"FROM_UNIXTIME(" +to_string(end_time)+ "),"
+					+to_string(users.size())+
+				")");
 
 		string query = "INSERT INTO event_tweets_new (`event_id`, `time`, `lat`, `lon`, `exact`, `text`) VALUES ";
 		for (const auto &tweet : cluster)
@@ -521,36 +512,35 @@ void writeClusters(vector<vector<Tweet*>> &clusters)
 			}
 
 			query +=
-				"(" +
-					to_string(i) + "," +
-					"FROM_UNIXTIME(" + to_string(tweet->time) + ")," +
-					to_string(avgX) + "," +
-					to_string(avgY) + "," +
-					to_string(tweet->exact) + "," +
-					"'" + escaped_tweet_text + "'"
+				"( "
+					+to_string(i)+ ","
+					"FROM_UNIXTIME(" +to_string(tweet->time)+ "),"
+					+to_string(avgX)+ ","
+					+to_string(avgY)+ ","
+					+to_string(tweet->exact)+ ","
+					"'" +escaped_tweet_text+ "'"
 				"),";
 		}
 		query.pop_back(); // take the extra comma out
-		query += ";";
 		limited_connection->createStatement()->execute(query);
 
 		i++;
 	}
 
-	admin_connection->createStatement()->execute("DROP TABLE IF EXISTS events_old, event_tweets_old;");
+	admin_connection->createStatement()->execute("DROP TABLE IF EXISTS events_old, event_tweets_old");
 	admin_connection->createStatement()->execute(
 			"RENAME TABLE "
 				"events TO events_old,"
 				"event_tweets TO event_tweets_old,"
 				"events_new TO events,"
-				"event_tweets_new TO event_tweets;"
+				"event_tweets_new TO event_tweets"
 		);
 }
 
 double getDistance(const vector<double> &A, const vector<double> &B)
 {
 	double dot = 0.0, denom_a = 0.0, denom_b = 0.0 ;
-	for (unsigned int i = 0u; i < VECTOR_SIZE; ++i)
+	for (auto i = 0u; i < VECTOR_SIZE; ++i)
 	{
 		dot += A[i] * B[i] ;
 		denom_a += A[i] * A[i] ;
