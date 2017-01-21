@@ -36,7 +36,18 @@ def get_words(tweet):
 	return tweet.split()
 
 print "Loading tweets"
+<<<<<<< HEAD
 db_cursor.execute('SELECT tweet_id, text FROM training_tweets LIMIT 1000000')
+
+# prolly multithread this: build chunks in workers then concat them together into one list
+tweets = []
+for tweet_id, text in db_cursor.fetchall():
+	words = get_words(text)
+	if words:
+		tweets.append(TaggedDocument(words, [tweet_id]))
+=======
+db_cursor.execute('SELECT tweet_id, text FROM training_tweets')
+>>>>>>> multithreading and tweet2vec changes
 
 # prolly multithread this: build chunks in workers then concat them together into one list
 tweets = []
@@ -46,7 +57,6 @@ for tweet_id, text in db_cursor.fetchall():
 		tweets.append(TaggedDocument(words, [tweet_id]))
 
 print "Training model"
-
 d2v = Doc2Vec(
 		dm=1, dbow_words=1, dm_mean=0, dm_concat=0, dm_tag_count=1,
 		hs=1,
@@ -73,7 +83,6 @@ d2v = Doc2Vec(
 
 		documents=tweets,
 	)
-
 print "Training complete"
 
 while True:

@@ -4,7 +4,7 @@ const int
 	MAX_DEGREES_LATITUDE = 90,
 	MAX_DEGREES_LONGITUDE = 180;
 
-unsigned int last_runtime = 0, RECALL_SCOPE, PERIOD, MIN_PTS, MIN_TWEETS = 3, VECTOR_SIZE;
+unsigned int last_runtime = 0, RECALL_SCOPE, PERIOD, MIN_PTS, MIN_TWEETS = 3, VECTOR_SIZE, THREAD_COUNT;
 double EPSILON, REACHABILITY_MAXIMUM, REACHABILITY_MINIMUM, MAX_SPACIAL_DISTANCE, CELL_SIZE;
 string ACTIVE_ZONE, TARGET_IP;
 
@@ -78,7 +78,7 @@ int main()
 	{
 		if (time(0) - last_runtime > PERIOD)
 		{
-			profiler.start("updateTweets");
+			profiler.stop();
 			updateTweets(tweets);
 			profiler.start("getClusters");
 			auto clusters = getClusters(tweets);
@@ -98,18 +98,19 @@ int main()
 
 void Initialize()
 {
-	getArg(RECALL_SCOPE,         "timing",      "history");
-	getArg(PERIOD,               "timing",      "period");
-	getArg(last_runtime,         "timing",      "start");
-	getArg(CELL_SIZE,            "grid",        "cell_size");
-	getArg(MAX_SPACIAL_DISTANCE, "grid",        "regional_radius");
-	getArg(EPSILON,              "optics",      "epsilon");
-	getArg(MIN_PTS,              "optics",      "minimum_points");
-	getArg(REACHABILITY_MAXIMUM, "optics",      "reachability_max");
-	getArg(REACHABILITY_MINIMUM, "optics",      "reachability_min");
-	getArg(ACTIVE_ZONE,          "connections", "active");
-	getArg(TARGET_IP,            "connections", ACTIVE_ZONE);
-	getArg(VECTOR_SIZE,          "tweet2vec",   "vector_size");
+	getArg(THREAD_COUNT,         "optimization", "thread_count");
+	getArg(RECALL_SCOPE,         "timing",       "history");
+	getArg(PERIOD,               "timing",       "period");
+	getArg(last_runtime,         "timing",       "start");
+	getArg(CELL_SIZE,            "grid",         "cell_size");
+	getArg(MAX_SPACIAL_DISTANCE, "grid",         "regional_radius");
+	getArg(EPSILON,              "optics",       "epsilon");
+	getArg(MIN_PTS,              "optics",       "minimum_points");
+	getArg(REACHABILITY_MAXIMUM, "optics",       "reachability_max");
+	getArg(REACHABILITY_MINIMUM, "optics",       "reachability_min");
+	getArg(ACTIVE_ZONE,          "connections",  "active");
+	getArg(TARGET_IP,            "connections",  ACTIVE_ZONE);
+	getArg(VECTOR_SIZE,          "tweet2vec",    "vector_size");
 
 	// generate grid
 	int x = 0, y;
@@ -172,6 +173,9 @@ void Initialize()
 
 void updateTweets(deque<Tweet*> &tweets)
 {
+	TimeKeeper profiler;
+
+	profiler.start("Tweet2Vec");
 	// insert new tweets into tweet_vector table for processing
 	admin_connection->createStatement()->execute(
 			"INSERT INTO tweet_vectors (`tweet_id`) SELECT id FROM tweets WHERE time BETWEEN FROM_UNIXTIME("
@@ -194,81 +198,131 @@ void updateTweets(deque<Tweet*> &tweets)
 	while (true)
 	{
 		usleep(100);
-		unique_ptr<sql::ResultSet> db_tweets(admin_connection->createStatement()->executeQuery(
-				"SELECT *, UNIX_TIMESTAMP(time) AS unix_time FROM tweet_vectors "
-				"JOIN tweets ON tweet_vectors.tweet_id = tweets.id "
-				"WHERE status = 1"
-			));
-
-		while (db_tweets->next())
-		{
-			admin_connection->createStatement()->execute(
-					"UPDATE tweet_vectors SET status = 2 WHERE tweet_id = " + db_tweets->getString("id")
-				);
-
-			vector<double> tweet_feature_vector;
-			tweet_feature_vector.reserve(VECTOR_SIZE);
-			for (unsigned int i=0; i<VECTOR_SIZE; ++i)
-			{
-				tweet_feature_vector.push_back(stod(db_tweets->getString("v" + to_string(i))));
-			}
-
-			Tweet* new_tweet = new Tweet(
-					db_tweets->getString("unix_time"),
-					db_tweets->getString("lat"),
-					db_tweets->getString("lon"),
-					db_tweets->getString("text"),
-					db_tweets->getString("user"),
-					db_tweets->getString("exact"),
-					tweet_feature_vector
-				);
-
-			// ignore tweets consisting only of stopwords or other ignored strings
-			if (!new_tweet->words.size())
-			{
-				delete new_tweet;
-				continue;
-			}
-
-			for (const auto &word : new_tweet->words)
-			{
-				for (const auto &cell : Cell::cells[new_tweet->x][new_tweet->y].region)
-				{
-					if (!(cell->tweets_by_word.count(word)))
-						continue;
-
-					for (const auto &tweet : cell->tweets_by_word.at(word))
-					{
-						if (tweet == new_tweet || new_tweet->optics_distances.count(tweet))
-							continue;
-
-						const double &optics_distance = getDistance(tweet->feature_vector, new_tweet->feature_vector);
-
-						if (optics_distance < 0.3 && optics_distance > .0001)
-							cout << tweet->text << "\n" << new_tweet->text << "\n" << optics_distance << "\n\n";
-
-						new_tweet->optics_distances[tweet] = tweet->optics_distances[new_tweet] = optics_distance;
-
-						// add neighbor references between the new tweet and all its neighbors
-						if (optics_distance <= EPSILON)
-						{
-							new_tweet->optics_neighbors.insert(make_pair(optics_distance, tweet));
-							tweet->optics_neighbors.insert(make_pair(optics_distance, new_tweet));
-							tweet->require_update = true;
-						}
-					}
-				}
-			}
-
-			tweets.push_back(new_tweet);
-		}
-
 		unique_ptr<sql::ResultSet> db_continue(admin_connection->createStatement()->executeQuery(
 				"SELECT COUNT(*) AS pending FROM tweet_vectors WHERE status != 2"
 			));
 		db_continue->next();
 		if (!stoi(db_continue->getString("pending")))
 			break;
+
+		unique_ptr<sql::ResultSet> db_tweets(admin_connection->createStatement()->executeQuery(
+				"SELECT *, UNIX_TIMESTAMP(time) AS unix_time FROM tweet_vectors "
+				"JOIN tweets ON tweet_vectors.tweet_id = tweets.id "
+				"WHERE status = 1"
+			));
+
+		vector<Tweet*> new_tweets;
+		string updated_tweet_ids = "";
+		while (db_tweets->next())
+		{
+			vector<double> feature_vector;
+			feature_vector.reserve(VECTOR_SIZE);
+
+			for (auto i = 0u; i<VECTOR_SIZE; ++i)
+			{
+				feature_vector.push_back(stod(db_tweets->getString("v" + to_string(i))));
+			}
+
+			new_tweets.push_back(new Tweet(
+					stoi(db_tweets->getString("unix_time")),
+					stod(db_tweets->getString("lat")),
+					stod(db_tweets->getString("lon")),
+					db_tweets->getString("text"),
+					db_tweets->getString("user"),
+					(bool)stoi(db_tweets->getString("exact")),
+					feature_vector
+				));
+
+			updated_tweet_ids += db_tweets->getString("id") + ",";
+		}
+
+		mutex input_lock, data_lock;
+		auto processTweets = [&]() {
+			while (true)
+			{
+				input_lock.lock();
+				if (new_tweets.empty())
+				{
+					input_lock.unlock();
+					return;
+				}
+				Tweet* new_tweet = new_tweets.back();
+				new_tweets.pop_back();
+				input_lock.unlock();
+
+				new_tweet->clean();
+
+				// ignore tweets consisting only of stopwords or other ignored strings
+				if (!new_tweet->words.size())
+				{
+					delete new_tweet;
+					continue;
+				}
+
+				data_lock.lock();
+				for (const auto &word : new_tweet->words)
+				{
+					for (const auto &cell : Cell::cells[new_tweet->x][new_tweet->y].region)
+					{
+						if (!(cell->tweets_by_word.count(word)))
+							continue;
+
+						for (const auto &tweet : cell->tweets_by_word.at(word))
+						{
+							if (new_tweet->optics_distances.count(tweet))
+								continue;
+
+							new_tweet->optics_distances[tweet] = 0;
+						}
+					}
+				}
+
+				for (const auto &word : new_tweet->words)
+				{
+					Cell::cells[new_tweet->x][new_tweet->y].tweets_by_word[word].insert(new_tweet);
+				}
+				data_lock.unlock();
+
+				for (auto &neighbor_pair : new_tweet->optics_distances)
+				{
+					neighbor_pair.second = getDistance(neighbor_pair.first->feature_vector, new_tweet->feature_vector);
+				}
+
+				data_lock.lock();
+				for (const auto &neighbor_pair : new_tweet->optics_distances)
+				{
+					const auto &tweet = neighbor_pair.first;
+					const double &optics_distance = tweet->optics_distances[new_tweet] = neighbor_pair.second;
+
+					// add neighbor references between the new tweet and all its neighbors
+					if (optics_distance <= EPSILON)
+					{
+						new_tweet->optics_neighbors.insert(make_pair(optics_distance, tweet));
+						tweet->optics_neighbors.insert(make_pair(optics_distance, new_tweet));
+						tweet->require_update = true;
+					}
+				}
+
+				tweets.push_back(new_tweet);
+				data_lock.unlock();
+			}
+		};
+
+		if (!updated_tweet_ids.empty())
+		{
+			updated_tweet_ids.pop_back(); // take the extra comma out
+			admin_connection->createStatement()->execute(
+					"UPDATE tweet_vectors SET status = 2 WHERE tweet_id IN (" +updated_tweet_ids+ ")"
+				);
+			vector<thread> threads;
+
+			profiler.start("processTweets");
+			for (auto i = 0u; i < THREAD_COUNT; i++)
+				threads.emplace_back(processTweets);
+
+			for (auto i = 0u; i < THREAD_COUNT; i++)
+				threads[i].join();
+		}
 	}
 
 	tweets.shrink_to_fit();
@@ -320,6 +374,7 @@ void updateTweets(deque<Tweet*> &tweets)
 			tweet->require_update = false;
 		}
 	}
+	profiler.stop();
 }
 
 vector<vector<Tweet*>> getClusters(const deque<Tweet*> &tweets)
