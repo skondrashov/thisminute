@@ -174,8 +174,8 @@ void Initialize()
 void updateTweets(deque<Tweet*> &tweets)
 {
 	TimeKeeper profiler;
-
 	profiler.start("Tweet2Vec");
+
 	// insert new tweets into tweet_vector table for processing
 	admin_connection->createStatement()->execute(
 			"INSERT INTO tweet_vectors (`tweet_id`) SELECT id FROM tweets WHERE time BETWEEN FROM_UNIXTIME("
