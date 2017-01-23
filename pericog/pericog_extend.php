@@ -1,6 +1,6 @@
 #!/usr/bin/env php
 <?php
-$config = parse_ini_file("/srv/etc/config/daemons.ini", true);
+$config = parse_ini_file("/srv/config.ini", true);
 
 $filename =	"/root/test/" .
 	$config['threshold']['spacial_percentage'] . "_" .
