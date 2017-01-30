@@ -292,7 +292,7 @@ void updateTweets(deque<Tweet*> &tweets)
 				for (const auto &neighbor_pair : new_tweet->optics_distances)
 				{
 					const auto &tweet = neighbor_pair.first;
-					const double &optics_distance = tweet->optics_distances[new_tweet] = neighbor_pair.second;
+					const double &optics_distance = new_tweet->optics_distances[tweet] = tweet->optics_distances[new_tweet] = neighbor_pair.second;
 
 					// add neighbor references between the new tweet and all its neighbors
 					if (optics_distance <= EPSILON)
