@@ -1,5 +1,4 @@
-#!/usr/bin/python
-import logging, time
+import logging, time, json
 from daemon import runner
 
 import ConfigParser
@@ -19,14 +18,24 @@ config.read('/srv/config.ini')
 TARGET_IP   = config.get('connections', config.get('connections', 'active'))
 VECTOR_SIZE = int(config.get('tweet2vec', 'vector_size'))
 THREAD_COUNT = int(config.get('optimization', 'thread_count'))
+batch_start_time = int(config.get('timing', 'start'))
+batch_time_range = int(config.get('timing', 'period'))
 
-db_connection = mysql.connector.connect(
+db_tweets_connection = mysql.connector.connect(
 		user='tweet2vec',
-		password=open('/srv/auth/daemons/tweet2vec.pw').read(),
+		password=open('/srv/auth/mysql/tweet2vec.pw').read(),
+		host='localhost',
+		database='ThisMinute'
+	)
+db_tweets_cursor = db_tweets_connection.cursor()
+
+db_pericog_connection = mysql.connector.connect(
+		user='tweet2vec',
+		password=open('/srv/auth/mysql/tweet2vec.pw').read(),
 		host=TARGET_IP,
 		database='ThisMinute'
 	)
-db_cursor = db_connection.cursor()
+db_pericog_cursor = db_pericog_connection.cursor()
 
 def get_words(tweet):
 	tweet = re.sub('((\B@)|(\\bhttps?:\/\/))[^\\s]+', " ", tweet)
@@ -36,7 +45,7 @@ def get_words(tweet):
 	return tweet.split()
 
 print "Loading tweets"
-db_cursor.execute('SELECT tweet_id, text FROM training_tweets')
+db_tweets_cursor.execute("SELECT tweet_id, text FROM training_tweets")
 
 # prolly multithread this: build chunks in workers then concat them together into one list
 tweets = []
@@ -72,37 +81,45 @@ d2v = Doc2Vec(
 
 		documents=tweets,
 	)
-print "Training complete"
 
+print "Getting core vectors"
+db_pericog_cursor.execute("TRUNCATE core_tweet_vectors")
+db_tweets_cursor.execute("SELECT id, text FROM core_tweets")
+for id, text in db_tweets_cursor.fetchall():
+	vector = d2v.infer_vector(get_words(text), alpha=0.1, min_alpha=0.0001, steps=5)
+
+	db_pericog_cursor.execute("""
+		INSERT INTO core_tweet_vectors (`core_tweet_id`, `vector`)
+		VALUES (%s, %s)
+	""", (id, json.dumps(vector)))
+
+db_pericog_connection.commit()
+
+print "Waiting for pericog"
 while True:
-	db_cursor.execute('DELETE FROM tweet_vectors WHERE status = 2')
+	db_pericog_cursor.execute('DELETE FROM tweet_vectors WHERE status = 1')
 
-	db_cursor.execute("""
-		SELECT tweets.id, tweets.text
-		FROM tweet_vectors
-		JOIN tweets ON tweets.id = tweet_vectors.tweet_id
-		WHERE status = 0
-	""")
-	for id, text in db_cursor.fetchall():
+	db_pericog_cursor.execute("SELECT UNIX_TIMESTAMP(MAX(time)) - UNIX_TIMESTAMP(MIN(time)) AS time_range FROM tweet_vectors")
+	time_range = db_pericog_cursor.fetchone()
+	if time_range > batch_time_range * 2:
+		continue
+
+	db_tweets_cursor.execute("""
+		SELECT * FROM tweets WHERE time BETWEEN FROM_UNIXTIME({0}) AND FROM_UNIXTIME({0}+{1})
+	""", (batch_start_time, batch_time_range));
+	batch_start_time += batch_time_range
+
+	for id, time, lon, lat, exact, user, text in db_tweets_cursor.fetchall():
 		words = get_words(text)
 		if not words:
-			db_cursor.execute('DELETE FROM tweet_vectors WHERE tweet_id=%s', (str(id),))
 			continue
 
-		if tweet_id % 100:
-			print id + " : " + text
+		features = json.dumps(d2v.infer_vector(words, alpha=0.1, min_alpha=0.0001, steps=5))
+		db_pericog_cursor.execute("""
+			INSERT INTO tweet_vectors (`tweet_id`, `time`, `lon`, `lat`, `exact`, `user`, `text`, `features`)
+			VALUES %s, %s, %s, %s, %s, %s, %s, %s
+		""", (id, time, lon, lat, exact, user, text, features))
 
-		set_string = []
-		for i, value in enumerate(d2v.infer_vector(words, alpha=0.1, min_alpha=0.0001, steps=5)):
-			set_string.append('v'+str(i)+'='+str(value))
-		set_string = ','.join(set_string)
+	db_pericog_connection.commit()
 
-		db_cursor.execute("""
-			UPDATE tweet_vectors
-			SET status = 1,
-			""" + set_string + """
-			WHERE tweet_id = %s
-		""", (str(id),))
-
-	db_connection.commit()
-	time.sleep(1)
+	time.sleep(5)

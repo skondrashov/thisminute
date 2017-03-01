@@ -20,7 +20,7 @@ class Consumer extends OauthPhirehose
 			$db = new mysqli(
 				$this->target,
 				"archivist",
-				file_get_contents("/srv/auth/daemons/archivist.pw"),
+				file_get_contents("/srv/auth/mysql/archivist.pw"),
 				"ThisMinute");
 		}
 

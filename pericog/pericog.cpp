@@ -4,12 +4,13 @@ const int
 	MAX_DEGREES_LATITUDE = 90,
 	MAX_DEGREES_LONGITUDE = 180;
 
-unsigned int last_runtime = 0, RECALL_SCOPE, PERIOD, MIN_PTS, MIN_TWEETS = 3, VECTOR_SIZE, THREAD_COUNT;
+unsigned int last_runtime = 0, RECALL_SCOPE, PERIOD, MIN_PTS, MIN_TWEETS = 3, VECTOR_SIZE, THREAD_COUNT, BATCH_SIZE;
 double EPSILON, REACHABILITY_MAXIMUM, REACHABILITY_MINIMUM, MAX_SPACIAL_DISTANCE, CELL_SIZE;
 string ACTIVE_ZONE, TARGET_IP;
 
-sql::Connection* admin_connection, * limited_connection;
+sql::Connection* local_connection, * tweets_connection;
 
+vector<Tweet*> cluster_cores;
 vector<vector<Cell>> Cell::cells;
 Tweet* Tweet::delimiter;
 
@@ -22,8 +23,7 @@ void Tweet::clean()
 	transform(clean_text.begin(), clean_text.end(), clean_text.begin(), ::tolower);
 	clean_text.erase(0, clean_text.find_first_not_of(" "));
 	clean_text.erase(clean_text.find_last_not_of(" ") + 1);
-
-	words = explode(clean_text);
+	words = TMUtil::explode(clean_text);
 
 	x = floor((lon + MAX_DEGREES_LONGITUDE)/CELL_SIZE);
 	y = floor((lat + MAX_DEGREES_LATITUDE)/CELL_SIZE);
@@ -82,8 +82,6 @@ int main()
 			updateTweets(tweets);
 			profiler.start("getClusters");
 			auto clusters = getClusters(tweets);
-			profiler.start("filterClusters");
-			filterClusters(clusters);
 			profiler.start("writeClusters");
 			writeClusters(clusters);
 			profiler.start("updateLastRun");
@@ -99,6 +97,7 @@ int main()
 void Initialize()
 {
 	getArg(THREAD_COUNT,         "optimization", "thread_count");
+	getArg(BATCH_SIZE,           "optimization", "pericog_batch_size");
 	getArg(RECALL_SCOPE,         "timing",       "history");
 	getArg(PERIOD,               "timing",       "period");
 	getArg(last_runtime,         "timing",       "start");
@@ -128,8 +127,7 @@ void Initialize()
 		x++;
 	}
 
-	vector<double> temp;
-	Tweet::delimiter = new Tweet(0, 0.0, 0.0, "DELIMIT", "0", false, temp);
+	Tweet::delimiter = new Tweet();
 	Tweet::delimiter->smallest_reachability_distance = REACHABILITY_MAXIMUM + 1;
 
 	// TODO: make this not square
@@ -152,22 +150,28 @@ void Initialize()
 		}
 	}
 
-	// create a connection with limited permissions - relatively safe in the event of SQL injection
-	{
-		sql::Driver* driver(get_driver_instance());
-		ifstream passwordFile("/srv/auth/daemons/pericog_limited.pw");
-		auto password = static_cast<ostringstream&>(ostringstream{} << passwordFile.rdbuf()).str();
-		limited_connection = driver->connect("tcp://" +TARGET_IP+ ":3306", "pericog_limited", password);
-		limited_connection->setSchema("ThisMinute");
-	}
+	ifstream passwordFile("/srv/auth/mysql/pericog.pw");
+	auto password = static_cast<ostringstream&>(ostringstream{} << passwordFile.rdbuf()).str();
+	local_connection = get_driver_instance()->connect("tcp://127.0.0.1:3306", "pericog", password);
+	local_connection->setSchema("ThisMinute");
+	tweets_connection = get_driver_instance()->connect("tcp://" +TARGET_IP+ ":3306", "pericog", password);
+	tweets_connection->setSchema("ThisMinute");
 
-	// create a connection that will only perform queries that are not constructed from user input
+	unique_ptr<sql::ResultSet> db_cluster_cores(local_connection->createStatement()->executeQuery(
+			"SELECT * FROM core_tweet_vectors"
+		));
+
+	while (db_cluster_cores->next())
 	{
-		sql::Driver* driver(get_driver_instance());
-		ifstream passwordFile("/srv/auth/daemons/pericog_admin.pw");
-		auto password = static_cast<ostringstream&>(ostringstream{} << passwordFile.rdbuf()).str();
-		admin_connection = driver->connect("tcp://" +TARGET_IP+ ":3306", "pericog_admin", password);
-		admin_connection->setSchema("ThisMinute");
+		vector<double> feature_vector;
+		feature_vector.reserve(VECTOR_SIZE);
+
+		for (auto i = 0u; i < VECTOR_SIZE; ++i)
+		{
+			feature_vector.push_back(stod(db_cluster_cores->getString("v" + to_string(i))));
+		}
+
+		cluster_cores.push_back(new Tweet(feature_vector));
 	}
 }
 
@@ -175,12 +179,6 @@ void updateTweets(deque<Tweet*> &tweets)
 {
 	TimeKeeper profiler;
 	profiler.start("Tweet2Vec");
-
-	// insert new tweets into tweet_vector table for processing
-	admin_connection->createStatement()->execute(
-			"INSERT INTO tweet_vectors (`tweet_id`) SELECT id FROM tweets WHERE time BETWEEN FROM_UNIXTIME("
-				+to_string(last_runtime - PERIOD)+ ") AND FROM_UNIXTIME(" +to_string(last_runtime)+ ")"
-		);
 
 	// delete tweets too old to be related to new tweets, and all references to them
 	while (tweets.size())
@@ -197,40 +195,28 @@ void updateTweets(deque<Tweet*> &tweets)
 
 	while (true)
 	{
-		usleep(100);
-		unique_ptr<sql::ResultSet> db_continue(admin_connection->createStatement()->executeQuery(
-				"SELECT COUNT(*) AS pending FROM tweet_vectors WHERE status != 2"
+		usleep(5000);
+		unique_ptr<sql::ResultSet> db_continue(local_connection->createStatement()->executeQuery(
+				"SELECT COUNT(*) AS pending FROM tweet_vectors"
 			));
 		db_continue->next();
 		if (!stoi(db_continue->getString("pending")))
 			break;
 
-		unique_ptr<sql::ResultSet> db_tweets(admin_connection->createStatement()->executeQuery(
-				"SELECT *, UNIX_TIMESTAMP(time) AS unix_time FROM tweet_vectors "
-				"JOIN tweets ON tweet_vectors.tweet_id = tweets.id "
-				"WHERE status = 1"
+		unique_ptr<sql::ResultSet> db_tweets(local_connection->createStatement()->executeQuery(
+				"SELECT *, UNIX_TIMESTAMP(time) AS unix_time FROM tweet_vectors WHERE status = 0"
 			));
 
 		vector<Tweet*> new_tweets;
 		string updated_tweet_ids = "";
 		while (db_tweets->next())
 		{
-			vector<double> feature_vector;
-			feature_vector.reserve(VECTOR_SIZE);
-
-			for (auto i = 0u; i<VECTOR_SIZE; ++i)
-			{
-				feature_vector.push_back(stod(db_tweets->getString("v" + to_string(i))));
-			}
-
 			new_tweets.push_back(new Tweet(
 					stoi(db_tweets->getString("unix_time")),
 					stod(db_tweets->getString("lat")),
 					stod(db_tweets->getString("lon")),
 					db_tweets->getString("text"),
-					db_tweets->getString("user"),
-					(bool)stoi(db_tweets->getString("exact")),
-					feature_vector
+					TMUtil::parseJSONVector(db_tweets->getString("vector"), VECTOR_SIZE)
 				));
 
 			updated_tweet_ids += db_tweets->getString("id") + ",";
@@ -257,6 +243,11 @@ void updateTweets(deque<Tweet*> &tweets)
 				{
 					delete new_tweet;
 					continue;
+				}
+
+				for (const auto &core_tweet : cluster_cores)
+				{
+					new_tweet->optics_distances[core_tweet] = 0;
 				}
 
 				data_lock.lock();
@@ -311,8 +302,8 @@ void updateTweets(deque<Tweet*> &tweets)
 		if (!updated_tweet_ids.empty())
 		{
 			updated_tweet_ids.pop_back(); // take the extra comma out
-			admin_connection->createStatement()->execute(
-					"UPDATE tweet_vectors SET status = 2 WHERE tweet_id IN (" +updated_tweet_ids+ ")"
+			local_connection->createStatement()->execute(
+					"UPDATE tweet_vectors SET status = 1 WHERE tweet_id IN (" +updated_tweet_ids+ ")"
 				);
 			vector<thread> threads;
 
@@ -394,29 +385,15 @@ vector<vector<Tweet*>> getClusters(const deque<Tweet*> &tweets)
 
 	priority_queue<pair<double, Tweet*>, deque<pair<double, Tweet*>>> nodes;
 
-	while (!tweets_to_process.empty())
+	for (const auto &seed : cluster_cores)
 	{
-		// branch from an unprocessed core object with the smallest value of its smallest reachability distance
-		// this node is not special, but it is likely to be in the most dense tweet region
-		// this selectivity also makes the algorithm more deterministic, though not perfectly
-		double smallest_value_of_smallest_reachability_distance = EPSILON + 1;
-		Tweet* seed;
-		for (const auto &tweet : tweets_to_process)
-		{
-			if (smallest_value_of_smallest_reachability_distance >= tweet->smallest_reachability_distance)
-			{
-				smallest_value_of_smallest_reachability_distance = tweet->smallest_reachability_distance;
-				seed = tweet;
-			}
-		}
-		nodes.push(make_pair(0, seed));
-		tweets_to_process.erase(seed);
 		reachability_plot.push_back(Tweet::delimiter);
 
 		// process the tree of nodes connected to the seed node in order of reachability
+		nodes.push(make_pair(0, seed));
 		while (!nodes.empty())
 		{
-			auto &tweet = nodes.top().second;
+			const auto &tweet = nodes.top().second;
 			nodes.pop();
 			reachability_plot.push_back(tweet);
 
@@ -429,6 +406,7 @@ vector<vector<Tweet*>> getClusters(const deque<Tweet*> &tweets)
 				const auto &optics_neighbor = pair.second;
 				if (!tweets_to_process.count(optics_neighbor))
 					continue;
+				cout << optics_neighbor->text << endl;
 				nodes.push(make_pair(optics_neighbor->smallest_reachability_distance, optics_neighbor));
 				tweets_to_process.erase(optics_neighbor);
 			}
@@ -440,15 +418,19 @@ vector<vector<Tweet*>> getClusters(const deque<Tweet*> &tweets)
 	vector<Tweet*>::iterator cluster_start;
 	for (auto i = reachability_plot.begin(); i != reachability_plot.end(); i++)
 	{
-		if (!in_cluster && (*i)->smallest_reachability_distance <= REACHABILITY_MAXIMUM
-			&& (*i)->smallest_reachability_distance >= REACHABILITY_MINIMUM
-			)
+		if (!(*i)->time)
+			continue;
+
+		if (!in_cluster
+		&& (*i)->smallest_reachability_distance <= REACHABILITY_MAXIMUM
+		&& (*i)->smallest_reachability_distance >= REACHABILITY_MINIMUM)
 		{
 			cluster_start = i;
 			in_cluster = true;
 		}
-		else if (in_cluster && (((*i)->smallest_reachability_distance > REACHABILITY_MAXIMUM)
-			|| ((*i)->smallest_reachability_distance < REACHABILITY_MINIMUM)))
+		else if (in_cluster
+		&& ((*i)->smallest_reachability_distance > REACHABILITY_MAXIMUM ||
+			(*i)->smallest_reachability_distance < REACHABILITY_MINIMUM))
 		{
 			vector<Tweet*> cluster(cluster_start, i);
 			in_cluster = false;
@@ -457,7 +439,8 @@ vector<vector<Tweet*>> getClusters(const deque<Tweet*> &tweets)
 				const string &first_user = cluster[0]->user;
 				for (const auto &tweet : cluster)
 				{
-					if (tweet->user != first_user)
+					if (tweet->time
+					&& tweet->user != first_user)
 					{
 						clusters.push_back(cluster);
 						break;
@@ -470,19 +453,14 @@ vector<vector<Tweet*>> getClusters(const deque<Tweet*> &tweets)
 	return clusters;
 }
 
-void filterClusters(vector<vector<Tweet*>> &clusters)
-{
-
-}
-
 void writeClusters(vector<vector<Tweet*>> &clusters)
 {
 	if (clusters.empty())
 		return;
 
-	admin_connection->createStatement()->execute("DROP TABLE IF EXISTS events_new, event_tweets_new");
-	admin_connection->createStatement()->execute("CREATE TABLE events_new LIKE events");
-	admin_connection->createStatement()->execute("CREATE TABLE event_tweets_new LIKE event_tweets");
+	local_connection->createStatement()->execute("DROP TABLE IF EXISTS events_new, event_tweets_new");
+	local_connection->createStatement()->execute("CREATE TABLE events_new LIKE events");
+	local_connection->createStatement()->execute("CREATE TABLE event_tweets_new LIKE event_tweets");
 
 	// each cluster is an event containing time and location information as well as an id to access all of its child tweets
 	int i = 0;
@@ -506,7 +484,7 @@ void writeClusters(vector<vector<Tweet*>> &clusters)
 		avgX /= cluster.size();
 		avgY /= cluster.size();
 
-		admin_connection->createStatement()->execute(
+		local_connection->createStatement()->execute(
 			"INSERT INTO events_new (`id`, `lon`, `lat`, `start_time`, `end_time`, `users`) VALUES ("
 					+to_string(i)+ ","
 					+to_string(avgX)+ ","
@@ -543,13 +521,13 @@ void writeClusters(vector<vector<Tweet*>> &clusters)
 				"),";
 		}
 		query.pop_back(); // take the extra comma out
-		limited_connection->createStatement()->execute(query);
+		local_connection->createStatement()->execute(query);
 
 		i++;
 	}
 
-	admin_connection->createStatement()->execute("DROP TABLE IF EXISTS events_old, event_tweets_old");
-	admin_connection->createStatement()->execute(
+	local_connection->createStatement()->execute("DROP TABLE IF EXISTS events_old, event_tweets_old");
+	local_connection->createStatement()->execute(
 			"RENAME TABLE "
 				"events TO events_old,"
 				"event_tweets TO event_tweets_old,"

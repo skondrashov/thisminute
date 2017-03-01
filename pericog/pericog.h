@@ -1,6 +1,7 @@
 #pragma once
 
 #include <string>
+#include <vector>
 #include <regex>
 #include <fstream>
 #include <algorithm>
@@ -9,9 +10,7 @@
 #include <unordered_map>
 #include <cassert>
 #include <cmath>
-#include <vector>
 #include <iostream>
-#include <vector>
 #include <memory>
 #include <utility>
 #include <thread>
@@ -32,6 +31,7 @@
 #include "INIReader.h"
 #include "timer.h"
 #include "tweet.h"
+#include "util.h"
 
 using namespace std;
 
@@ -51,11 +51,10 @@ void getArg(unsigned int &arg, string section, string option);
 void getArg(double &arg, string section, string option);
 void getArg(string &arg, string section, string option);
 
-// YEAH LET'S DO IT
+// core functionality
 void Initialize();
 void updateTweets(deque<Tweet*> &tweets);
 double getDistance(const vector<double> &A, const vector<double> &B);
 vector<vector<Tweet*>> getClusters(const deque<Tweet*> &tweets);
-void filterClusters(vector<vector<Tweet*>> &clusters);
 void writeClusters(vector<vector<Tweet*>> &clusters);
 void updateLastRun();

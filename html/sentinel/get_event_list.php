@@ -1,7 +1,7 @@
 <?php
 $config = parse_ini_file("/srv/config.ini", true);
 $target = $config['connections'][$config['connections']['active']];
-$db = new mysqli($target, "sentinel", file_get_contents('/srv/auth/daemons/sentinel.pw'), "ThisMinute");
+$db = new mysqli($target, "sentinel", file_get_contents('/srv/auth/mysql/sentinel.pw'), "ThisMinute");
 
 $where = "WHERE 1=1";
 if (isset($_GET['start']))
