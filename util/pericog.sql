@@ -22,7 +22,7 @@ CREATE TABLE tweet_vectors (
 		exact    BOOLEAN  NOT NULL,
 		user     BIGINT   NOT NULL,
 		text     TEXT     NOT NULL,
-		features JSON,
+		features TEXT,
 		PRIMARY KEY (tweet_id),
 		INDEX (status),
 		INDEX (time),
@@ -32,7 +32,7 @@ GRANT INSERT, SELECT, UPDATE ON tweet_vectors TO 'pericog'@'%';
 
 CREATE TABLE core_tweet_vectors (
 		core_tweet_id INT  NOT NULL,
-		features      JSON,
+		features      TEXT,
 		PRIMARY KEY (core_tweet_id)
 	);
 GRANT DROP, INSERT ON core_tweet_vectors TO 'tweet2vec'@'%';

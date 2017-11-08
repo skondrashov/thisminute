@@ -41,11 +41,11 @@ pericog_db_init() {
 	cat "$TM_BASE_PATH/util/pericog.sql" |
 	sed "s/\$PW_SENTINEL/"$(  cat $TM_BASE_PATH/auth/mysql/sentinel.pw  )"/g" |
 	sed "s/\$PW_TWEET2VEC/"$( cat $TM_BASE_PATH/auth/mysql/tweet2vec.pw )"/g" |
-	ssh -i $TM_KEY_PATH $TM_PERICOG_ADDRESS "mysql -u root -p$password ";
+	ssh -i $TM_KEY_PATH $TM_PERICOG_ADDRESS "sudo mysql -u root -p$password";
 }
 pericog_init() {
-	pericog_db_init;
 	pericog_push;
+	pericog_db_init;
 }
 
 tweets_usa() {
