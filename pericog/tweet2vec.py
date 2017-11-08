@@ -1,3 +1,4 @@
+#!/usr/bin/python
 import logging, time, json
 from daemon import runner
 

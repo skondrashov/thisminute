@@ -161,6 +161,7 @@ void Initialize()
 			"SELECT * FROM core_tweet_vectors"
 		));
 
+
 	while (db_cluster_cores->next())
 	{
 		vector<double> feature_vector;
