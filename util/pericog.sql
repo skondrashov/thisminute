@@ -25,7 +25,7 @@ CREATE TABLE tweet_vectors (
 		features TEXT,
 		PRIMARY KEY (tweet_id),
 		INDEX (status),
-		INDEX (time),
+		INDEX (time)
 	);
 GRANT DELETE, SELECT, UPDATE ON tweet_vectors TO 'tweet2vec'@'%';
 GRANT INSERT, SELECT, UPDATE ON tweet_vectors TO 'pericog'@'%';
