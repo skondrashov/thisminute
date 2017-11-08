@@ -4,9 +4,10 @@ g++-4.9 -I/srv/lib/mysql-connector-cpp/include -I/srv/lib/boost -I/srv/lib/inih/
 pericog server requires `apt-get install g++-4.9 libmysqlcppconn-dev` to compile
 
 
-/util/bash_aliases.sh has convenient aliases to push to your servers. add the following lines to .bashrc to add these to your
+/util/bash_aliases.sh has convenient aliases for setting up the remote servers. add the following lines to .bashrc to access them from your terminal (logout required):
 
 ```
-TM_BASE_PATH=<path to ThisMinute repo>
-$TM_BASE_PATH/util/bash_aliases.sh
+export TM_BASE_PATH=<path to ThisMinute repo>
+export TM_KEY_PATH=<path to ThisMinute private key>
+. $TM_BASE_PATH/util/bash_aliases.sh
 ```
