@@ -1,6 +1,6 @@
 #!/usr/bin/python
 import logging, time, json
-from daemon import runner
+# from daemon import runner
 
 import ConfigParser
 import mysql.connector
@@ -22,21 +22,23 @@ THREAD_COUNT = int(config.get('optimization', 'thread_count'))
 batch_start_time = int(config.get('timing', 'start'))
 batch_time_range = int(config.get('timing', 'period'))
 
-db_tweets_connection = mysql.connector.connect(
+print "Connecting to self"
+db_pericog_connection = mysql.connector.connect(
 		user='tweet2vec',
 		password=open('/srv/auth/mysql/tweet2vec.pw').read(),
 		host='localhost',
 		database='ThisMinute'
 	)
-db_tweets_cursor = db_tweets_connection.cursor()
+db_pericog_cursor = db_pericog_connection.cursor()
 
-db_pericog_connection = mysql.connector.connect(
+print "Connecting to tweets"
+db_tweets_connection = mysql.connector.connect(
 		user='tweet2vec',
 		password=open('/srv/auth/mysql/tweet2vec.pw').read(),
 		host=TARGET_IP,
 		database='ThisMinute'
 	)
-db_pericog_cursor = db_pericog_connection.cursor()
+db_tweets_cursor = db_tweets_connection.cursor()
 
 def get_words(tweet):
 	tweet = re.sub('((\B@)|(\\bhttps?:\/\/))[^\\s]+', " ", tweet)
@@ -46,11 +48,11 @@ def get_words(tweet):
 	return tweet.split()
 
 print "Loading tweets"
-db_tweets_cursor.execute("SELECT tweet_id, text FROM training_tweets")
+db_tweets_cursor.execute("SELECT tweet_id, text FROM training_tweets LIMIT 10000")
 
 # prolly multithread this: build chunks in workers then concat them together into one list
 tweets = []
-for tweet_id, text in db_cursor.fetchall():
+for tweet_id, text in db_tweets_cursor.fetchall():
 	words = get_words(text)
 	if words:
 		tweets.append(TaggedDocument(words, [tweet_id]))
@@ -90,9 +92,9 @@ for id, text in db_tweets_cursor.fetchall():
 	vector = d2v.infer_vector(get_words(text), alpha=0.1, min_alpha=0.0001, steps=5)
 
 	db_pericog_cursor.execute("""
-		INSERT INTO core_tweet_vectors (`core_tweet_id`, `vector`)
+		INSERT INTO core_tweet_vectors (`core_tweet_id`, `features`)
 		VALUES (%s, %s)
-	""", (id, json.dumps(vector)))
+	""", (id, json.dumps(vector.tolist())))
 
 db_pericog_connection.commit()
 
