@@ -1,3 +1,7 @@
+don't forget to clone recursively! this project contains boost as a submodule, so expect cloning to take a long time (~40 min)
+`git clone --recursive https://github.com/tkondrashov/ThisMinute`
+
+
 pericog compile command:
 g++-4.9 -I/srv/lib/mysql-connector-cpp/include -I/srv/lib/boost -I/srv/lib/inih/cpp -I/usr/include/cppconn -I/srv/lib -Wall -Werror -pedantic -std=c++14 /srv/etc/pericog.cpp /srv/lib/inih/cpp/INIReader.cpp /srv/lib/inih/ini.c -o /srv/bin/pericog -L/usr/lib -lmysqlcppconn -lpthread -O3
 
