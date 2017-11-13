@@ -1,9 +1,9 @@
 TM_SENTINEL_ADDRESS="tkondrashov@thisminute.org"
 TM_ARCHIVIST_ADDRESS="tkondrashov@archivist.thisminute.org"
-TM_PERICOG_ADDRESS="tkondrashov@pericog.thisminute.org"
+TM_PERICOG_ADDRESS="chelsea@localhost"
 
 tm_push() {
-	rsync -ruatvz -e "ssh -i ${TM_KEY_PATH}" --chmod=777 --del --delete-excluded --exclude '*.git*' "$@"
+	rsync -uavz -e "ssh -i ${TM_KEY_PATH}" --chmod=777 --del --delete-excluded --exclude '*.git*' "$@"
 }
 
 tm_generate_auth() {
@@ -46,6 +46,27 @@ pericog_db_init() {
 pericog_init() {
 	pericog_db_init;
 	pericog_push;
+}
+local_pericog_push() {
+	local_push() {
+		rsync -uav --chmod=777 --del --delete-excluded --exclude '*.git*' "$@"
+	}
+	local_push                 $TM_BASE_PATH/config.ini                      /srv/config.ini;
+	local_push --exclude 'lib' $TM_BASE_PATH/pericog/                        /srv/etc/;
+	local_push                 $TM_BASE_PATH/auth/                           /srv/auth/;
+	local_push                 $TM_BASE_PATH/lib/ $TM_BASE_PATH/pericog/lib/ /srv/lib/;
+}
+local_pericog_db_init() {
+	read -s -p "Enter password: " password
+
+	cat "$TM_BASE_PATH/util/pericog.sql" |
+	sed "s/\$PW_TWEET2VEC/"$( cat $TM_BASE_PATH/auth/mysql/tweet2vec.pw )"/g" |
+	sed "s/\$PW_PERICOG/"$(   cat $TM_BASE_PATH/auth/mysql/pericog.pw   )"/g" |
+	sudo mysql -u root -p$password;
+}
+local_pericog_init() {
+	local_pericog_db_init;
+	local_pericog_push;
 }
 
 tweets_usa() {
