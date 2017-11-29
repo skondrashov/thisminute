@@ -24,8 +24,8 @@ batch_time_range = int(config.get('timing', 'period'))
 
 print "Connecting to self"
 db_pericog_connection = mysql.connector.connect(
-		user='tweet2vec',
-		password=open('/srv/auth/mysql/tweet2vec.pw').read(),
+		user='pericog',
+		password=open('/srv/auth/mysql/pericog.pw').read(),
 		host='localhost',
 		database='ThisMinute'
 	)
@@ -33,8 +33,8 @@ db_pericog_cursor = db_pericog_connection.cursor()
 
 print "Connecting to tweets"
 db_tweets_connection = mysql.connector.connect(
-		user='tweet2vec',
-		password=open('/srv/auth/mysql/tweet2vec.pw').read(),
+		user='pericog',
+		password=open('/srv/auth/mysql/pericog.pw').read(),
 		host=TARGET_IP,
 		database='ThisMinute'
 	)
