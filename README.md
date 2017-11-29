@@ -11,7 +11,7 @@ export TM_KEY_PATH=<path to ThisMinute private key>
 ```
 
 
-###pericog
+### pericog
 pericog server requires
 ```
 sudo apt-get install python-pip g++-4.9 libmysqlcppconn-dev
