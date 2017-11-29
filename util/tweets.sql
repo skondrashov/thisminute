@@ -4,7 +4,6 @@ USE ThisMinute
 DROP USER IF EXISTS
 	'sentinel'@'%',
 	'archivist'@'%',
-	'tweet2vec'@'%',
 	'pericog'@'%';
 
 /******************************************
@@ -25,7 +24,6 @@ DROP TABLE IF EXISTS
 CREATE USER
 	'sentinel'@'%'  IDENTIFIED BY '$PW_SENTINEL',
 	'archivist'@'%' IDENTIFIED BY '$PW_ARCHIVIST',
-	'tweet2vec'@'%' IDENTIFIED BY '$PW_TWEET2VEC',
 	'pericog'@'%'   IDENTIFIED BY '$PW_PERICOG';
 
 CREATE TABLE IF NOT EXISTS tweets (
@@ -47,14 +45,14 @@ CREATE TABLE IF NOT EXISTS core_tweets (
 		text TEXT NOT NULL,
 		PRIMARY KEY (id)
 	);
-GRANT SELECT ON core_tweets TO 'tweet2vec'@'%';
+GRANT SELECT ON core_tweets TO 'pericog'@'%';
 
 CREATE TABLE IF NOT EXISTS training_tweets (
 		id   BIGINT NOT NULL,
 		text TEXT   NOT NULL,
 		PRIMARY KEY (id)
 	);
-GRANT SELECT ON training_tweets TO 'tweet2vec'@'%';
+GRANT SELECT ON training_tweets TO 'pericog'@'%';
 
 CREATE TABLE events (
 		id         BIGINT   NOT NULL,

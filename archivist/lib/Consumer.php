@@ -17,44 +17,69 @@ class Consumer extends OauthPhirehose
 		static $db;
 		if (!isset($db))
 		{
-			$db = new mysqli(
-				$this->target,
-				"archivist",
-				file_get_contents("/srv/auth/mysql/archivist.pw"),
-				"ThisMinute");
-		}
+			$db = mysqli_init();
+			// $db->ssl_set(
+			// 		"/srv/auth/ssl/tweets-usa/client-key.pem",
+			// 		"/srv/auth/ssl/tweets-usa/client-cert.pem",
+			// 		"/srv/auth/ssl/tweets-usa/server-ca.pem",
+			// 		null,
+			// 		null
+			// 	);
+			$db->real_connect(
+					$this->target,
+					'archivist',
+					file_get_contents("/srv/auth/mysql/archivist.pw"),
+					'ThisMinute'
+				);
 
-		$stream_item = json_decode($status);
-		if (!(isset($stream_item->id_str))) {return;}
-		$text = preg_replace('/\s+/', ' ', trim($stream_item->text));
-
-		// calculate location information to write to database
-		// if GPS location is given, use that
-		// if not, then calculate the middle of the given bounding box for the set location (eg Brooklyn, NY)
-		// if both are given, then GPS location will be used, which can result in tweets outside of our search location
-		// for now, this is okay, because tweets about home from people away from home may still be valuable
-		if ($stream_item->coordinates)
-		{
-			$lon = $stream_item->coordinates->coordinates[0];
-			$lat = $stream_item->coordinates->coordinates[1];
-			$exact = 1;
-		}
-		else
-		{
-			$box_vertices = $stream_item->place->bounding_box->coordinates;
-			$lon = $lat = 0.0;
-			foreach ($box_vertices[0] as $point)
+			if (!$db)
 			{
-				$lon += floatval($point[0]);
-				$lat += floatval($point[1]);
+				echo 'Connect Error (' . mysqli_connect_errno() . ') ' . mysqli_connect_error();
+				unset($db);
+				return;
 			}
-			$lon /= count($box_vertices[0]);
-			$lat /= count($box_vertices[0]);
-			$exact = 0;
 		}
 
-		$db->query("INSERT INTO tweets (lon, lat, exact, user, text)
-			VALUES ($lon, $lat, $exact, {$stream_item->user->id_str}, '$text');");
+		try
+		{
+			$stream_item = json_decode($status);
+			if (!(isset($stream_item->id_str))) {return;}
+			$text = preg_replace('/\s+/', ' ', trim($stream_item->text));
+
+			// calculate location information to write to database
+			// if GPS location is given, use that
+			// if not, then calculate the middle of the given bounding box for the set location (eg Brooklyn, NY)
+			// if both are given, then GPS location will be used, which can result in tweets outside of our search location
+			// for now, this is okay, because tweets about home from people away from home may still be valuable
+			if ($stream_item->coordinates)
+			{
+				$lon = $stream_item->coordinates->coordinates[0];
+				$lat = $stream_item->coordinates->coordinates[1];
+				$exact = 1;
+			}
+			else
+			{
+				$box_vertices = $stream_item->place->bounding_box->coordinates;
+				$lon = $lat = 0.0;
+				foreach ($box_vertices[0] as $point)
+				{
+					$lon += floatval($point[0]);
+					$lat += floatval($point[1]);
+				}
+				$lon /= count($box_vertices[0]);
+				$lat /= count($box_vertices[0]);
+				$exact = 0;
+			}
+
+			$db->query("INSERT INTO tweets (lon, lat, exact, user, text)
+				VALUES ($lon, $lat, $exact, {$stream_item->user->id_str}, '$text');");
+		}
+		catch (Exception $e)
+		{
+			echo 'Caught exception: ',  $e->getMessage(), "\n";
+			echo "Resetting database connection.\n";
+			unset($db);
+		}
 	}
 
 	public function log($message, $level = 'notice')

@@ -10,24 +10,38 @@ sudo apt-get -y install git sublime-text mysql-client python-pip;\
 git clone --recursive https://github.com/tkondrashov/thisminute ~/thisminute
 ```
 
-3)
-Add the following lines to the end of your .bashrc file (`subl ~/.bashrc` in Terminal to open). This will set you up for a local pericog installation which is most likely what you want. However, you can edit them to point to other servers ie `TM_PERICOG_ADDRESS="pericog.thisminute.org"`.
+3) Add the following lines to the end of your .bashrc file (`subl ~/.bashrc` in Terminal to open):
 ```
-TM_MYSQL_ROOT_PASSWORD="paradise"
+PERICOG_MYSQL_ROOT_PASSWORD="paradise"
 TM_SENTINEL_ADDRESS="thisminute.org"
 TM_ARCHIVIST_ADDRESS="archivist.thisminute.org"
 TM_PERICOG_ADDRESS="localhost"
 . ~/thisminute/util/bash_aliases.sh
 ```
+This will set you up for a local pericog installation which is most likely what you want. You can make edits to change your password or point to other servers (ie `TM_PERICOG_ADDRESS="pericog.thisminute.org"`).
 
-4) To install pericog, run this script on the machine you want pericog on (usually your machine). You will have to enter a password for your mysql root user. This MUST be the TM_MYSQL_ROOT_PASSWORD from step 3 above.
+3) Acquire or create an auth folder for your needs. This will go in thisminute/auth and have a folder structure similar to this:
 ```
-sudo mkdir /srv;\
-sudo chmod 777 /srv;\
-sudo apt-get -y install mysql-server;\
-sudo pip install mysql-connector==2.1.4 numpy scipy unidecode gensim tensorflow-gpu;\
-pericog_init
+auth
+	mysql
+		archivist.pw
+		pericog.pw
+		sentinel.pw
+	ssl
+		tm.pem
+		tweets-usa
+			client-cert.pem
+			client-key.pem
+			server-ca.pem
+	twitter
+		access_token
+		access_token_secret
+		consumer_key
+		consumer_secret
 ```
+You might not have a twitter directory or mysql/archivist.pw, and you may be connecting to a different tweets server than tweets-usa.
+
+4) To install pericog, run `pericog_init`.
 
 
 pericog compile command:
