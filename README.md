@@ -20,7 +20,7 @@ TM_PERICOG_ADDRESS="localhost"
 ```
 This will set you up for a local pericog installation which is most likely what you want. You can make edits to change your password or point to other servers (ie `TM_PERICOG_ADDRESS="pericog.thisminute.org"`).
 
-3) Acquire or create an auth folder for your needs. This will go in thisminute/auth and have a folder structure similar to this:
+4) Acquire or create an auth folder for your needs. This will go in thisminute/auth and have a folder structure similar to this:
 ```
 auth
 	mysql
@@ -41,7 +41,7 @@ auth
 ```
 You might not have a twitter directory or mysql/archivist.pw, and you may be connecting to a different tweets server than tweets-usa.
 
-4) To install pericog, run `pericog_init`.
+5) To install pericog, run `pericog_init`.
 
 
 pericog compile command:
