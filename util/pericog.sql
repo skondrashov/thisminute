@@ -2,7 +2,6 @@ CREATE DATABASE IF NOT EXISTS ThisMinute;
 USE ThisMinute
 
 DROP USER IF EXISTS
-	'tweet2vec'@'%',
 	'pericog'@'%';
 
 DROP TABLE IF EXISTS
@@ -26,7 +25,7 @@ CREATE TABLE tweet_vectors (
 		INDEX (status),
 		INDEX (time)
 	);
-GRANT INSERT, SELECT, UPDATE ON tweet_vectors TO 'pericog'@'%';
+GRANT DELETE, INSERT, SELECT, UPDATE ON tweet_vectors TO 'pericog'@'%';
 
 CREATE TABLE core_tweet_vectors (
 		core_tweet_id INT  NOT NULL,
