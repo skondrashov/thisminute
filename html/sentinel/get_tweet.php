@@ -8,7 +8,6 @@ $limit = max(min(100, (int)$limit), 1);
 
 $result = [];
 if (!($query = $db->query("SELECT text FROM tweets ORDER BY TIME DESC LIMIT $limit"))) {
-	echo $db->error;
 	die();
 }
 $result = $query->fetch_all(MYSQLI_ASSOC);
