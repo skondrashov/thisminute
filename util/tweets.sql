@@ -37,6 +37,7 @@ CREATE TABLE IF NOT EXISTS tweets (
 		INDEX (time),
 		PRIMARY KEY (id)
 	);
+GRANT SELECT ON tweets TO 'sentinel'@'%';
 GRANT INSERT ON tweets TO 'archivist'@'%';
 GRANT SELECT ON tweets TO 'pericog'@'%';
 

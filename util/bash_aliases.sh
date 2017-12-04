@@ -2,7 +2,7 @@ TM_BASE_PATH=~/thisminute
 TM_KEY_PATH=~/thisminute/auth/ssl/tm.pem
 
 tm_push() {
-    rsync -uavz -e "ssh -i ${TM_KEY_PATH}" --chmod=777 --del --delete-excluded --exclude '*.git*' "$@"
+    rsync -uavz -e "ssh -i ${TM_KEY_PATH}" --del --delete-excluded --exclude '*.git*' "$@"
 }
 tm_local_push() {
     rsync -uav --chmod=777 --del --delete-excluded --exclude '*.git*' "$@"
