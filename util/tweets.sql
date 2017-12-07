@@ -49,8 +49,9 @@ CREATE TABLE IF NOT EXISTS core_tweets (
 GRANT SELECT ON core_tweets TO 'pericog'@'%';
 
 CREATE TABLE IF NOT EXISTS training_tweets (
-		id   BIGINT NOT NULL,
-		text TEXT   NOT NULL,
+		id      BIGINT  NOT NULL,
+		text    TEXT    NOT NULL,
+		frantic BOOLEAN DEFAULT NULL,
 		PRIMARY KEY (id)
 	);
 GRANT SELECT ON training_tweets TO 'pericog'@'%';
