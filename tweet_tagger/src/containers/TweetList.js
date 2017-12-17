@@ -5,10 +5,11 @@ class TweetList extends Component {
   render() {
     return (
       <div className="row tweet-list">
-        <div className="col-xs-12">
-          <TweetBlock />
-          <TweetBlock />
-        </div>
+        <TweetBlock />
+        <TweetBlock />
+        <TweetBlock />
+        <TweetBlock />
+        <TweetBlock />
       </div>
     );
   }
