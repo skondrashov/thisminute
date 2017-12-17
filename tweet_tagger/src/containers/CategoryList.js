@@ -4,7 +4,7 @@ import CategoryBlock from './CategoryBlock';
 class CategoryList extends Component {
   render() {
     return (
-      <div className="row">
+      <div className="category-block">
         <CategoryBlock />
         <CategoryBlock />
         <CategoryBlock />

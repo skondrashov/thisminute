@@ -4,7 +4,7 @@ import TweetBlock from './TweetBlock';
 class TweetList extends Component {
   render() {
     return (
-      <div className="row tweet-list">
+      <div className="tweet-list">
         <TweetBlock />
         <TweetBlock />
         <TweetBlock />
