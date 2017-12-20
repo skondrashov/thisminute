@@ -1,3 +1,9 @@
-.gitignore
+# web stuff
+node_modules
+App.css
+package-lock.json
+
+
+
 auth
 *.model
