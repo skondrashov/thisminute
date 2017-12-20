@@ -10,5 +10,3 @@ This project was bootstrapped with [Create React App](https://github.com/faceboo
 
 ## How to Gulp
 Right now the gulp file only compiles the less to css for us with webpack doing the live reloading of the page. You can run **gulp** in your terminal to watch for any changes to the less file. Every time the less is saved it will make a new CSS file.
-
-BLAH BLAH BLAH
