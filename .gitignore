@@ -4,6 +4,6 @@ App.css
 package-lock.json
 
 
-.gitignore
+
 auth
 *.model
