@@ -6,10 +6,12 @@ from __future__ import division
 import shutil
 import os
 import sys
+import tensorflow
 
 import unittest
 
 sys.path.append(os.path.abspath('/srv/lib/'))
+tensorflow.logging.set_verbosity(tensorflow.logging.ERROR)
 
 tweets = [
 		u"""The #QueensCourt was too lit last night @TsMadisonatl1 & @QueenKhia “FUCK YOU!!!You 17 pack Hot Dog neck having ass bitch” 😂😂😂😂 pic.twitter.com/nOdgu8wyCy"""
