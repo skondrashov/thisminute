@@ -56,6 +56,24 @@ CREATE TABLE IF NOT EXISTS training_tweets (
 	);
 GRANT SELECT ON training_tweets TO 'pericog'@'%';
 
+CREATE TABLE IF NOT EXISTS tagged_tweets (
+		tweet_id  BIGINT   NOT NULL AUTO_INCREMENT,
+		time      DATETIME NOT NULL,
+		lon       DOUBLE   NOT NULL,
+		lat       DOUBLE   NOT NULL,
+		exact     BOOLEAN  NOT NULL,
+		text      TEXT     NOT NULL,
+		reply     BOOLEAN  NOT NULL,
+		master_sentiment BOOLEAN DEFAULT NULL,
+		frantic   BOOLEAN DEFAULT NULL,
+		proximity TINYINT DEFAULT NULL,
+		relevance TINYINT DEFAULT NULL,
+		FOREIGN KEY (tweet_id)
+			REFERENCES tweets (id)
+			ON DELETE CASCADE
+	);
+GRANT SELECT, INSERT, UPDATE ON tagged_tweets TO 'pericog'@'%';
+
 CREATE TABLE events (
 		id         BIGINT   NOT NULL,
 		lon        DOUBLE   NOT NULL,
