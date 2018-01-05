@@ -4,6 +4,3 @@
 [submodule "lib/inih"]
 	path = lib/inih
 	url = https://github.com/benhoyt/inih.git
-[submodule "lib/mysql-connector-cpp"]
-	path = lib/mysql-connector-cpp
-	url = https://github.com/mysql/mysql-connector-cpp.git

@@ -9,27 +9,70 @@ tm_local_push() {
 }
 
 tm_generate_auth() {
-    apg -a 1 -n 1 -c cl_seed -d -M ncl -m 32 > $TM_BASE_PATH/auth/mysql/sentinel.pw;
-    apg -a 1 -n 1 -c cl_seed -d -M ncl -m 32 > $TM_BASE_PATH/auth/mysql/archivist.pw;
-    apg -a 1 -n 1 -c cl_seed -d -M ncl -m 32 > $TM_BASE_PATH/auth/mysql/pericog.pw;
+    apg -a 1 -n 1 -c cl_seed -d -M ncl -m 32 > $TM_BASE_PATH/auth/sql/sentinel.pw;
+    apg -a 1 -n 1 -c cl_seed -d -M ncl -m 32 > $TM_BASE_PATH/auth/sql/archivist.pw;
+    apg -a 1 -n 1 -c cl_seed -d -M ncl -m 32 > $TM_BASE_PATH/auth/sql/pericog.pw;
 }
 
-sentinel() { ssh -i $TM_KEY_PATH $TM_SENTINEL_ADDRESS; }
+sentinel() {
+    echo "Connecting to $TM_SENTINEL_ADDRESS"
+    ssh -i $TM_KEY_PATH $TM_SENTINEL_ADDRESS;
+}
 sentinel_push() {
     tm_push $TM_BASE_PATH/config.ini $TM_SENTINEL_ADDRESS:/srv/config.ini;
     tm_push $TM_BASE_PATH/html/      $TM_SENTINEL_ADDRESS:/var/www/html/;
     tm_push $TM_BASE_PATH/auth/      $TM_SENTINEL_ADDRESS:/srv/auth/;
 }
+sentinel_init() {
+    local SCRIPT="
+            cd;
+            sudo chmod -R 777 /var/www;
+            sudo chmod -R 777 /srv;
+            sudo apt-get install rsync php php-pgsql;
+        ";
+    if [ $TM_SENTINEL_ADDRESS == "localhost" ]
+    then
+        eval $SCRIPT
+    else
+        ssh -i $TM_KEY_PATH $TM_SENTINEL_ADDRESS "$SCRIPT";
+    fi
 
-archivist() { ssh -i $TM_KEY_PATH $TM_ARCHIVIST_ADDRESS; }
+    sentinel_push;
+}
+
+archivist() {
+    echo "Connecting to $TM_ARCHIVIST_ADDRESS"
+    ssh -i $TM_KEY_PATH $TM_ARCHIVIST_ADDRESS;
+}
 archivist_push() {
     echo "writing /srv/config.ini"; tm_push                 $TM_BASE_PATH/config.ini     $TM_ARCHIVIST_ADDRESS:/srv/config.ini;
     echo "writing /srv/etc/";       tm_push --exclude 'lib' $TM_BASE_PATH/archivist/     $TM_ARCHIVIST_ADDRESS:/srv/etc/;
     echo "writing /srv/auth/";      tm_push                 $TM_BASE_PATH/auth/          $TM_ARCHIVIST_ADDRESS:/srv/auth/;
     echo "writing /srv/lib/";       tm_push                 $TM_BASE_PATH/archivist/lib/ $TM_ARCHIVIST_ADDRESS:/srv/lib/;
 }
+archivist_init() {
+    # edit php.ini to include /srv/lib
+    # copy service to /etc/systemd/system/archivist.service
 
-pericog() { ssh -i $TM_KEY_PATH $TM_PERICOG_ADDRESS; }
+    local SCRIPT="
+            cd;
+            sudo chmod -R 777 /srv;
+            sudo apt-get install rsync php php-pgsql;
+        ";
+    if [ $TM_ARCHIVIST_ADDRESS == "localhost" ]
+    then
+        eval $SCRIPT
+    else
+        ssh -i $TM_KEY_PATH $TM_ARCHIVIST_ADDRESS "$SCRIPT";
+    fi
+
+    archivist_push;
+}
+
+pericog() {
+    echo "Connecting to $TM_PERICOG_ADDRESS"
+    ssh -i $TM_KEY_PATH $TM_PERICOG_ADDRESS;
+}
 pericog_push() {
     if [ $TM_PERICOG_ADDRESS == "localhost" ]
     then
@@ -53,15 +96,15 @@ pericog_init() {
             rm cuda-repo-ubuntu1604_9.0.176-1_amd64.deb;
             sudo apt-key adv --fetch-keys http://developer.download.nvidia.com/compute/cuda/repos/ubuntu1604/x86_64/7fa2af80.pub;
             sudo apt-get update;
-            sudo debconf-set-selections <<< 'mysql-server mysql-server/root_password password $PERICOG_MYSQL_ROOT_PASSWORD';
-            sudo debconf-set-selections <<< 'mysql-server mysql-server/root_password_again password $PERICOG_MYSQL_ROOT_PASSWORD';
+            sudo debconf-set-selections <<< 'mysql-server mysql-server/root_password password $PERICOG_SQL_ROOT_PASSWORD';
+            sudo debconf-set-selections <<< 'mysql-server mysql-server/root_password_again password $PERICOG_SQL_ROOT_PASSWORD';
             sudo apt-get -y install mysql-server cuda;
             pip install --upgrade pip;
             sudo pip install mysql-connector==2.1.4 numpy scipy unidecode;
             sudo pip install gensim;
             cat '$TM_BASE_PATH/util/pericog.sql' |
-            sed 's/\$PW_PERICOG/'$(cat $TM_BASE_PATH/auth/mysql/pericog.pw)'/g' |
-            sudo mysql -u root -p$PERICOG_MYSQL_ROOT_PASSWORD;
+            sed 's/\$PW_PERICOG/'$(cat $TM_BASE_PATH/auth/sql/pericog.pw)'/g' |
+            sudo mysql -u root -p$PERICOG_SQL_ROOT_PASSWORD;
         ";
     if [ $TM_PERICOG_ADDRESS == "localhost" ]
     then
@@ -74,31 +117,32 @@ pericog_init() {
 }
 
 tm_tweets() {
-    if [ -z "$1" ]
-    then
-        echo "Example usage: tm_tweets usa"
-        return
-    fi
+#     if [ -z "$1" ]
+#     then
+#         echo "Example usage: tm_tweets usa"
+#         return
+#     fi
 
-    mysql -u root -p -h tweets-$1.thisminute.org;
+    psql -h tweets.thisminute.org -U postgres thisminute;
+    # mysql -u root -p -h tweets.thisminute.org;
      # \
      #    --ssl-ca=$TM_BASE_PATH/auth/ssl/tweets/server-ca.pem \
      #    --ssl-cert=$TM_BASE_PATH/auth/ssl/tweets/client-cert.pem \
      #    --ssl-key=$TM_BASE_PATH/auth/ssl/tweets/client-key.pem;
 }
 tm_tweets_init() {
-    if [ -z "$1" ]
-    then
-        echo "Example usage: tm_tweets_init usa"
-        return
-    fi
+    # if [ -z "$1" ]
+    # then
+    #     echo "Example usage: tm_tweets_init usa"
+    #     return
+    # fi
 
     cat "$TM_BASE_PATH/util/tweets.sql" |
-    sed "s/\$PW_SENTINEL/"$(  cat $TM_BASE_PATH/auth/mysql/sentinel.pw  )"/g" |
-    sed "s/\$PW_ARCHIVIST/"$( cat $TM_BASE_PATH/auth/mysql/archivist.pw )"/g" |
-    sed "s/\$PW_PERICOG/"$(   cat $TM_BASE_PATH/auth/mysql/pericog.pw   )"/g" |
+    sed "s/\$PW_SENTINEL/"$(  cat $TM_BASE_PATH/auth/sql/sentinel.pw  )"/g" |
+    sed "s/\$PW_ARCHIVIST/"$( cat $TM_BASE_PATH/auth/sql/archivist.pw )"/g" |
+    sed "s/\$PW_PERICOG/"$(   cat $TM_BASE_PATH/auth/sql/pericog.pw   )"/g" |
 
-    mysql -vu root -p -h tweets-$1.thisminute.org;
+    psql -e -h tweets.thisminute.org -U postgres thisminute;
      # \
      #    --ssl-ca=$TM_BASE_PATH/auth/ssl/tweets/server-ca.pem \
      #    --ssl-cert=$TM_BASE_PATH/auth/ssl/tweets/client-cert.pem \
