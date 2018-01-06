@@ -66,21 +66,19 @@ pericog_push() {
 pericog_init() {
     local SCRIPT="
             cd;
-            sudo chmod 777 /srv;
+            sudo chmod -R 777 /srv;
             wget http://developer.download.nvidia.com/compute/cuda/repos/ubuntu1604/x86_64/cuda-repo-ubuntu1604_9.0.176-1_amd64.deb;
             sudo dpkg -i cuda-repo-ubuntu1604_9.0.176-1_amd64.deb;
             rm cuda-repo-ubuntu1604_9.0.176-1_amd64.deb;
             sudo apt-key adv --fetch-keys http://developer.download.nvidia.com/compute/cuda/repos/ubuntu1604/x86_64/7fa2af80.pub;
             sudo apt-get update;
-            sudo debconf-set-selections <<< 'mysql-server mysql-server/root_password password $PERICOG_SQL_ROOT_PASSWORD';
-            sudo debconf-set-selections <<< 'mysql-server mysql-server/root_password_again password $PERICOG_SQL_ROOT_PASSWORD';
-            sudo apt-get -y install mysql-server cuda;
+            sudo apt-get -y install postgresql postgis cuda;
             pip install --upgrade pip;
-            sudo pip install mysql-connector==2.1.4 numpy scipy unidecode;
+            sudo pip install numpy scipy unidecode;
             sudo pip install gensim;
             cat '$TM_BASE_PATH/util/pericog.sql' |
             sed 's/\$PW_PERICOG/'$(cat $TM_BASE_PATH/auth/sql/pericog.pw)'/g' |
-            sudo mysql -u root -p$PERICOG_SQL_ROOT_PASSWORD;
+            sudo -u postgres psql -e;
         ";
     if [ $TM_PERICOG_ADDRESS == "localhost" ]
     then
