@@ -7,6 +7,10 @@ tm_push() {
 tm_local_push() {
     rsync -uav --chmod=777 --del --delete-excluded --exclude '*.git*' "$@"
 }
+tm_connect() {
+    echo "Connecting to $1"
+    ssh -i $TM_KEY_PATH $1;
+}
 
 tm_generate_auth() {
     apg -a 1 -n 1 -c cl_seed -d -M ncl -m 32 > $TM_BASE_PATH/auth/sql/sentinel.pw;
@@ -14,35 +18,8 @@ tm_generate_auth() {
     apg -a 1 -n 1 -c cl_seed -d -M ncl -m 32 > $TM_BASE_PATH/auth/sql/pericog.pw;
 }
 
-sentinel() {
-    echo "Connecting to $TM_SENTINEL_ADDRESS"
-    ssh -i $TM_KEY_PATH $TM_SENTINEL_ADDRESS;
-}
-sentinel_push() {
-    tm_push $TM_BASE_PATH/config.ini $TM_SENTINEL_ADDRESS:/srv/config.ini;
-    tm_push $TM_BASE_PATH/html/      $TM_SENTINEL_ADDRESS:/var/www/html/;
-    tm_push $TM_BASE_PATH/auth/      $TM_SENTINEL_ADDRESS:/srv/auth/;
-}
-sentinel_init() {
-    local SCRIPT="
-            cd;
-            sudo chmod -R 777 /var/www;
-            sudo chmod -R 777 /srv;
-            sudo apt-get install rsync php php-pgsql;
-        ";
-    if [ $TM_SENTINEL_ADDRESS == "localhost" ]
-    then
-        eval $SCRIPT
-    else
-        ssh -i $TM_KEY_PATH $TM_SENTINEL_ADDRESS "$SCRIPT";
-    fi
-
-    sentinel_push;
-}
-
 archivist() {
-    echo "Connecting to $TM_ARCHIVIST_ADDRESS"
-    ssh -i $TM_KEY_PATH $TM_ARCHIVIST_ADDRESS;
+    tm_connect $TM_ARCHIVIST_ADDRESS;
 }
 archivist_push() {
     echo "writing /srv/config.ini"; tm_push                 $TM_BASE_PATH/config.ini     $TM_ARCHIVIST_ADDRESS:/srv/config.ini;
@@ -70,8 +47,7 @@ archivist_init() {
 }
 
 pericog() {
-    echo "Connecting to $TM_PERICOG_ADDRESS"
-    ssh -i $TM_KEY_PATH $TM_PERICOG_ADDRESS;
+    tm_connect $TM_PERICOG_ADDRESS;
 }
 pericog_push() {
     if [ $TM_PERICOG_ADDRESS == "localhost" ]
@@ -116,34 +92,58 @@ pericog_init() {
     pericog_push;
 }
 
-tm_tweets() {
-#     if [ -z "$1" ]
-#     then
-#         echo "Example usage: tm_tweets usa"
-#         return
-#     fi
+sentinel() {
+    tm_connect $TM_SENTINEL_ADDRESS;
+}
+sentinel_push() {
+    echo "writing /srv/config.ini"; tm_push $TM_BASE_PATH/config.ini $TM_SENTINEL_ADDRESS:/srv/config.ini;
+    echo "writing /var/www/html/";  tm_push $TM_BASE_PATH/html/      $TM_SENTINEL_ADDRESS:/var/www/html/;
+    echo "writing /srv/auth/";      tm_push $TM_BASE_PATH/auth/      $TM_SENTINEL_ADDRESS:/srv/auth/;
+}
+sentinel_init() {
+    local SCRIPT="
+            cd;
+            sudo chmod -R 777 /var/www;
+            sudo chmod -R 777 /srv;
+            sudo apt-get install rsync php php-pgsql;
+        ";
+    if [ $TM_SENTINEL_ADDRESS == "localhost" ]
+    then
+        eval $SCRIPT
+    else
+        ssh -i $TM_KEY_PATH $TM_SENTINEL_ADDRESS "$SCRIPT";
+    fi
 
-    psql -h tweets.thisminute.org -U postgres thisminute;
-    # mysql -u root -p -h tweets.thisminute.org;
-     # \
+    sentinel_push;
+}
+
+tm_tweets() {
+    if [ "$1" ]
+    then
+        local SUBSERVER="-$1"
+    fi
+    local HOST="tweets$SUBSERVER.thisminute.org"
+
+    echo "Connecting to $HOST"
+    psql -h $HOST -U postgres thisminute;
      #    --ssl-ca=$TM_BASE_PATH/auth/ssl/tweets/server-ca.pem \
      #    --ssl-cert=$TM_BASE_PATH/auth/ssl/tweets/client-cert.pem \
      #    --ssl-key=$TM_BASE_PATH/auth/ssl/tweets/client-key.pem;
 }
 tm_tweets_init() {
-    # if [ -z "$1" ]
-    # then
-    #     echo "Example usage: tm_tweets_init usa"
-    #     return
-    # fi
+    if [ "$1" ]
+    then
+        local SUBSERVER="-$1"
+    fi
+    local HOST="tweets$SUBSERVER.thisminute.org"
 
+    echo "Connecting to $HOST"
     cat "$TM_BASE_PATH/util/tweets.sql" |
     sed "s/\$PW_SENTINEL/"$(  cat $TM_BASE_PATH/auth/sql/sentinel.pw  )"/g" |
     sed "s/\$PW_ARCHIVIST/"$( cat $TM_BASE_PATH/auth/sql/archivist.pw )"/g" |
     sed "s/\$PW_PERICOG/"$(   cat $TM_BASE_PATH/auth/sql/pericog.pw   )"/g" |
 
-    psql -e -h tweets.thisminute.org -U postgres thisminute;
-     # \
+    psql -e -h $HOST -U postgres thisminute;
      #    --ssl-ca=$TM_BASE_PATH/auth/ssl/tweets/server-ca.pem \
      #    --ssl-cert=$TM_BASE_PATH/auth/ssl/tweets/client-cert.pem \
      #    --ssl-key=$TM_BASE_PATH/auth/ssl/tweets/client-key.pem;
