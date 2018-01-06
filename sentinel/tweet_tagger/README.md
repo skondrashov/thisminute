@@ -1,5 +1,14 @@
 This project was bootstrapped with [Create React App](https://github.com/facebookincubator/create-react-app).
 
+## Prereqs
+```
+sudo apt-get install curl;\
+curl -sL https://deb.nodesource.com/setup_9.x | sudo -E bash -;\
+sudo apt-get install -y nodejs;\
+sudo npm install --global gulp
+```
+You may see warnings about optional dependency fsevents. Those are normal.
+
 ## How To Build
 
 1. cd tweet_tagger/
