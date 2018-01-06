@@ -17,7 +17,6 @@ class Consumer extends OauthPhirehose
 		static $db;
 		if (!isset($db))
 		{
-			$db = mysqli_init();
 			// $db->ssl_set(
 			// 		"/srv/auth/ssl/tweets-usa/client-key.pem",
 			// 		"/srv/auth/ssl/tweets-usa/client-cert.pem",
@@ -25,16 +24,16 @@ class Consumer extends OauthPhirehose
 			// 		null,
 			// 		null
 			// 	);
-			$db->real_connect(
-					$this->target,
-					'archivist',
-					file_get_contents("/srv/auth/mysql/archivist.pw"),
-					'ThisMinute'
+			$db = pg_pconnect(
+					'host=' . $this->target . ' ' .
+					'user=archivist ' .
+					'password=' . file_get_contents('/srv/auth/sql/archivist.pw') . ' ' .
+					'dbname=thisminute'
 				);
 
 			if (!$db)
 			{
-				echo 'Connect Error (' . mysqli_connect_errno() . ') ' . mysqli_connect_error();
+				echo "Unable to connect to database at " . $this->target . "\n";
 				unset($db);
 				return;
 			}
@@ -71,8 +70,12 @@ class Consumer extends OauthPhirehose
 				$exact = 0;
 			}
 
-			$db->query("INSERT INTO tweets (lon, lat, exact, user, text)
-				VALUES ($lon, $lat, $exact, {$stream_item->user->id_str}, '$text');");
+			pg_query_params($db, '
+				INSERT INTO tweets
+					(geo, exact, uid, text)
+				VALUES
+					(ST_MakePoint($1, $2)::geography, $3, $4, $5);
+				', [$lon, $lat, $exact, $stream_item->user->id_str, $text]);
 		}
 		catch (Exception $e)
 		{

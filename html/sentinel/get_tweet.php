@@ -1,26 +1,29 @@
-<?php
-$config = parse_ini_file("/srv/config.ini", true);
-$target = $config['connections'][$config['connections']['active']];
-$db = new mysqli($target, "sentinel", file_get_contents('/srv/auth/mysql/sentinel.pw'), "ThisMinute");
+<?php declare(strict_types=1);
 
-$limit = $_GET['n'] ?: 1;
+$config = parse_ini_file("/srv/config.ini", true);
+$db = pg_connect(
+		'host=' . $config['connections'][$config['connections']['active']] . ' ' .
+		'user=sentinel ' .
+		'password=' . file_get_contents('/srv/auth/sql/sentinel.pw') . ' ' .
+		'dbname=thisminute'
+	);
+
+$limit = $_GET['n'] ?? 1;
 $limit = max(min(100, (int)$limit), 1);
 
-$result = [];
-if (!($query = $db->query("SELECT text FROM tweets ORDER BY TIME DESC LIMIT $limit"))) {
+$result = pg_query_params($db, 'SELECT text FROM tweets ORDER BY TIME DESC LIMIT $1;', [$limit]);
+
+if (!$result) {
 	die();
 }
-$result = $query->fetch_all(MYSQLI_ASSOC);
-$query->close();
 
 $texts = [];
-foreach ($result as $row) {
+foreach (pg_fetch_all($result) as $row) {
 	$texts []= $row['text'];
 }
 
-if ($_GET['format']) {
+if (!empty($_GET['format'])) {
 	echo implode("<br>", $texts);
 } else {
 	echo json_encode($texts);
 }
-$db->close();
