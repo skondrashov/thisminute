@@ -1,22 +1,27 @@
-CREATE EXTENSION postgis;
+CREATE EXTENSION IF NOT EXISTS postgis;
 ALTER EXTENSION postgis UPDATE;
 
-REVOKE ALL ON ALL TABLES IN SCHEMA public FROM sentinel;
+-- TODO: turn this copy/pasted boilerplate into a function call... can't figure out how
+REVOKE ALL ON ALL TABLES    IN SCHEMA public FROM sentinel;
 REVOKE ALL ON ALL SEQUENCES IN SCHEMA public FROM sentinel;
 REVOKE ALL ON ALL FUNCTIONS IN SCHEMA public FROM sentinel;
 DROP OWNED BY sentinel;
-REVOKE ALL ON ALL TABLES IN SCHEMA public FROM archivist;
+DROP USER IF EXISTS sentinel;
+CREATE USER sentinel PASSWORD '$PW_SENTINEL';
+
+REVOKE ALL ON ALL TABLES    IN SCHEMA public FROM archivist;
 REVOKE ALL ON ALL SEQUENCES IN SCHEMA public FROM archivist;
 REVOKE ALL ON ALL FUNCTIONS IN SCHEMA public FROM archivist;
 DROP OWNED BY archivist;
-REVOKE ALL ON ALL TABLES IN SCHEMA public FROM pericog;
+DROP USER IF EXISTS archivist;
+CREATE USER archivist PASSWORD '$PW_ARCHIVIST';
+
+REVOKE ALL ON ALL TABLES    IN SCHEMA public FROM pericog;
 REVOKE ALL ON ALL SEQUENCES IN SCHEMA public FROM pericog;
 REVOKE ALL ON ALL FUNCTIONS IN SCHEMA public FROM pericog;
 DROP OWNED BY pericog;
-DROP USER IF EXISTS
-	sentinel,
-	archivist,
-	pericog;
+DROP USER IF EXISTS pericog;
+CREATE USER pericog PASSWORD '$PW_PERICOG';
 
 /******************************************
 * DO NOT EVER:                            *
@@ -33,10 +38,6 @@ DROP TABLE IF EXISTS
 	events,
 	events_new,
 	events_old;
-
-CREATE USER sentinel  PASSWORD '$PW_SENTINEL';
-CREATE USER archivist PASSWORD '$PW_ARCHIVIST';
-CREATE USER pericog   PASSWORD '$PW_PERICOG';
 
 CREATE TABLE IF NOT EXISTS tweets (
 		id    BIGSERIAL,
