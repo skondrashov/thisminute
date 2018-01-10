@@ -1,6 +1,10 @@
 import React, { Component } from 'react';
 import { DragSource } from 'react-dnd';
 
+const Types = {
+  TWEETBLOCK: 'tweetBlock'
+};
+
 const tweetSource = {
   beginDrag(props) {
     return {};
@@ -15,6 +19,10 @@ function collect(connect, monitor) {
 }
 
 class TweetBlock extends Component {
+  constructor(props) {
+    super(props);
+  }
+
   render() {
   	const { connectDragSource, isDragging } = this.props;
     return connectDragSource(
