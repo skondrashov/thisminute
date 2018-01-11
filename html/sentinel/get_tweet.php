@@ -11,7 +11,7 @@ $db = pg_connect(
 $limit = $_GET['n'] ?? 1;
 $limit = max(min(100, (int)$limit), 1);
 
-$result = pg_query_params($db, 'SELECT text FROM tweets ORDER BY TIME DESC LIMIT $1;', [$limit]);
+$result = pg_query_params($db, 'SELECT text FROM tweets ORDER BY id DESC LIMIT $1;', [$limit]);
 
 if (!$result) {
 	die();
