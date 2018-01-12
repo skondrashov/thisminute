@@ -18,22 +18,39 @@ function collect(connect, monitor) {
   }
 }
 
+
 class TweetBlock extends Component {
-  constructor(props) {
-    super(props);
+
+  renderContent(tweet) {
+    if(tweet) {
+      const username = tweet.username;
+      const content = tweet.content;
+      const post_id = tweet.post_id;
+
+      return(
+        <div key={post_id}>
+          <div><b>{content}</b></div>
+          <small>{username}</small>
+        </div>
+      );
+    }
   }
 
   render() {
-  	const { connectDragSource, isDragging } = this.props;
+    const { connectDragSource, isDragging } = this.props;
+
     return connectDragSource(
-      <div className="tweet-block" style={{
-        opacity: isDragging ? 0.5 : 1,
-        cursor: 'move'
+      <div
+        className="tweet-block"
+        style={{
+          opacity: isDragging ? 0.5 : 1,
+          cursor: 'move'
       }}>
-        This is a TweetBlock
+        {this.renderContent(this.props.tweet)}
       </div>
     );
   }
 }
 
-export default DragSource('tweet', tweetSource, collect)(TweetBlock);
+TweetBlock = DragSource('tweet', tweetSource, collect)(TweetBlock);
+export default TweetBlock;

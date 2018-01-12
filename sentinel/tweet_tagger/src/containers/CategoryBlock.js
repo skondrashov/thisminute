@@ -25,7 +25,10 @@ class CategoryBlock extends Component {
 
     this.state = {
       categoryName: "",
-      tweets: ["<div><TweetBlock /></div>","<div><TweetBlock /></div>"]
+      tweets: [
+        {username: "user1", content: "content1", post_id: "1"},
+        {username: "user2", content: "content2", post_id: "2"}
+      ]
     }
   }
 
@@ -44,27 +47,23 @@ class CategoryBlock extends Component {
     );
   }
 
-  renderTweetBlock(i) {
-    return(
-      <div>{i}<TweetBlock /></div>
-    );
+  renderTweetBlocks() {
+    return this.state.tweets.map((tweet) => {
+      return <TweetBlock tweet={tweet} />;
+    });
   }
 
   render() {
     const { connectDropTarget, isOver, canDrop } = this.props;
-    const tweetBlocks = [];
-    console.log(this.props.tweets);
-    for(let i=0; i < 2; i++) {
-      tweetBlocks.push(this.renderTweetBlock(i));
-    }
+
     return connectDropTarget(
       <div className="grid category-list">
         <div className="text-center">
           {isOver && canDrop && this.renderOverlay('yellow')}
           {isOver && !canDrop && this.renderOverlay('red')}
-          <h3>Category Name</h3>
+          <h3>{this.props.category}</h3>
         </div>
-        {tweetBlocks}
+        {this.renderTweetBlocks()}
       </div>
     );
   }
