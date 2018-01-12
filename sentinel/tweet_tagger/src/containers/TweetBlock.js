@@ -18,7 +18,6 @@ function collect(connect, monitor) {
   }
 }
 
-
 class TweetBlock extends Component {
 
   renderContent(tweet) {

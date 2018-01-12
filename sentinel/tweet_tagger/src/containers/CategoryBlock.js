@@ -1,13 +1,14 @@
 import React, { Component } from 'react';
-import TweetBlock from './TweetBlock';
+import TweetBlock, { Types } from './TweetBlock';
 import { DropTarget, DragDropContext } from 'react-dnd';
 import { connect } from 'react-redux';
 import { bindActionCreators } from 'redux';
 import { dropInCategory } from '../actions/index';
 
 const tweetTarget = {
-  drop(props) {
-    return {};
+  drop(props, monitor) {
+    console.log(props);
+    dropInCategory(props.category);
   }
 };
 
