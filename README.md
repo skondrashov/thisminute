@@ -6,16 +6,16 @@
 wget -qO - https://download.sublimetext.com/sublimehq-pub.gpg | sudo apt-key add -;\
 echo "deb https://download.sublimetext.com/ apt/stable/" | sudo tee /etc/apt/sources.list.d/sublime-text.list;\
 sudo apt-get update;\
-sudo apt-get -y install git sublime-text mysql-client python-pip;\
+sudo apt-get -y install git sublime-text postgresql-client python-pip;\
 git clone --recursive https://github.com/tkondrashov/thisminute ~/thisminute;\
 subl ~/thisminute
 ```
 
 3) Add the following lines to the end of your .bashrc file (`subl ~/.bashrc` in Terminal to open):
 ```
-PERICOG_MYSQL_ROOT_PASSWORD="paradise"
-TM_SENTINEL_ADDRESS="thisminute.org"
-TM_ARCHIVIST_ADDRESS="archivist.thisminute.org"
+PERICOG_SQL_ROOT_PASSWORD="paradise"
+TM_SENTINEL_ADDRESS="tkondrashov@thisminute.org"
+TM_ARCHIVIST_ADDRESS="tkondrashov@archivist.thisminute.org"
 TM_PERICOG_ADDRESS="localhost"
 . ~/thisminute/util/bash_aliases.sh
 ```
@@ -24,7 +24,7 @@ This will set you up for a local pericog installation which is most likely what 
 4) Acquire or create an auth folder for your needs. This will go in ~/thisminute/auth and have a folder structure similar to this:
 ```
 auth
-	mysql
+	sql
 		archivist.pw
 		pericog.pw
 		sentinel.pw
@@ -40,7 +40,7 @@ auth
 		consumer_key
 		consumer_secret
 ```
-You might not have a twitter directory or mysql/archivist.pw, and you may be connecting to a different tweets server than tweets-usa.
+You might not have a twitter directory or sql/archivist.pw, and you may be connecting to a different tweets server than tweets-usa.
 
 5) To install pericog, run `pericog_init`.
 

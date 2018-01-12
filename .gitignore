@@ -1,5 +1,4 @@
 auth
-*.model
 
 # web stuff
 node_modules
