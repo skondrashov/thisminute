@@ -49,7 +49,7 @@ class CategoryBlock extends Component {
 
   renderTweetBlocks() {
     return this.state.tweets.map((tweet) => {
-      return <TweetBlock tweet={tweet} />;
+      return <TweetBlock key={tweet.post_id} tweet={tweet} />;
     });
   }
 

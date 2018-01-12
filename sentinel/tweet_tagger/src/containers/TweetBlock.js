@@ -25,10 +25,9 @@ class TweetBlock extends Component {
     if(tweet) {
       const username = tweet.username;
       const content = tweet.content;
-      const post_id = tweet.post_id;
 
       return(
-        <div key={post_id}>
+        <div>
           <div><b>{content}</b></div>
           <small>{username}</small>
         </div>
