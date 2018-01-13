@@ -40,13 +40,16 @@ DROP TABLE IF EXISTS
 	events_old;
 
 CREATE TABLE IF NOT EXISTS tweets (
-		id    BIGSERIAL,
-		time  TIMESTAMP(0)     NOT NULL DEFAULT NOW(),
-		geo   GEOGRAPHY(POINT) NOT NULL,
-		exact BOOLEAN          NOT NULL,
-		uid   BIGINT           NOT NULL,
-		text  TEXT             NOT NULL,
-		PRIMARY KEY (id)
+		id        BIGSERIAL,
+		time      TIMESTAMP(0)     NOT NULL DEFAULT NOW(),
+		geo       GEOGRAPHY(POINT) NOT NULL,
+		exact     BOOLEAN          NOT NULL,
+		uid       BIGINT           NOT NULL,
+		text      TEXT             NOT NULL,
+		PRIMARY KEY (id),
+		FOREIGN KEY (source_id)
+			REFERENCES sources(id)
+			ON DELETE RESTRICT
 	);
 CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS tweets_id_idx ON tweets(id);
 CREATE INDEX CONCURRENTLY IF NOT EXISTS tweets_time_idx ON tweets(time);
@@ -59,7 +62,47 @@ GRANT USAGE ON SEQUENCE tweets_id_seq TO
 	archivist,
 	pericog;
 
-CREATE TABLE IF NOT EXISTS tweets_rus () INHERITS (tweets);
-GRANT SELECT ON tweets_rus TO sentinel;
-GRANT INSERT ON tweets_rus TO archivist;
-GRANT SELECT ON tweets_rus TO pericog;
+CREATE TABLE IF NOT EXISTS tweet_metadata (
+		tweet_id    BIGINT  NOT NULL,
+		final       BOOLEAN NOT NULL DEFAULT FALSE,
+		learned     BOOLEAN NOT NULL,
+		source      TEXT    DEFAULT NULL,
+		truncated   BOOLEAN DEFAULT NULL,
+		reply       BOOLEAN DEFAULT NULL,
+		legible     BOOLEAN DEFAULT NULL,
+		informative BOOLEAN DEFAULT NULL,
+		FOREIGN KEY (tweet_id)
+			REFERENCES tweets(id)
+			ON DELETE CASCADE,
+		FOREIGN KEY (event_id)
+			REFERENCES events(id)
+			ON DELETE SET NULL
+	);
+GRANT INSERT ON tweet_metadata TO archivist;
+GRANT SELECT, INSERT, UPDATE ON tweet_metadata TO pericog;
+
+CREATE TABLE IF NOT EXISTS tweet_associations (
+		tweet_id    BIGINT  NOT NULL,
+		event_id    TEXT    NOT NULL,
+		association BOOLEAN NOT NULL,
+		confirmed   BOOLEAN NOT NULL,
+		FOREIGN KEY (tweet_id)
+			REFERENCES tweets(id)
+			ON DELETE CASCADE,
+		FOREIGN KEY (event_id)
+			REFERENCES events(id)
+			ON DELETE CASCADE
+	);
+GRANT SELECT, INSERT ON tweet_associations TO sentinel;
+GRANT SELECT, INSERT, UPDATE ON tweet_associations TO pericog;
+
+CREATE TABLE events (
+		id          TEXT,
+		start_time  TIMESTAMP(0)     NOT NULL,
+		in_progress BOOLEAN          NOT NULL,
+		end_time    TIMESTAMP(0)     NOT NULL,
+		geo         GEOGRAPHY(POINT) NOT NULL,
+		r_meters    SMALLINT         NOT NULL,
+		PRIMARY KEY (id)
+	);
+GRANT SELECT, INSERT ON events TO pericog;
