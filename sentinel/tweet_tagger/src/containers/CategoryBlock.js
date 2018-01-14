@@ -58,13 +58,16 @@ class CategoryBlock extends Component {
     const { connectDropTarget, isOver, canDrop } = this.props;
 
     return connectDropTarget(
-      <div className="grid category-list">
+      <div className="grid category-list" style={{
+        position: 'relative',
+        width: '100%',
+        height: '100%'
+      }}>
         <div className="text-center">
-          {isOver && canDrop && this.renderOverlay('yellow')}
-          {isOver && !canDrop && this.renderOverlay('red')}
-          <h3>{this.props.category}</h3>
+          <h3>{this.props.categoryName}</h3>
         </div>
         {this.renderTweetBlocks()}
+        {isOver && canDrop && this.renderOverlay('yellow')}
       </div>
     );
   }

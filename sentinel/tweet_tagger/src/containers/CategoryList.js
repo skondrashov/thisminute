@@ -16,7 +16,7 @@ class CategoryList extends Component {
 
   renderCategoryBlocks() {
     return this.state.categories.map((category) => {
-      return <CategoryBlock key={category} category={category} />;
+      return <CategoryBlock key={category} categoryName={category} />;
     });
   }
 
