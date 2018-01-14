@@ -1,9 +1,6 @@
 import React, { Component } from 'react';
-import TweetBlock, { Types } from './TweetBlock';
-import { DropTarget, DragDropContext } from 'react-dnd';
-import { connect } from 'react-redux';
-import { bindActionCreators } from 'redux';
-import { dropInCategory } from '../actions/index';
+import TweetBlock from './TweetBlock';
+import { DropTarget } from 'react-dnd';
 
 const tweetTarget = {
   drop(props, monitor) {
@@ -26,8 +23,8 @@ class CategoryBlock extends Component {
     this.state = {
       categoryName: "",
       tweets: [
-        {username: "user1", content: "content1", post_id: "1"},
-        {username: "user2", content: "content2", post_id: "2"}
+        {username: "user1", content: "content1", tweet_id: "1"},
+        {username: "user2", content: "content2", tweet_id: "2"}
       ]
     }
   }
@@ -49,7 +46,7 @@ class CategoryBlock extends Component {
 
   renderTweetBlocks() {
     return this.state.tweets.map((tweet) => {
-      return <TweetBlock key={tweet.post_id} tweet={tweet} />;
+      return <TweetBlock key={tweet.tweet_id} tweet={tweet} />;
     });
   }
 
@@ -72,10 +69,5 @@ class CategoryBlock extends Component {
   }
 }
 
-function mapDispatchToProps(dispatch) {
-  return bindActionCreators({ dropInCategory }, dispatch);
-}
-
 CategoryBlock = DropTarget('tweet', tweetTarget, collect)(CategoryBlock);
-CategoryBlock = connect(null, mapDispatchToProps)(CategoryBlock);
 export default CategoryBlock;

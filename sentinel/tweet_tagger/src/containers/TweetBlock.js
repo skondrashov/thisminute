@@ -8,17 +8,17 @@ const Types = {
 
 const tweetSource = {
   beginDrag(props) {
-    return { post_id: props.tweet.post_id };
+    return { tweet_id: props.tweet.tweet_id };
   },
 
   endDrag(props, monitor, component) {
     if(!monitor.didDrop()) {
-      console.log('didnt drop');
+      console.log('invalid drop target');
       return;
     }
     const tweet = monitor.getItem();
     const dropAt = monitor.getDropResult();
-    dropInCategory(tweet.post_id, dropAt.category);
+    dropInCategory(tweet.tweet_id, dropAt.category);
   }
 };
 
