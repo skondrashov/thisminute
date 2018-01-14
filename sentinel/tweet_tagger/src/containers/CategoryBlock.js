@@ -7,8 +7,7 @@ import { dropInCategory } from '../actions/index';
 
 const tweetTarget = {
   drop(props, monitor) {
-    console.log(props);
-    dropInCategory(props.category);
+    return { category: props.categoryName }
   }
 };
 

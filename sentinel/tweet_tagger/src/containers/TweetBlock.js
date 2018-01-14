@@ -1,5 +1,6 @@
 import React, { Component } from 'react';
 import { DragSource } from 'react-dnd';
+import { dropInCategory } from '../actions/index';
 
 const Types = {
   TWEETBLOCK: 'tweetBlock'
@@ -7,7 +8,17 @@ const Types = {
 
 const tweetSource = {
   beginDrag(props) {
-    return {};
+    return { post_id: props.tweet.post_id };
+  },
+
+  endDrag(props, monitor, component) {
+    if(!monitor.didDrop()) {
+      console.log('didnt drop');
+      return;
+    }
+    const tweet = monitor.getItem();
+    const dropAt = monitor.getDropResult();
+    dropInCategory(tweet.post_id, dropAt.category);
   }
 };
 
