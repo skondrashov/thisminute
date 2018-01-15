@@ -10,7 +10,7 @@ const Types = {
 
 const tweetSource = {
   beginDrag(props) {
-    return { tweet: props.tweet };
+    return props.tweet;
   },
 
   endDrag(props, monitor, component) {
