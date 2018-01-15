@@ -31,6 +31,7 @@ CREATE TABLE IF NOT EXISTS sources (
 
 CREATE TABLE IF NOT EXISTS events (
 		id          SERIAL,
+		human       BOOLEAN          NOT NULL,
 		name        TEXT             NOT NULL,
 		start_time  TIMESTAMP(0)     NOT NULL,
 		in_progress BOOLEAN          NOT NULL,
