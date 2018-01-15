@@ -23,21 +23,22 @@ DROP OWNED BY pericog;
 DROP USER IF EXISTS pericog;
 CREATE USER pericog PASSWORD '$PW_PERICOG';
 
-/******************************************
-* DO NOT EVER:                            *
-* - DROP DATABASE thisminute              *
-* - DROP TABLE thisminute.tweets          *
-* - DROP TABLE thisminute.tweets_*        *
-* - DROP TABLE thisminute.core_tweets     *
-* - DROP TABLE thisminute.training_tweets *
-******************************************/
-DROP TABLE IF EXISTS
-	event_tweets,
-	event_tweets_new,
-	event_tweets_old,
-	events,
-	events_new,
-	events_old;
+CREATE TABLE IF NOT EXISTS sources (
+		id   SERIAL,
+		name TEXT UNIQUE NOT NULL,
+		PRIMARY KEY (id)
+	);
+
+CREATE TABLE IF NOT EXISTS events (
+		id          SERIAL,
+		name        TEXT             NOT NULL,
+		start_time  TIMESTAMP(0)     NOT NULL,
+		in_progress BOOLEAN          NOT NULL,
+		end_time    TIMESTAMP(0)     NOT NULL,
+		geo         GEOGRAPHY(POINT) NOT NULL,
+		r_meters    INTEGER          NOT NULL,
+		PRIMARY KEY (id)
+	);
 
 CREATE TABLE IF NOT EXISTS tweets (
 		id    BIGSERIAL,
@@ -48,7 +49,6 @@ CREATE TABLE IF NOT EXISTS tweets (
 		text  TEXT             NOT NULL,
 		PRIMARY KEY (id)
 	);
-CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS tweets_id_idx ON tweets(id);
 CREATE INDEX CONCURRENTLY IF NOT EXISTS tweets_time_idx ON tweets(time);
 
 GRANT SELECT ON tweets TO sentinel;
@@ -59,7 +59,35 @@ GRANT USAGE ON SEQUENCE tweets_id_seq TO
 	archivist,
 	pericog;
 
-CREATE TABLE IF NOT EXISTS tweets_rus () INHERITS (tweets);
-GRANT SELECT ON tweets_rus TO sentinel;
-GRANT INSERT ON tweets_rus TO archivist;
-GRANT SELECT ON tweets_rus TO pericog;
+CREATE TABLE IF NOT EXISTS tweet_labels (
+		tweet_id          BIGINT  NOT NULL,
+		final             BOOLEAN NOT NULL DEFAULT FALSE,
+		human             BOOLEAN NOT NULL,
+		tweet_source_id   INTEGER DEFAULT NULL,
+		tweet_truncated   BOOLEAN DEFAULT NULL,
+		tweet_reply       BOOLEAN DEFAULT NULL,
+		tweet_legible     BOOLEAN DEFAULT NULL,
+		tweet_informative BOOLEAN DEFAULT NULL,
+		FOREIGN KEY (tweet_id)
+			REFERENCES tweets(id)
+			ON DELETE CASCADE,
+		FOREIGN KEY (tweet_source_id)
+			REFERENCES sources(id)
+			ON DELETE SET NULL
+	);
+GRANT INSERT ON tweet_labels TO archivist;
+GRANT SELECT, INSERT, UPDATE ON tweet_labels TO pericog;
+
+CREATE TABLE IF NOT EXISTS tweet_events (
+		tweet_id    BIGINT  NOT NULL,
+		event_id    INTEGER NOT NULL,
+		final       BOOLEAN NOT NULL DEFAULT FALSE,
+		human       BOOLEAN NOT NULL,
+		association BOOLEAN NOT NULL,
+		FOREIGN KEY (tweet_id)
+			REFERENCES tweets(id)
+			ON DELETE CASCADE,
+		FOREIGN KEY (event_id)
+			REFERENCES events(id)
+			ON DELETE CASCADE
+	);
