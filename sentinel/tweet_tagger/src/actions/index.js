@@ -1,12 +1,13 @@
 export const DROP_IN_CATEGORY = 'DROP_IN_CATEGORY';
 
-export function dropInCategory(id, category) {
+export function dropInCategory(tweet, category) {
+
+  console.log("Dropped tweet with id " + tweet.tweet.tweet_id + " in category " + category);
 
   const payload = {
-    id: id,
+    tweet: tweet.tweet,
     category: category
   };
-  console.log("Dropped tweet with id " + id + " in category " + category)
 
   return {
     type: DROP_IN_CATEGORY,

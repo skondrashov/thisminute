@@ -1,10 +1,11 @@
 import React, { Component } from 'react';
 import TweetBlock from './TweetBlock';
 import { DropTarget } from 'react-dnd';
+import { connect } from 'react-redux';
 
 const tweetTarget = {
   drop(props, monitor) {
-    return { category: props.categoryName }
+    return { category: props.categoryName };
   }
 };
 
@@ -22,10 +23,7 @@ class CategoryBlock extends Component {
 
     this.state = {
       categoryName: "",
-      tweets: [
-        {username: "user1", content: "content1", tweet_id: "1"},
-        {username: "user2", content: "content2", tweet_id: "2"}
-      ]
+      tweets: []
     }
   }
 
@@ -46,6 +44,13 @@ class CategoryBlock extends Component {
 
   renderTweetBlocks() {
     return this.state.tweets.map((tweet) => {
+      const t = {};
+      /*for each (stateTweet in state.tweets) {
+        if(stateTweet.post_id == tweet.id) {
+          console.log(stateTweet);
+          t = stateTweet;
+        }
+      }*/
       return <TweetBlock key={tweet.tweet_id} tweet={tweet} />;
     });
   }
@@ -69,5 +74,10 @@ class CategoryBlock extends Component {
   }
 }
 
+function mapStateToProps(state) {
+  return { tweets: state.tweets };
+}
+
 CategoryBlock = DropTarget('tweet', tweetTarget, collect)(CategoryBlock);
+CategoryBlock = connect(mapStateToProps)(CategoryBlock);
 export default CategoryBlock;

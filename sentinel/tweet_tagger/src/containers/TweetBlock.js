@@ -1,6 +1,8 @@
 import React, { Component } from 'react';
 import { DragSource } from 'react-dnd';
 import { dropInCategory } from '../actions/index';
+import { connect } from 'react-redux';
+import { bindActionCreators } from 'redux';
 
 const Types = {
   TWEETBLOCK: 'tweetBlock'
@@ -8,7 +10,7 @@ const Types = {
 
 const tweetSource = {
   beginDrag(props) {
-    return { tweet_id: props.tweet.tweet_id };
+    return { tweet: props.tweet };
   },
 
   endDrag(props, monitor, component) {
@@ -18,7 +20,7 @@ const tweetSource = {
     }
     const tweet = monitor.getItem();
     const dropAt = monitor.getDropResult();
-    dropInCategory(tweet.tweet_id, dropAt.category);
+    props.dropInCategory(tweet, dropAt.category);
   }
 };
 
@@ -61,5 +63,10 @@ class TweetBlock extends Component {
   }
 }
 
+function mapDispatchToProps(dispatch) {
+  return bindActionCreators({ dropInCategory }, dispatch);
+}
+
 TweetBlock = DragSource('tweet', tweetSource, collect)(TweetBlock);
+TweetBlock = connect(null, mapDispatchToProps)(TweetBlock);
 export default TweetBlock;
