@@ -1,6 +1,7 @@
 auth
 
 # web stuff
+__pycache__
 node_modules
 App.css
 npm-debug.log
