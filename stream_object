@@ -1,0 +1,160 @@
+object(stdClass)#10 (28) {
+  ["created_at"]=>
+  string(30) "Tue Jan 09 02:50:16 +0000 2018"
+  ["source"]=>
+  string(82) "<a href="http://twitter.com/download/iphone" rel="nofollow">Twitter for iPhone</a>"
+  ["truncated"]=>
+  bool(false)
+  ["in_reply_to_status_id"]=>
+  NULL
+  ["in_reply_to_status_id_str"]=>
+  NULL
+  ["in_reply_to_user_id"]=>
+  NULL
+  ["in_reply_to_user_id_str"]=>
+  NULL
+  ["in_reply_to_screen_name"]=>
+  NULL
+  ["geo"]=>
+  NULL
+  ["coordinates"]=>
+  NULL
+  ["place"]=>
+  object(stdClass)#35 (9) {
+    ["id"]=>
+    string(16) "ff9cc975fb01f747"
+    ["url"]=>
+    string(56) "https://api.twitter.com/1.1/geo/id/ff9cc975fb01f747.json"
+    ["place_type"]=>
+    string(4) "city"
+    ["name"]=>
+    string(7) "Oneonta"
+    ["full_name"]=>
+    string(11) "Oneonta, NY"
+    ["country_code"]=>
+    string(2) "US"
+    ["country"]=>
+    string(13) "United States"
+    ["bounding_box"]=>
+    object(stdClass)#3 (2) {
+      ["type"]=>
+      string(7) "Polygon"
+      ["coordinates"]=>
+      array(1) {
+        [0]=>
+        array(4) {
+          [0]=>
+          array(2) {
+            [0]=>
+            float(-75.108773)
+            [1]=>
+            float(42.433438)
+          }
+          [1]=>
+          array(2) {
+            [0]=>
+            float(-75.108773)
+            [1]=>
+            float(42.478019)
+          }
+          [2]=>
+          array(2) {
+            [0]=>
+            float(-74.980422)
+            [1]=>
+            float(42.478019)
+          }
+          [3]=>
+          array(2) {
+            [0]=>
+            float(-74.980422)
+            [1]=>
+            float(42.433438)
+          }
+        }
+      }
+    }
+    ["attributes"]=>
+    object(stdClass)#22 (0) {
+    }
+  }
+  ["contributors"]=>
+  NULL
+  ["is_quote_status"]=>
+  bool(false)
+  ["quote_count"]=>
+  int(0)
+  ["reply_count"]=>
+  int(0)
+  ["retweet_count"]=>
+  int(0)
+  ["favorite_count"]=>
+  int(0)
+  ["entities"]=>
+  object(stdClass)#11 (4) {
+    ["hashtags"]=>
+    array(2) {
+      [0]=>
+      object(stdClass)#19 (2) {
+        ["text"]=>
+        string(7) "youtube"
+        ["indices"]=>
+        array(2) {
+          [0]=>
+          int(55)
+          [1]=>
+          int(63)
+        }
+      }
+      [1]=>
+      object(stdClass)#33 (2) {
+        ["text"]=>
+        string(13) "youtubegaming"
+        ["indices"]=>
+        array(2) {
+          [0]=>
+          int(64)
+          [1]=>
+          int(78)
+        }
+      }
+    }
+    ["urls"]=>
+    array(1) {
+      [0]=>
+      object(stdClass)#18 (4) {
+        ["url"]=>
+        string(23) "https://t.co/Mt3kemM8sg"
+        ["expanded_url"]=>
+        string(33) "http://youtube.com/bigsharkgaming"
+        ["display_url"]=>
+        string(26) "youtube.com/bigsharkgaming"
+        ["indices"]=>
+        array(2) {
+          [0]=>
+          int(80)
+          [1]=>
+          int(103)
+        }
+      }
+    }
+    ["user_mentions"]=>
+    array(0) {
+    }
+    ["symbols"]=>
+    array(0) {
+    }
+  }
+  ["favorited"]=>
+  bool(false)
+  ["retweeted"]=>
+  bool(false)
+  ["possibly_sensitive"]=>
+  bool(false)
+  ["filter_level"]=>
+  string(3) "low"
+  ["lang"]=>
+  string(2) "en"
+  ["timestamp_ms"]=>
+  string(13) "1515466216403"
+}
