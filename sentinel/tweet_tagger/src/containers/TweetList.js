@@ -1,13 +1,15 @@
 import React, { Component } from 'react';
 import TweetBlock from './TweetBlock';
 import { connect } from 'react-redux';
+import { bindActionCreators } from 'redux';
+import { fetchNewTweet } from '../actions/index';
 
 class TweetList extends Component {
   constructor(props) {
     super(props);
 
     this.state = {
-      tweets: [
+      tweetListTweets: [
         {username: "user1", content: "content1", tweet_id: "1"},
         {username: "user2", content: "content2", tweet_id: "2"},
         {username: "user3", content: "content3", tweet_id: "3"},
@@ -18,7 +20,7 @@ class TweetList extends Component {
   }
 
   renderTweetBlocks() {
-    return this.state.tweets.map((tweet) => {
+    return this.state.tweetListTweets.map((tweet) => {
       return <TweetBlock key={tweet.tweet_id} tweet={tweet} />;
     });
   }
@@ -32,5 +34,13 @@ class TweetList extends Component {
   }
 }
 
-//TweetList = connect(null, mapDispatchToProps)(TweetList);
+function mapDispatchToProps(dispatch) {
+  return bindActionCreators({ fetchNewTweet }, dispatch);
+}
+
+function mapStateToProps(state) {
+  return { tweetListTweets : state.tweetListTweets };
+}
+
+TweetList = connect(mapStateToProps, mapDispatchToProps)(TweetList);
 export default TweetList;

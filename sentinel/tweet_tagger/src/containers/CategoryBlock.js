@@ -12,7 +12,6 @@ const tweetTarget = {
 function collect(connect, monitor) {
   return {
     connectDropTarget: connect.dropTarget(),
-    isOver: monitor.isOver(),
     canDrop: monitor.canDrop()
   };
 }
@@ -34,7 +33,7 @@ class CategoryBlock extends Component {
   }
 
   render() {
-    const { connectDropTarget, isOver, canDrop } = this.props;
+    const { connectDropTarget, canDrop } = this.props;
 
     return connectDropTarget(
       <div

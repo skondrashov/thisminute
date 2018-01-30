@@ -20,7 +20,7 @@ const tweetSource = {
     }
     const tweet = monitor.getItem();
     const dropAt = monitor.getDropResult();
-    props.dropInCategory(tweet, dropAt.category);
+    props.dropInCategory(tweet, dropAt);
   }
 };
 
