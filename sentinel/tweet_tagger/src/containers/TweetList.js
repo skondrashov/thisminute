@@ -27,7 +27,6 @@ function mapDispatchToProps(dispatch) {
 }
 
 function mapStateToProps(state) {
-  console.log(state.TweetListReducer.tweetListTweets);
   return { tweetListTweets: state.TweetListReducer.tweetListTweets };
 }
 

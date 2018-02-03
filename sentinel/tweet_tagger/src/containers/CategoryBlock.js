@@ -17,17 +17,9 @@ function collect(connect, monitor) {
 }
 
 class CategoryBlock extends Component {
-  constructor(props) {
-    super(props);
-
-    this.state = {
-      categoryName: "",
-      tweets: []
-    }
-  }
 
   renderTweetBlocks() {
-    return this.state.tweets.map((tweet) => {
+    return this.props.tweets.map((tweet) => {
       return <TweetBlock key={tweet.tweet_id} tweet={tweet} />;
     });
   }
@@ -52,7 +44,8 @@ class CategoryBlock extends Component {
 }
 
 function mapStateToProps(state) {
-  return { tweets: state.tweets };
+  console.log(state.CategoryBlockReducer.categoryBlockTweets);
+  return { tweets: state.CategoryBlockReducer.categoryBlockTweets };
 }
 
 CategoryBlock = DropTarget('tweet', tweetTarget, collect)(CategoryBlock);
