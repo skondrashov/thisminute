@@ -63,32 +63,32 @@ pericog_push() {
     fi
 }
 pericog_init() {
-    local SCRIPT="
-            cd;
-            sudo chmod 777 /srv;
-            wget http://developer.download.nvidia.com/compute/cuda/repos/ubuntu1604/x86_64/cuda-repo-ubuntu1604_9.0.176-1_amd64.deb;
-            sudo dpkg -i cuda-repo-ubuntu1604_9.0.176-1_amd64.deb;
-            rm cuda-repo-ubuntu1604_9.0.176-1_amd64.deb;
-            sudo apt-key adv --fetch-keys http://developer.download.nvidia.com/compute/cuda/repos/ubuntu1604/x86_64/7fa2af80.pub;
-            sudo apt-get update;
-            sudo debconf-set-selections <<< 'mysql-server mysql-server/root_password password $PERICOG_SQL_ROOT_PASSWORD';
-            sudo debconf-set-selections <<< 'mysql-server mysql-server/root_password_again password $PERICOG_SQL_ROOT_PASSWORD';
-            sudo apt-get -y install mysql-server cuda;
-            pip install --upgrade pip;
-            sudo pip install mysql-connector==2.1.4 numpy scipy unidecode;
-            sudo pip install gensim;
-            cat '$TM_BASE_PATH/util/pericog.sql' |
-            sed 's/\$PW_PERICOG/'$(cat $TM_BASE_PATH/auth/sql/pericog.pw)'/g' |
-            sudo mysql -u root -p$PERICOG_SQL_ROOT_PASSWORD;
-        ";
     if [ $TM_PERICOG_ADDRESS == "localhost" ]
     then
-        eval $SCRIPT
+        sudo sh $TM_BASE_PATH/util/init/pericog.sh;
     else
-        ssh -i $TM_KEY_PATH $TM_PERICOG_ADDRESS "$SCRIPT";
+        ssh -i $TM_KEY_PATH $TM_PERICOG_ADDRESS "
+                sudo apt-get install rsync;
+                sudo chmod 777 /srv;
+            ";
+        tm_push $TM_BASE_PATH/util/init/pericog.* $TM_SENTINEL_ADDRESS:/srv/;
+        ssh -i $TM_KEY_PATH $TM_PERICOG_ADDRESS "sh /srv/pericog.sh";
     fi
 
     pericog_push;
+
+    # case "" in
+    #     $1) TARGET_NAME="local machine";;
+    #     $2) TARGET_NAME="remote machine";;
+    #     $3) TARGET_NAME="";;
+    # esac
+
+    # read -n 1 -p "Initialize $TARGET_NAME for thisminute development (y/N)? " accept
+
+    # if ! [[ $accept =~ ^[Yy]$ ]]
+    # then
+    #     return
+    # fi
 }
 
 sentinel() {
