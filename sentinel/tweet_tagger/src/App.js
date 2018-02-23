@@ -1,14 +1,14 @@
 import React, { Component } from 'react';
+import './App.css';
+import TweetList from './components/TweetList';
+import CategoryList from './components/CategoryList';
 import { DragDropContext } from 'react-dnd';
 import HTML5Backend from 'react-dnd-html5-backend';
-import './App.css';
-import TweetList from './containers/TweetList';
-import CategoryList from './containers/CategoryList';
 
 class App extends Component {
   render() {
     return (
-      <div>
+      <div className="App">
         <TweetList />
         <CategoryList />
       </div>
