@@ -12,6 +12,11 @@ class TweetList extends Component {
   }
 
   componentDidMount(){
+    this.getTweetTimer = setInterval(
+      () => this._getNewTweet(),
+      5000
+    );
+
     const url = 'http://thisminute.org/sentinel/get_tweet.php?n=5';
 
     axios.get(url)
@@ -25,6 +30,10 @@ class TweetList extends Component {
         console.log(newTweets);
         this.setState({ tweets: this.state.tweets.concat(newTweets) });
       })
+  }
+
+  componentWillUnmount() {
+    clearInterval(this.pullTweetTimer);
   }
 
   // TODO: Use a better search algo to find the element to remove
@@ -61,9 +70,6 @@ class TweetList extends Component {
     return (
       <div className="tweet-list">
         {this._renderTweetBlocks()}
-        <div>
-          <button onClick={event => this._getNewTweet()}>Get Tweet</button>
-        </div>
       </div>
     );
   }
