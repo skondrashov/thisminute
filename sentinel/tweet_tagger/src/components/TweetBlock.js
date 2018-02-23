@@ -1,16 +1,9 @@
 import React, { Component } from 'react';
 import { DragSource } from 'react-dnd';
-import { dropInCategory } from '../actions/index';
-import { connect } from 'react-redux';
-import { bindActionCreators } from 'redux';
-
-const Types = {
-  TWEETBLOCK: 'tweetBlock'
-};
 
 const tweetSource = {
   beginDrag(props) {
-    return props.tweet;
+    return { tweet: props.tweet };
   },
 
   endDrag(props, monitor, component) {
@@ -19,8 +12,8 @@ const tweetSource = {
       return;
     }
     const tweet = monitor.getItem();
-    const dropAt = monitor.getDropResult();
-    props.dropInCategory(tweet, dropAt);
+    if(props._removeFromTweetList)
+      props._removeFromTweetList(tweet);
   }
 };
 
@@ -32,21 +25,6 @@ function collect(connect, monitor) {
 }
 
 class TweetBlock extends Component {
-
-  renderContent(tweet) {
-    if(tweet) {
-      const username = tweet.username;
-      const content = tweet.content;
-
-      return(
-        <div>
-          <div><b>{content}</b></div>
-          <small>{username}</small>
-        </div>
-      );
-    }
-  }
-
   render() {
     const { connectDragSource, isDragging } = this.props;
 
@@ -57,16 +35,11 @@ class TweetBlock extends Component {
           opacity: isDragging ? 0.5 : 1,
           cursor: 'move'
       }}>
-        {this.renderContent(this.props.tweet)}
+        {this.props.tweet.content}
       </div>
     );
   }
 }
 
-function mapDispatchToProps(dispatch) {
-  return bindActionCreators({ dropInCategory }, dispatch);
-}
-
 TweetBlock = DragSource('tweet', tweetSource, collect)(TweetBlock);
-TweetBlock = connect(null, mapDispatchToProps)(TweetBlock);
 export default TweetBlock;
