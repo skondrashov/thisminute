@@ -2,7 +2,10 @@ import React, { Component } from 'react';
 import TweetBlock from './TweetBlock';
 import axios from 'axios';
 
-const MAX_NUM_TWEETS = 5;
+const MAX_QUEUE_SIZE = 30;
+const LOW_QUEUE_AMOUNT = 6;
+const MAX_TWEETLIST_SIZE = 5;
+const GET_NEW_TWEET_INTERVAL = 10000;
 
 class TweetList extends Component {
   constructor(props) {
@@ -13,27 +16,31 @@ class TweetList extends Component {
 
   componentDidMount(){
     this.getTweetTimer = setInterval(
-      () => this._getNewTweet(),
-      5000
+      () => this._refillTweetList(),
+      GET_NEW_TWEET_INTERVAL
     );
+    this._refillTweetList();
+  }
 
-    const url = 'http://thisminute.org/sentinel/get_tweet.php?n=5';
+  _refillTweetList() {
+    if(this.state.tweets.length <= LOW_QUEUE_AMOUNT) {
+      let n = MAX_QUEUE_SIZE - this.state.tweets.length;
+      const url = `http://thisminute.org/sentinel/get_tweet.php?n=${n}`;
 
-    axios.get(url)
-      .then((response) => {
-        var newTweets = [];
-        for(var tweet of response.data) {
-          console.log(tweet);
-          let newTweet = { id: Math.random(), content: tweet };
-          newTweets.push(newTweet);
-        }
-        console.log(newTweets);
-        this.setState({ tweets: this.state.tweets.concat(newTweets) });
-      })
+      axios.get(url)
+        .then((response) => {
+          var newTweets = [];
+          for(var tweet of response.data) {
+            let newTweet = { id: Math.random(), content: tweet };
+            newTweets.push(newTweet);
+          }
+          this.setState({ tweets: this.state.tweets.concat(newTweets) });
+        })
+    }
   }
 
   componentWillUnmount() {
-    clearInterval(this.pullTweetTimer);
+    clearInterval(this.getTweetTimer);
   }
 
   // TODO: Use a better search algo to find the element to remove
@@ -44,6 +51,9 @@ class TweetList extends Component {
 
   _renderTweetBlocks(tweetArray) {
     return this.state.tweets.map((tweet, i) => {
+      if(i >= MAX_TWEETLIST_SIZE) {
+        return;
+      }
       return(
         <TweetBlock
           tweet={tweet}
@@ -52,18 +62,6 @@ class TweetList extends Component {
         />
       );
     });
-  }
-
-// TODO: Get IDs for tweets from database, not Math.random
-  _getNewTweet() {
-    if(this.state.tweets.length < MAX_NUM_TWEETS) {
-      const url = 'http://thisminute.org/sentinel/get_tweet.php?n=1';
-
-      axios.get(url)
-        .then((response) => {
-          this.setState({ tweets: [...this.state.tweets, { id: Math.random(), content: response.data[0] }] });
-        });
-    }
   }
 
   render() {
