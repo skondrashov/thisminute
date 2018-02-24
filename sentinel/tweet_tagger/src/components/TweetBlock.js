@@ -11,9 +11,13 @@ const tweetSource = {
       console.log('invalid drop target');
       return;
     }
-    const tweet = monitor.getItem();
-    if(props._removeFromTweetList)
+    const tweet = monitor.getItem().tweet;
+    if(props._removeFromTweetList) {
       props._removeFromTweetList(tweet);
+    }
+    if(props._removeFromCategoryBlock) {
+      props._removeFromCategoryBlock(tweet.id);
+    }
   }
 };
 

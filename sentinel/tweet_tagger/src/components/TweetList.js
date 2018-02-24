@@ -43,16 +43,14 @@ class TweetList extends Component {
     clearInterval(this.getTweetTimer);
   }
 
-  // TODO: Use a better search algo to find the element to remove
-  // could keep array sorted by ID and use binary search
   _removeFromTweetList(tweet) {
-    this.setState({ tweets: this.state.tweets.filter(e => e.id !== tweet.tweet.id) });
+    this.setState({ tweets: this.state.tweets.filter(e => e.id !== tweet.id) });
   }
 
   _renderTweetBlocks(tweetArray) {
     return this.state.tweets.map((tweet, i) => {
       if(i >= MAX_TWEETLIST_SIZE) {
-        return;
+        return null;
       }
       return(
         <TweetBlock

@@ -2,15 +2,6 @@ import React, { Component } from 'react';
 import TweetBlock from './TweetBlock';
 import { DropTarget } from 'react-dnd';
 
-/* State for CategoryBlocks are stored in the parent component CategoryList.
-react-dnd library puts a component wrapper around DropTargets (like CategoryBlock),
-and that DropTarget wrapper component is the one that recieves data from the
-DragSource (TweetBlocks). The DropTarget wrapper component has access to a
-CategoryBlock's props, but not its state, so data from a DropSource must be sent
-upward through a function in a CategoryBlock's props and then sent back downward
-as a prop from the parent component CategoryList.
-https://github.com/react-dnd/react-dnd/issues/349 */
-
 const tweetTarget = {
   drop(props, monitor) {
     const tweet = monitor.getItem();
@@ -27,12 +18,17 @@ function collect(connect, monitor) {
 
 class CategoryBlock extends Component {
 
+  _removeFromCategoryBlock(tweetId) {
+    this.props._removeTweetFromCategory(tweetId, this.props.categoryId);
+  }
+
   _renderTweetBlocks() {
     return this.props.tweets.map((tweet) => {
       return (
         <TweetBlock
           key={tweet.id}
           tweet={tweet}
+          _removeFromCategoryBlock={tweetId => this._removeFromCategoryBlock(tweetId)}
         />
       );
     });
