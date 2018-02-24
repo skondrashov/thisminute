@@ -31,7 +31,6 @@ CREATE TABLE IF NOT EXISTS sources (
 
 CREATE TABLE IF NOT EXISTS events (
 		id          SERIAL,
-		human       BOOLEAN          NOT NULL,
 		name        TEXT             NOT NULL,
 		start_time  TIMESTAMP(0)     NOT NULL,
 		in_progress BOOLEAN          NOT NULL,
@@ -60,31 +59,28 @@ GRANT USAGE ON SEQUENCE tweets_id_seq TO
 	archivist,
 	pericog;
 
-CREATE TABLE IF NOT EXISTS tweet_labels (
-		tweet_id          BIGINT  NOT NULL,
-		final             BOOLEAN NOT NULL DEFAULT FALSE,
-		human             BOOLEAN NOT NULL,
-		tweet_source_id   INTEGER DEFAULT NULL,
-		tweet_truncated   BOOLEAN DEFAULT NULL,
-		tweet_reply       BOOLEAN DEFAULT NULL,
-		tweet_legible     BOOLEAN DEFAULT NULL,
-		tweet_informative BOOLEAN DEFAULT NULL,
+CREATE TABLE IF NOT EXISTS tweet_properties (
+		tweet_id    BIGINT  NOT NULL,
+		crowdflower BOOLEAN DEFAULT NULL,
+		source_id   INTEGER DEFAULT NULL,
+		truncated   BOOLEAN DEFAULT NULL,
+		reply       BOOLEAN DEFAULT NULL,
+		legible     BOOLEAN DEFAULT NULL,
+		informative BOOLEAN DEFAULT NULL,
 		FOREIGN KEY (tweet_id)
 			REFERENCES tweets(id)
 			ON DELETE CASCADE,
-		FOREIGN KEY (tweet_source_id)
+		FOREIGN KEY (source_id)
 			REFERENCES sources(id)
 			ON DELETE SET NULL
 	);
-GRANT INSERT ON tweet_labels TO archivist;
-GRANT SELECT, INSERT, UPDATE ON tweet_labels TO pericog;
+
+GRANT INSERT ON tweet_properties TO archivist;
+GRANT SELECT, INSERT, UPDATE ON tweet_properties TO pericog;
 
 CREATE TABLE IF NOT EXISTS tweet_events (
 		tweet_id    BIGINT  NOT NULL,
 		event_id    INTEGER NOT NULL,
-		final       BOOLEAN NOT NULL DEFAULT FALSE,
-		human       BOOLEAN NOT NULL,
-		association BOOLEAN NOT NULL,
 		FOREIGN KEY (tweet_id)
 			REFERENCES tweets(id)
 			ON DELETE CASCADE,
