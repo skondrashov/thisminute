@@ -2,13 +2,6 @@ CREATE EXTENSION IF NOT EXISTS postgis;
 ALTER EXTENSION postgis UPDATE;
 
 -- TODO: turn this copy/pasted boilerplate into a function call... can't figure out how
-REVOKE ALL ON ALL TABLES    IN SCHEMA public FROM sentinel;
-REVOKE ALL ON ALL SEQUENCES IN SCHEMA public FROM sentinel;
-REVOKE ALL ON ALL FUNCTIONS IN SCHEMA public FROM sentinel;
-DROP OWNED BY sentinel;
-DROP USER IF EXISTS sentinel;
-CREATE USER sentinel PASSWORD '$PW_SENTINEL';
-
 REVOKE ALL ON ALL TABLES    IN SCHEMA public FROM archivist;
 REVOKE ALL ON ALL SEQUENCES IN SCHEMA public FROM archivist;
 REVOKE ALL ON ALL FUNCTIONS IN SCHEMA public FROM archivist;
@@ -23,14 +16,28 @@ DROP OWNED BY pericog;
 DROP USER IF EXISTS pericog;
 CREATE USER pericog PASSWORD '$PW_PERICOG';
 
+REVOKE ALL ON ALL TABLES    IN SCHEMA public FROM sentinel;
+REVOKE ALL ON ALL SEQUENCES IN SCHEMA public FROM sentinel;
+REVOKE ALL ON ALL FUNCTIONS IN SCHEMA public FROM sentinel;
+DROP OWNED BY sentinel;
+DROP USER IF EXISTS sentinel;
+CREATE USER sentinel PASSWORD '$PW_SENTINEL';
+
 CREATE TABLE IF NOT EXISTS sources (
 		id   SERIAL,
 		name TEXT UNIQUE NOT NULL,
 		PRIMARY KEY (id)
 	);
 
+CREATE TABLE IF NOT EXISTS event_types (
+		id   SERIAL,
+		name TEXT UNIQUE NOT NULL,
+		PRIMARY KEY (id)
+	);
+GRANT SELECT ON event_types TO pericog;
+
 CREATE TABLE IF NOT EXISTS events (
-		id            BIGSERIAL,
+		id            BIGINT,
 		event_type_id INTEGER          NOT NULL,
 		name          TEXT             NOT NULL,
 		start_time    TIMESTAMP(0)     NOT NULL,
@@ -83,8 +90,8 @@ GRANT INSERT ON tweet_properties TO archivist;
 GRANT SELECT, INSERT, UPDATE ON tweet_properties TO pericog;
 
 CREATE TABLE IF NOT EXISTS tweet_events (
-		tweet_id    BIGINT  NOT NULL,
-		event_id    BIGINT NOT NULL,
+		tweet_id BIGINT NOT NULL,
+		event_id BIGINT NOT NULL,
 		FOREIGN KEY (tweet_id)
 			REFERENCES tweets(id)
 			ON DELETE CASCADE,

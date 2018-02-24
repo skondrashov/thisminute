@@ -14,15 +14,8 @@ CREATE TABLE IF NOT EXISTS models (
 	);
 GRANT INSERT, SELECT ON models TO pericog;
 
-CREATE TABLE IF NOT EXISTS event_types (
-		id   SERIAL,
-		name TEXT UNIQUE NOT NULL,
-		PRIMARY KEY (id)
-	);
-GRANT SELECT ON event_types TO pericog;
-
 CREATE TABLE IF NOT EXISTS events (
-		id            SERIAL,
+		id            BIGSERIAL,
 		model_id      TEXT             NOT NULL,
 		final         BOOLEAN          NOT NULL DEFAULT FALSE,
 		event_type_id INTEGER          NOT NULL,
