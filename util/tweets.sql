@@ -30,15 +30,20 @@ CREATE TABLE IF NOT EXISTS sources (
 	);
 
 CREATE TABLE IF NOT EXISTS events (
-		id          SERIAL,
-		name        TEXT             NOT NULL,
-		start_time  TIMESTAMP(0)     NOT NULL,
-		in_progress BOOLEAN          NOT NULL,
-		end_time    TIMESTAMP(0)     NOT NULL,
-		geo         GEOGRAPHY(POINT) NOT NULL,
-		r_meters    INTEGER          NOT NULL,
-		PRIMARY KEY (id)
+		id            BIGSERIAL,
+		event_type_id INTEGER          NOT NULL,
+		name          TEXT             NOT NULL,
+		start_time    TIMESTAMP(0)     NOT NULL,
+		in_progress   BOOLEAN          NOT NULL,
+		end_time      TIMESTAMP(0)     NOT NULL,
+		geo           GEOGRAPHY(POINT) NOT NULL,
+		r_meters      INTEGER          NOT NULL,
+		PRIMARY KEY (id),
+		FOREIGN KEY (event_type_id)
+			REFERENCES event_types(id)
+			ON DELETE CASCADE
 	);
+GRANT INSERT, SELECT, UPDATE ON events TO pericog;
 
 CREATE TABLE IF NOT EXISTS tweets (
 		id    BIGSERIAL,
@@ -49,11 +54,11 @@ CREATE TABLE IF NOT EXISTS tweets (
 		text  TEXT             NOT NULL,
 		PRIMARY KEY (id)
 	);
-CREATE INDEX CONCURRENTLY IF NOT EXISTS tweets_time_idx ON tweets(time);
-
-GRANT SELECT ON tweets TO sentinel;
+CREATE INDEX CONCURRENTLY IF NOT EXISTS
+	tweets_time_idx ON tweets(time);
 GRANT INSERT ON tweets TO archivist;
 GRANT SELECT ON tweets TO pericog;
+GRANT SELECT ON tweets TO sentinel;
 GRANT USAGE ON SEQUENCE tweets_id_seq TO
 	sentinel,
 	archivist,
@@ -74,13 +79,12 @@ CREATE TABLE IF NOT EXISTS tweet_properties (
 			REFERENCES sources(id)
 			ON DELETE SET NULL
 	);
-
 GRANT INSERT ON tweet_properties TO archivist;
 GRANT SELECT, INSERT, UPDATE ON tweet_properties TO pericog;
 
 CREATE TABLE IF NOT EXISTS tweet_events (
 		tweet_id    BIGINT  NOT NULL,
-		event_id    INTEGER NOT NULL,
+		event_id    BIGINT NOT NULL,
 		FOREIGN KEY (tweet_id)
 			REFERENCES tweets(id)
 			ON DELETE CASCADE,
@@ -88,3 +92,4 @@ CREATE TABLE IF NOT EXISTS tweet_events (
 			REFERENCES events(id)
 			ON DELETE CASCADE
 	);
+GRANT SELECT, INSERT, UPDATE ON tweet_events TO pericog;
