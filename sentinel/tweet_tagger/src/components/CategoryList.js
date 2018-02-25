@@ -15,7 +15,11 @@ class CategoryList extends Component {
   }
 
   _addTweetToCategory(tweet, categoryId) {
+    if(tweet.categoryId === categoryId) {
+      return null;
+    }
     let newState = this.state.categories;
+    tweet.categoryId = categoryId;
     newState.forEach((category) => {
       if(category.categoryId === categoryId) {
         category.tweets.push(tweet);

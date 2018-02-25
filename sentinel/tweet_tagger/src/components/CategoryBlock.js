@@ -5,9 +5,7 @@ import { DropTarget } from 'react-dnd';
 const tweetTarget = {
   drop(props, monitor) {
     const tweet = monitor.getItem().tweet;
-    if(tweet.categoryId !== props.categoryId) {
-      props._addTweetToCategory(tweet, props.categoryId);
-    }
+    props._addTweetToCategory(tweet, props.categoryId);
   }
 };
 
@@ -26,7 +24,6 @@ class CategoryBlock extends Component {
 
   _renderTweetBlocks() {
     return this.props.tweets.map((tweet) => {
-      tweet.categoryId = this.props.categoryId;
       return (
         <TweetBlock
           key={tweet.id}
