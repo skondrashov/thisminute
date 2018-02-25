@@ -4,8 +4,10 @@ import { DropTarget } from 'react-dnd';
 
 const tweetTarget = {
   drop(props, monitor) {
-    const tweet = monitor.getItem();
-    props._addTweetToCategory(tweet, props.categoryId);
+    const tweet = monitor.getItem().tweet;
+    if(tweet.categoryId !== props.categoryId) {
+      props._addTweetToCategory(tweet, props.categoryId);
+    }
   }
 };
 
@@ -18,17 +20,18 @@ function collect(connect, monitor) {
 
 class CategoryBlock extends Component {
 
-  _removeFromCategoryBlock(tweetId) {
+  _removeFromCategoryBlock(tweetId, categoryId) {
     this.props._removeTweetFromCategory(tweetId, this.props.categoryId);
   }
 
   _renderTweetBlocks() {
     return this.props.tweets.map((tweet) => {
+      tweet.categoryId = this.props.categoryId;
       return (
         <TweetBlock
           key={tweet.id}
           tweet={tweet}
-          _removeFromCategoryBlock={tweetId => this._removeFromCategoryBlock(tweetId)}
+          _removeFromCategoryBlock={(tweetId, categoryId) => this._removeFromCategoryBlock(tweetId, categoryId)}
         />
       );
     });

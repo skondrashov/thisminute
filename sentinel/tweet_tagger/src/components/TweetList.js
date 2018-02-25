@@ -43,8 +43,8 @@ class TweetList extends Component {
     clearInterval(this.getTweetTimer);
   }
 
-  _removeFromTweetList(tweet) {
-    this.setState({ tweets: this.state.tweets.filter(e => e.id !== tweet.id) });
+  _removeFromTweetList(tweetId) {
+    this.setState({ tweets: this.state.tweets.filter(e => e.id !== tweetId) });
   }
 
   _renderTweetBlocks(tweetArray) {
@@ -56,7 +56,7 @@ class TweetList extends Component {
         <TweetBlock
           tweet={tweet}
           key={i}
-          _removeFromTweetList={tweet => this._removeFromTweetList(tweet)}
+          _removeFromTweetList={tweetId => this._removeFromTweetList(tweetId)}
         />
       );
     });

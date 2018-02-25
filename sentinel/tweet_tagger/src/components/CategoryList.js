@@ -7,30 +7,36 @@ class CategoryList extends Component {
 
     this.state = {
       categories: [
-        { categoryName: "Not Relevant", categoryId: 0, tweets: []},
-        { categoryName: "Thoughts/Prayers", categoryId: 1, tweets: []},
-        { categoryName: "Eyewitness", categoryId: 2, tweets: []}
+        { categoryName: "Eyewitness", categoryId: 0, tweets: []},
+        { categoryName: "Secondhand Account", categoryId: 1, tweets: []},
+        { categoryName: "Not Relevant", categoryId: 2, tweets: []},
       ]
     }
-  }
-
-  _removeTweetFromCategory(tweetId, categoryId) {
-    let newState = this.state.categories;
-    newState.forEach((category) =>{
-      if(category.categoryId === categoryId) {
-        category.tweets = category.tweets.filter(e => e.id !== tweetId);
-      }
-    });
-    this.setState({ categories: newState });
   }
 
   _addTweetToCategory(tweet, categoryId) {
     let newState = this.state.categories;
     newState.forEach((category) => {
       if(category.categoryId === categoryId) {
-        if(!category.tweets.find(e => e.id === tweet.tweet.id)) {
-          category.tweets.push(tweet.tweet);
+        category.tweets.push(tweet);
+      }
+    });
+    this.setState({ categories: newState });
+  }
+
+  _removeTweetFromCategory(tweet, categoryId) {
+    if(tweet.categoryId === categoryId) {
+      return null;
+    }
+    let newState = this.state.categories;
+    newState.forEach((category) => {
+      if(category.categoryId === categoryId) {
+        for(var i in category.tweets) {
+          if(category.tweets[i].id === tweet.id) {
+            break;
+          }
         }
+        category.tweets.splice(i, 1);
       }
     });
     this.setState({ categories: newState });
@@ -45,7 +51,7 @@ class CategoryList extends Component {
           categoryId={category.categoryId}
           tweets={category.tweets}
           _addTweetToCategory={(tweet, categoryId) => this._addTweetToCategory(tweet, categoryId)}
-          _removeTweetFromCategory={(tweetId, categoryId) => this._removeTweetFromCategory(tweetId, categoryId)}
+          _removeTweetFromCategory={(tweet, categoryId) => this._removeTweetFromCategory(tweet, categoryId)}
         />
       );
     });

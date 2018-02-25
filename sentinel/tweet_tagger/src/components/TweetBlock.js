@@ -13,10 +13,10 @@ const tweetSource = {
     }
     const tweet = monitor.getItem().tweet;
     if(props._removeFromTweetList) {
-      props._removeFromTweetList(tweet);
+      props._removeFromTweetList(tweet.id);
     }
     if(props._removeFromCategoryBlock) {
-      props._removeFromCategoryBlock(tweet.id);
+      props._removeFromCategoryBlock(tweet, props.categoryId);
     }
   }
 };
