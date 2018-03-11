@@ -18,11 +18,12 @@ from tensorflow.contrib.tensor_forest.client import eval_metrics
 import logging, time
 
 import ConfigParser
-import mysql.connector
 
-import re
-from unidecode import unidecode
-import os.path
+import sys
+import os
+
+sys.path.append(os.path.abspath('/srv/lib/'))
+from util import get_words, db_tweets_connect
 
 tensorflow.logging.set_verbosity(tensorflow.logging.ERROR)
 logging.basicConfig(format='%(asctime)s : %(levelname)s : %(message)s', level=logging.DEBUG)
@@ -31,33 +32,13 @@ config = ConfigParser.RawConfigParser()
 config.read('/srv/config.ini')
 
 print("Connecting to self")
-db_pericog_connection = mysql.connector.connect(
-		user='pericog',
-		password=open('/srv/auth/mysql/pericog.pw').read(),
-		host='localhost',
-		database='ThisMinute'
-	)
+db_pericog_connection = db_tweets_connect('pericog', 'localhost')
 db_pericog_cursor = db_pericog_connection.cursor()
 
 print("Connecting to tweets")
 ACTIVE_DB_NAME = config.get('connections', 'active')
-db_tweets_connection = mysql.connector.connect(
-		user='pericog',
-		password=open('/srv/auth/mysql/pericog.pw').read(),
-		host=config.get('connections', ACTIVE_DB_NAME),
-		database='ThisMinute'
-	)
+db_tweets_connection = db_tweets_connect('pericog', config.get('connections', ACTIVE_DB_NAME))
 db_tweets_cursor = db_tweets_connection.cursor()
-
-def get_words(tweet):
-	tweet = re.sub('((\B@)|(\\bhttps?:\/\/))[^\\s]+', " ", tweet)
-	tweet = re.sub('[^\w]+', " ", tweet)
-	tweet = tweet.lower().strip()
-	tweet = unicode(unidecode(tweet))
-	return tweet.split()
-
-def get_vector(tweet):
-	return t2v.infer_vector(get_words(tweet), alpha=0.1, min_alpha=0.0001, steps=5)
 
 def load_model(type, load, preprocess_x, preprocess_y, train, training_size, in_place):
 	path = '/srv/' + type + '.model'
@@ -97,69 +78,6 @@ def load_model(type, load, preprocess_x, preprocess_y, train, training_size, in_
 	return model
 load_model.X = []
 load_model.Y = []
-
-t2v = load_model(
-		'tweet2vec',
-		lambda path: Doc2Vec.load(path),
-		lambda X: [TaggedDocument(get_words(tweet), [category]) for category, tweet in zip(load_model.X, load_model.Y)],
-		lambda Y: Y,
-		lambda model, X, Y: Doc2Vec(
-				dm=1, dbow_words=1, dm_mean=0, dm_concat=0, dm_tag_count=1,
-				hs=1,
-				negative=0,
-
-				size=int(config.get('tweet2vec', 'vector_size')),
-				alpha=0.025,
-				window=8,
-				min_count=0,
-				sample=1e-4,
-				iter=10,
-
-				max_vocab_size=None,
-				workers=int(config.get('tweet2vec', 'thread_count')),
-				batch_words=1000000,
-				min_alpha=0.0001,
-				seed=1,
-
-				### no documentation ###
-				# docvecs=None,
-				# docvecs_mapfile='',
-				# trim_rule=None,
-				# comment=None,
-
-				documents=X,
-			),
-		10000,
-		False
-	)
-
-rf_estimator = load_model(
-		'random_forest',
-		lambda path: random_forest.TensorForestEstimator(
-				tensor_forest.ForestHParams(
-						num_classes=2,
-						num_features=784,
-						num_trees=100,
-						max_nodes=1000
-					),
-				graph_builder_class=tensor_forest.RandomForestGraphs if True else tensor_forest.TrainingLossForest,
-				model_dir=path
-			),
-		lambda X: numpy.array([get_vector(tweet).tolist() for tweet in X]).astype(numpy.float32),
-		lambda Y: numpy.array(Y).astype(numpy.float32),
-		lambda model, X, Y: model.fit(
-				input_fn=numpy_io.numpy_input_fn(
-					x={'features': X},
-					y=Y,
-					batch_size=1000,
-					num_epochs=None,
-					shuffle=True
-				),
-				steps=None
-			),
-		10000,
-		True
-	)
 
 last_runtime = time.time()
 while True:
