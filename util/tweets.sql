@@ -38,8 +38,8 @@ GRANT SELECT ON event_types TO pericog;
 
 CREATE TABLE IF NOT EXISTS events (
 		id            BIGINT,
-		event_type_id INTEGER          NOT NULL,
-		name          TEXT             NOT NULL,
+		event_type_id INTEGER          DEFAULT NULL,
+		name          TEXT             DEFAULT NULL,
 		start_time    TIMESTAMP(0)     NOT NULL,
 		in_progress   BOOLEAN          NOT NULL,
 		end_time      TIMESTAMP(0)     NOT NULL,
@@ -48,7 +48,7 @@ CREATE TABLE IF NOT EXISTS events (
 		PRIMARY KEY (id),
 		FOREIGN KEY (event_type_id)
 			REFERENCES event_types(id)
-			ON DELETE CASCADE
+			ON DELETE SET NULL
 	);
 GRANT INSERT, SELECT, UPDATE ON events TO pericog;
 
@@ -77,8 +77,11 @@ CREATE TABLE IF NOT EXISTS tweet_properties (
 		source_id   INTEGER DEFAULT NULL,
 		truncated   BOOLEAN DEFAULT NULL,
 		reply       BOOLEAN DEFAULT NULL,
+		spam        BOOLEAN DEFAULT NULL,
 		legible     BOOLEAN DEFAULT NULL,
 		informative BOOLEAN DEFAULT NULL,
+		secondhand  BOOLEAN DEFAULT NULL,
+		eyewitness  BOOLEAN DEFAULT NULL,
 		FOREIGN KEY (tweet_id)
 			REFERENCES tweets(id)
 			ON DELETE CASCADE,
