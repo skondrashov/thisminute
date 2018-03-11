@@ -32,7 +32,6 @@ archivist_init() {
     # copy service to /etc/systemd/system/archivist.service
 
     local SCRIPT="
-            cd;
             sudo chmod -R 777 /srv;
             sudo apt-get install rsync php php-pgsql;
         ";
@@ -94,16 +93,20 @@ sentinel() {
     tm_connect $TM_SENTINEL_ADDRESS;
 }
 sentinel_push() {
-    echo "writing /srv/config.ini"; tm_push $TM_BASE_PATH/config.ini $TM_SENTINEL_ADDRESS:/srv/config.ini;
-    echo "writing /var/www/html/";  tm_push $TM_BASE_PATH/html/      $TM_SENTINEL_ADDRESS:/var/www/html/;
-    echo "writing /srv/auth/";      tm_push $TM_BASE_PATH/auth/      $TM_SENTINEL_ADDRESS:/srv/auth/;
+    echo "writing /srv/config.ini"; tm_push $TM_BASE_PATH/config.ini     $TM_SENTINEL_ADDRESS:/srv/config.ini;
+    echo "writing /var/www/html/";  tm_push $TM_BASE_PATH/sentinel/html/ $TM_SENTINEL_ADDRESS:/var/www/html/;
+    echo "writing /srv/auth/";      tm_push $TM_BASE_PATH/auth/          $TM_SENTINEL_ADDRESS:/srv/auth/;
 }
 sentinel_init() {
+    sudo apt-get install postgresql python3-pip;
+    pip3 install --upgrade pip;
+    sudo -H pip3 install -v django;
+
     local SCRIPT="
-            cd;
-            sudo chmod -R 777 /var/www;
             sudo chmod -R 777 /srv;
-            sudo apt-get install rsync php php-pgsql;
+            sudo apt-get install rsync python3-pip apache2-dev;
+            pip3 install --upgrade pip;
+            sudo -H pip3 install -v django mod_wsgi;
         ";
     if [ $TM_SENTINEL_ADDRESS == "localhost" ]
     then
