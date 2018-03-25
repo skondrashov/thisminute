@@ -18,3 +18,9 @@ def db_tweets_connect(username, hostname, test=False):
 			host=hostname,
 			database='thisminute' + ('-test' if test else '')
 		)
+
+import ConfigParser
+parser = ConfigParser.RawConfigParser()
+parser.read('/srv/config.ini')
+def config(section, option):
+	parser.get(section, option)

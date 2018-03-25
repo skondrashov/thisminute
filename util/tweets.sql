@@ -23,9 +23,9 @@ DROP OWNED BY sentinel;
 DROP USER IF EXISTS sentinel;
 CREATE USER sentinel PASSWORD '$PW_SENTINEL';
 
+-- using this with ON UPDATE CASCADE allows us to easily change source names
 CREATE TABLE IF NOT EXISTS sources (
-		id   SERIAL,
-		name TEXT UNIQUE NOT NULL,
+		id TEXT,
 		PRIMARY KEY (id)
 	);
 
@@ -72,21 +72,25 @@ GRANT USAGE ON SEQUENCE tweets_id_seq TO
 	pericog;
 
 CREATE TABLE IF NOT EXISTS tweet_properties (
-		tweet_id    BIGINT  NOT NULL,
-		crowdflower BOOLEAN DEFAULT NULL,
-		source_id   INTEGER DEFAULT NULL,
-		truncated   BOOLEAN DEFAULT NULL,
-		reply       BOOLEAN DEFAULT NULL,
-		spam        BOOLEAN DEFAULT NULL,
-		legible     BOOLEAN DEFAULT NULL,
-		informative BOOLEAN DEFAULT NULL,
-		secondhand  BOOLEAN DEFAULT NULL,
-		eyewitness  BOOLEAN DEFAULT NULL,
+		tweet_id            BIGINT  NOT NULL,
+		crowdflower         BOOLEAN DEFAULT NULL,
+		source              TEXT    DEFAULT NULL,
+		truncated           BOOLEAN DEFAULT NULL,
+		reply               BOOLEAN DEFAULT NULL,
+		spam                BOOLEAN DEFAULT NULL,
+		legible             BOOLEAN DEFAULT NULL,
+		informative         BOOLEAN DEFAULT NULL,
+		secondhand          BOOLEAN DEFAULT NULL,
+		eyewitness          BOOLEAN DEFAULT NULL,
+		tweet2vec_train     BOOLEAN DEFAULT FALSE,
+		random_forest_train BOOLEAN DEFAULT FALSE,
+		tagger_train        BOOLEAN DEFAULT FALSE,
 		FOREIGN KEY (tweet_id)
 			REFERENCES tweets(id)
 			ON DELETE CASCADE,
-		FOREIGN KEY (source_id)
+		FOREIGN KEY (source)
 			REFERENCES sources(id)
+			ON UPDATE CASCADE
 			ON DELETE SET NULL
 	);
 GRANT INSERT ON tweet_properties TO archivist;
