@@ -3,23 +3,28 @@ from __future__ import division
 import sys, os
 sys.path.append(os.path.abspath('/srv/lib/'))
 
+import numpy
+
 from util import get_words, config
-import Model
+from model import Model
 
 from gensim.models import Doc2Vec as GS_Doc2Vec
 from gensim.models.doc2vec import TaggedDocument
 
 class Doc2Vec(Model):
-	def load(self, path):
+	def load(self):
 		try:
-			self.d2v = GS_Doc2Vec.load(path)
+			self.d2v = GS_Doc2Vec.load(self.path)
+			print("Using existing model:", self.path)
+			self.trained=True
 			return
 		except:
-			if not train:
-				return
+			self.trained=False
 
-		self.training_data()
-		self.d2v = Doc2Vec(
+	def train(self, X, Y):
+		print("Training new model:", self.name)
+		X = [TaggedDocument(get_words(tweet), [property]) for tweet, property in zip(X, Y)]
+		self.d2v = GS_Doc2Vec(
 				dm=1, dbow_words=1, dm_mean=0, dm_concat=0, dm_tag_count=1,
 				hs=1,
 				negative=0,
@@ -43,11 +48,9 @@ class Doc2Vec(Model):
 				# trim_rule=None,
 				# comment=None,
 
-				documents=Model.Xs[self.dataset],
+				documents=X,
 			)
-		self.d2v.save(path)
+		self.d2v.save(self.path)
 
-	def predict(self, X):
-
-		numpy.array(X).astype(numpy.float32)
-		return self.d2v.infer_vector(get_words(tweet), alpha=0.1, min_alpha=0.0001, steps=5).tolist()
+	def predict(self, tweet):
+		return self.d2v.infer_vector(get_words(tweet), alpha=0.1, min_alpha=0.0001, steps=5)

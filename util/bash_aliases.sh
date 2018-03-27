@@ -2,7 +2,9 @@ TM_BASE_PATH=~/thisminute
 TM_KEY_PATH=~/thisminute/auth/ssl/tm.pem
 
 tm_push() {
-    rsync -uavz -e "ssh -i ${TM_KEY_PATH}" --del --delete-excluded --exclude '*.git*' "$@"
+    while ! rsync --timeout=2 -uavz -e "ssh -i ${TM_KEY_PATH}" --del --delete-excluded --exclude '*.git*' "$@";
+        do sleep 1;
+    done
 }
 tm_local_push() {
     rsync -uav --chmod=777 --del --delete-excluded --exclude '*.git*' "$@"
@@ -56,10 +58,10 @@ pericog_push() {
         echo "writing /srv/auth/";      tm_local_push                 $TM_BASE_PATH/auth/                           /srv/auth/;
         echo "writing /srv/lib/";       tm_local_push                 $TM_BASE_PATH/lib/ $TM_BASE_PATH/pericog/lib/ /srv/lib/;
     else
-        echo "writing /srv/config.ini"; tm_push                 $TM_BASE_PATH/config.ini                      $TM_PERICOG_ADDRESS:/srv/config.ini;
-        echo "writing /srv/etc/";       tm_push --exclude 'lib' $TM_BASE_PATH/pericog/                        $TM_PERICOG_ADDRESS:/srv/etc/;
-        echo "writing /srv/auth/";      tm_push                 $TM_BASE_PATH/auth/                           $TM_PERICOG_ADDRESS:/srv/auth/;
-        echo "writing /srv/lib/";       tm_push                 $TM_BASE_PATH/lib/ $TM_BASE_PATH/pericog/lib/ $TM_PERICOG_ADDRESS:/srv/lib/;
+        echo "writing /srv/config.ini"; tm_push                                    $TM_BASE_PATH/config.ini                                                    $TM_PERICOG_ADDRESS:/srv/config.ini;
+        echo "writing /srv/etc/";       tm_push --exclude 'lib' --exclude 'models' $TM_BASE_PATH/pericog/                                                      $TM_PERICOG_ADDRESS:/srv/etc/;
+        echo "writing /srv/auth/";      tm_push                                    $TM_BASE_PATH/auth/                                                         $TM_PERICOG_ADDRESS:/srv/auth/;
+        echo "writing /srv/lib/";       tm_push                                    $TM_BASE_PATH/lib/ $TM_BASE_PATH/pericog/lib/ $TM_BASE_PATH/pericog/models/ $TM_PERICOG_ADDRESS:/srv/lib/;
     fi
 }
 pericog_init() {
@@ -73,7 +75,7 @@ pericog_init() {
             sudo apt-get update;
             sudo apt-get -y install postgresql postgis cuda;
             pip install --upgrade pip;
-            sudo pip install mysql-connector==2.1.4 numpy scipy unidecode;
+            sudo pip install psycopg numpy scipy unidecode;
             sudo pip install gensim;
             cat '$TM_BASE_PATH/util/pericog.sql' |
             sed 's/\$PW_PERICOG/'$(cat $TM_BASE_PATH/auth/sql/pericog.pw)'/g' |

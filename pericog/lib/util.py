@@ -11,16 +11,24 @@ def get_words(tweet):
 	return tweet.split()
 
 import psycopg2
+psycopg2.extensions.register_type(psycopg2.extensions.UNICODE)
+psycopg2.extensions.register_type(psycopg2.extensions.UNICODEARRAY)
 def db_tweets_connect(username, hostname, test=False):
-	return psycopg2.connect(
-			user=username
-			password=open('/srv/auth/sql/' + username + '.pw').read(),
-			host=hostname,
-			database='thisminute' + ('-test' if test else '')
-		)
+	print("Connecting to database at", hostname)
+	try:
+		return psycopg2.connect(
+				user=username,
+				password=open('/srv/auth/sql/' + username + '.pw').read(),
+				host=hostname,
+				database='thisminute' + ('-test' if test else ''),
+				connect_timeout=5
+			)
+	except:
+		print("Failed to connect to", hostname)
+		raise
 
 import ConfigParser
 parser = ConfigParser.RawConfigParser()
 parser.read('/srv/config.ini')
 def config(section, option):
-	parser.get(section, option)
+	return parser.get(section, option)
