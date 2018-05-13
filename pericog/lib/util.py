@@ -31,4 +31,8 @@ import ConfigParser
 parser = ConfigParser.RawConfigParser()
 parser.read('/srv/config.ini')
 def config(section, option):
-	return parser.get(section, option)
+	value = parser.get(section, option)
+	try:
+		return int(value)
+	except:
+		return value

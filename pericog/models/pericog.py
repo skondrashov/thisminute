@@ -3,7 +3,7 @@ from __future__ import division
 import sys, os
 sys.path.append(os.path.abspath('/srv/lib/'))
 
-import numpy
+import numpy as np
 
 from util import db_tweets_connect, config
 from model import Model
@@ -12,27 +12,15 @@ from random_forest import Random_Forest
 
 class Pericog(Model):
 	def load(self):
-		dataset='tweet2vec'
-		print("Loading tweet2vec model for dataset:", dataset)
-		self.t2v = Doc2Vec(dataset)
-		if not self.t2v.trained:
-			X, Y = self.t2v.training_data()
-			self.t2v.train(X, Y)
+		self.t2v = Doc2Vec('tweet2vec')
 
-		dataset = 'random_forest'
-		print("Loading random forest model for dataset:", dataset)
-		self.rf = Random_Forest(dataset)
-		if not self.rf.trained:
-			print("Retrieving training set:", dataset)
-			X, Y = self.rf.training_data()
+		def rf_input(X, Y):
 			X = [self.t2v.predict(tweet).tolist() for tweet in X]
-			X = numpy.array(X).astype(numpy.float32)
-			Y = numpy.array(Y).astype(numpy.float32)
-			self.rf.train(X, Y)
+			X = np.array(X).astype(np.float32)
+			Y = np.array(Y).astype(np.bool)
+			return X, Y
+
+		self.rf = Random_Forest('random_forest', properties='crowdflower', input_fn=rf_input)
 
 	def predict(self, X):
-		X = [self.t2v.predict(tweet).tolist() for tweet in X]
-		X = numpy.array(X).astype(numpy.float32)
-		X = self.rf.predict(X)
-
-		return X
+		return self.rf.predict(X)

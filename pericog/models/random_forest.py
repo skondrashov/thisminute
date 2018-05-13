@@ -4,48 +4,43 @@ import sys, os
 sys.path.append(os.path.abspath('/srv/lib/'))
 
 from model import Model
+from util import config
 
-from tensorflow.contrib.tensor_forest.client import random_forest
-from tensorflow.contrib.tensor_forest.python import tensor_forest
-
-from tensorflow.python.estimator.inputs import numpy_io
+from sklearn.externals import joblib
+from sklearn.ensemble import RandomForestClassifier
 
 class Random_Forest(Model):
 	def load(self):
-		self.trained=False
-		if os.path.isfile(self.path):
-			print("Using existing model:", self.path)
-			self.trained=True
-		self.model = random_forest.TensorForestEstimator(
-				tensor_forest.ForestHParams(
-						num_classes=2,
-						num_features=784,
-						num_trees=100,
-						max_nodes=1000
-					),
-				graph_builder_class=tensor_forest.RandomForestGraphs if True else tensor_forest.TrainingLossForest,
-				model_dir=self.path
-			)
+		self.rf = joblib.load(self.path)
 
 	def train(self, X, Y):
-		print("Training new model:", self.name)
-		self.rf = self.model.fit(
-				input_fn=numpy_io.numpy_input_fn(
-					x={'features': X},
-					y=Y,
-					batch_size=1000,
-					num_epochs=None,
-					shuffle=True
-				),
-				steps=None
+		rf = RandomForestClassifier(
+				n_jobs=config('pericog', 'thread_count'),
+
+				n_estimators=5000, # number of trees
+				criterion='gini', # 'gini' or 'entropy'
+
+				verbose=1,
+
+				max_features='sqrt', # 'sqrt', 'log2', or a percentage of the total features for each forest to consider
+
+				class_weight=None,
+
+				max_depth=None,
+				min_samples_split=2,
+				min_samples_leaf=1,
+				min_weight_fraction_leaf=0.0,
+				max_leaf_nodes=None,
+				min_impurity_decrease=0.0,
+
+				bootstrap=True,
+				oob_score=False,
+				random_state=None,
+				warm_start=False,
 			)
+		rf.fit(X, Y)
+		joblib.dump(rf, self.path)
 
 	def predict(self, X):
-		return self.rf.predict(
-				input_fn=numpy_io.numpy_input_fn(
-					x={'features': X},
-					batch_size=1000,
-					num_epochs=1,
-					shuffle=False
-				)
-			)
+		X, Y = self.input_fn(X, [])
+		return self.rf.predict(X)

@@ -1,12 +1,8 @@
 #!/usr/bin/python
 from __future__ import print_function
 from __future__ import division
+print("Importing...")
 import sys, os
-
-import tensorflow
-
-from tensorflow.contrib.learn.python.learn import metric_spec
-from tensorflow.contrib.tensor_forest.client import eval_metrics
 
 import logging, time
 
@@ -17,7 +13,6 @@ from pericog import Pericog
 
 pericog = Pericog(None)
 
-tensorflow.logging.set_verbosity(tensorflow.logging.ERROR)
 logging.basicConfig(format='%(asctime)s : %(levelname)s : %(message)s', level=logging.DEBUG)
 
 print("Connecting to self")
@@ -40,7 +35,7 @@ while True:
 			SELECT
 				id,
 				time,
-				ST_AsText(the_geom) AS geo,
+				ST_AsText(geo) AS geo,
 				exact,
 				user,
 				text
@@ -52,7 +47,7 @@ while True:
 	last_runtime = current_time
 
 	X = []
-	for id, time, geo, exact, user, text in db_tweets_cursor.fetchall():
+	for id, timestamp, geo, exact, user, text in db_tweets_cursor.fetchall():
 		if not get_words(text):
 			continue
 
