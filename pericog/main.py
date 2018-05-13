@@ -59,7 +59,3 @@ while True:
 		Y = pericog.predict(X)
 
 	time.sleep(1)
-
-
-	# for i, prediction in enumerate(Y):
-	# 	print(prediction['logistic'][0], "\t", documents[i])
