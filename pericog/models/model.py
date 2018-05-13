@@ -21,7 +21,6 @@ class Model:
 		if dataset is not None:
 			self.path = '/srv/models/' + self.name + '_' + self.dataset
 			try:
-				raise
 				print("Loading model", self.name, "for dataset", self.dataset)
 				self.load()
 				print("Succesfully loaded cached model:", self.path)
