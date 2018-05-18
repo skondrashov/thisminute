@@ -3,21 +3,21 @@ from __future__ import division
 import sys, os
 sys.path.append(os.path.abspath('/srv/lib/'))
 
-from model import Model
 from util import config
+from model import Model
 
 from sklearn.externals import joblib
 from sklearn.ensemble import RandomForestClassifier
 
 class Random_Forest(Model):
-	def load(self):
-		self.rf = joblib.load(self.path)
+	def cache(self):
+		self.random_forest = joblib.load(self.path)
 
 	def train(self, X, Y):
-		rf = RandomForestClassifier(
+		random_forest = RandomForestClassifier(
 				n_jobs=config('pericog', 'thread_count'),
 
-				n_estimators=5000, # number of trees
+				n_estimators=100, # number of trees
 				criterion='gini', # 'gini' or 'entropy'
 
 				verbose=1,
@@ -38,9 +38,9 @@ class Random_Forest(Model):
 				random_state=None,
 				warm_start=False,
 			)
-		rf.fit(X, Y)
-		joblib.dump(rf, self.path)
+		random_forest.fit(X, Y)
+		joblib.dump(random_forest, self.path)
 
 	def predict(self, X):
 		X, Y = self.input_fn(X, [])
-		return self.rf.predict(X)
+		return self.random_forest.predict(X)
