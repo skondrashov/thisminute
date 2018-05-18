@@ -14,7 +14,7 @@ class Doc2Vec(Model):
 		self.doc2vec = GS_Doc2Vec.load(self.path)
 
 	def train(self, X, Y):
-		X = [TaggedDocument(get_words(tweet), [property]) for tweet, property in zip(X, Y)]
+		X = [TaggedDocument(tokens, [property]) for tokens, property in zip(X, Y)]
 		self.doc2vec = GS_Doc2Vec(
 				workers=config('pericog', 'thread_count'),
 
@@ -44,5 +44,5 @@ class Doc2Vec(Model):
 			)
 		self.doc2vec.save(self.path)
 
-	def predict(self, tweet):
-		return self.doc2vec.infer_vector(get_words(tweet), alpha=0.1, min_alpha=0.0001, steps=5)
+	def predict(self, X):
+		return [self.doc2vec.infer_vector(tokens, alpha=0.1, min_alpha=0.0001, steps=5) for tokens in X]
