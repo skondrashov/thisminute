@@ -9,16 +9,20 @@ from model import Model
 import gensim
 import numpy
 
-def get_average_word2vec(tokens_list, vector, generate_missing=False, k=300):
-	if len(tokens_list)<1:
-		return numpy.zeros(k)
-	if generate_missing:
-		vectorized = [vector[word] if word in vector else numpy.random.rand(k) for word in tokens_list]
+def get_word2vec(token, vector, size=300):
+	if token in vector:
+		return vector[token]
+	elif config('word2vec', 'generate_missing'):
+		return numpy.random.rand(size)
 	else:
-		vectorized = [vector[word] if word in vector else numpy.zeros(k) for word in tokens_list]
-	length = len(vectorized)
-	summed = numpy.sum(vectorized, axis=0)
-	return numpy.divide(summed, length)
+		return numpy.zeros(size)
+
+def get_average_word2vec(tokens_list, vector):
+	vectorized = [get_word2vec(token, vector) for token in tokens_list]
+	return numpy.divide(
+			numpy.sum(vectorized, axis=0),
+			len(vectorized)
+		)
 
 class Average_Word2Vec(Model):
 	def cache(self):

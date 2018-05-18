@@ -58,26 +58,15 @@ while True:
 	if X:
 		Y = pericog.predict(X)
 
-		print('')
-		print('')
-		print('')
-
-		print("---------SPOOKY SCARY----------")
+		print("Positives:")
 		for row in zip(X,Y):
 			if row[1]:
 				print(row[0])
 
-
-		print("---------PUSSY TWEETS----------")
+		print("Negatives:")
 		for row in zip(X,Y):
 			if not row[1]:
 				print(row[0])
-
-		print('')
-		print('')
-		print('')
-		print('')
-		print('')
 
 
 	time.sleep(1)
