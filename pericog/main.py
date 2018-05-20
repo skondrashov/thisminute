@@ -9,9 +9,10 @@ import logging, time
 sys.path.append(os.path.abspath('/srv/lib/'))
 from util import get_words, db_tweets_connect, config
 
-from pericog import Pericog
+from model import Model
 
-pericog = Pericog(None)
+pericog = Model.factory('pericog', 'pericog')
+pericog.load_and_train()
 
 logging.basicConfig(format='%(asctime)s : %(levelname)s : %(message)s', level=logging.DEBUG)
 
@@ -35,7 +36,7 @@ while True:
 			SELECT
 				id,
 				time,
-				ST_AsText(geo) AS geo,
+				ST_AsText(geo) AS geolocation,
 				exact,
 				user,
 				text
@@ -47,7 +48,7 @@ while True:
 	last_runtime = current_time
 
 	X = []
-	for id, timestamp, geo, exact, user, text in db_tweets_cursor.fetchall():
+	for id, timestamp, geolocation, exact, user, text in db_tweets_cursor.fetchall():
 		if not get_words(text):
 			continue
 

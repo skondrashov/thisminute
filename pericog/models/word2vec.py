@@ -24,13 +24,13 @@ def get_average_word2vec(tokens_list, vector):
 			len(vectorized)
 		)
 
-class Average_Word2Vec(Model):
-	def cache(self):
+class word2vec(Model):
+	def load(self):
 		self.vectors = gensim.models.KeyedVectors.load_word2vec_format(self.path, binary=True)
 
 	def train(self, X, Y):
 		pass
 
 	def predict(self, X):
-		X, Y = self.input_fn(X, [])
+		X, Y = self.input_function(X, [])
 		return [get_average_word2vec(tokens, self.vectors) for tokens in X]

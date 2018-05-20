@@ -6,23 +6,23 @@ sys.path.append(os.path.abspath('/srv/lib/'))
 from util import config, get_words
 from model import Model
 
-from gensim.models import Doc2Vec as GS_Doc2Vec
+from gensim.models import Doc2Vec
 from gensim.models.doc2vec import TaggedDocument
 
-class Doc2Vec(Model):
-	def cache(self):
-		self.doc2vec = GS_Doc2Vec.load(self.path)
+class doc2vec(Model):
+	def load(self):
+		self.model = Doc2Vec.load(self.path)
 
 	def train(self, X, Y):
 		X = [TaggedDocument(tokens, [property]) for tokens, property in zip(X, Y)]
-		self.doc2vec = GS_Doc2Vec(
+		model = Doc2Vec(
 				workers=config('pericog', 'thread_count'),
 
 				dm=1, dbow_words=1, dm_mean=0, dm_concat=0, dm_tag_count=1,
 				hs=1,
 				negative=0,
 
-				size=config('tweet2vec', 'vector_size'),
+				size=config('tokens2vec', 'vector_size'),
 				alpha=0.025,
 				window=8,
 				min_count=0,
@@ -42,7 +42,7 @@ class Doc2Vec(Model):
 
 				documents=X,
 			)
-		self.doc2vec.save(self.path)
+		model.save(self.path)
 
 	def predict(self, X):
-		return [self.doc2vec.infer_vector(tokens, alpha=0.1, min_alpha=0.0001, steps=5) for tokens in X]
+		return [self.model.infer_vector(tokens, alpha=0.1, min_alpha=0.0001, steps=5) for tokens in X]

@@ -9,8 +9,8 @@ from model import Model
 from sklearn.externals import joblib
 from sklearn.ensemble import RandomForestClassifier
 
-class Random_Forest(Model):
-	def cache(self):
+class random_forest(Model):
+	def load(self):
 		self.random_forest = joblib.load(self.path)
 
 	def train(self, X, Y):
@@ -42,5 +42,5 @@ class Random_Forest(Model):
 		joblib.dump(random_forest, self.path)
 
 	def predict(self, X):
-		X, Y = self.input_fn(X, [])
+		X, Y = self.input_function(X, [])
 		return self.random_forest.predict(X)

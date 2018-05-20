@@ -9,8 +9,8 @@ from model import Model
 import re
 from unidecode import unidecode
 
-class Tokenizer(Model):
-	def cache(self):
+class tokenizer(Model):
+	def load(self):
 		pass
 
 	def train(self, X, Y):

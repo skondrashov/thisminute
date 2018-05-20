@@ -1,15 +1,10 @@
 from __future__ import print_function
 from __future__ import division
 import sys, os
-sys.path.append(os.path.abspath('/srv/lib/'))
 
+sys.path.append(os.path.abspath('/srv/lib/'))
 from util import config, db_tweets_connect
 from model import Model
-from tokenizer import Tokenizer
-from doc2vec import Doc2Vec
-from random_forest import Random_Forest
-from bag_of_words_count import Bag_Of_Words_Count
-from word2vec import Average_Word2Vec
 
 import numpy
 import pandas
@@ -19,30 +14,38 @@ import matplotlib
 import matplotlib.pyplot as pyplot
 import matplotlib.patches as mpatches
 
-class Pericog(Model):
-	def cache(self):
-		self.tokenizer =\
-			Tokenizer(None)
+class pericog(Model):
+	def load(self):
+		tokenizer = Model.factory(
+				'pericog',
+				'tokenizer'
+			)
+		tokenizer.load_and_train()
 
-		def tweet2vec_input(X, Y):
-			return self.tokenizer.predict(X), Y
-		self.tweet2vec =\
-			Average_Word2Vec('google_news', input_fn=tweet2vec_input)
-			# Doc2Vec('tweet2vec', input_fn=tweet2vec_input)
-			# Bag_Of_Words_Count('tweet2vec', input_fn=tweet2vec_input)
+		tokens2vec = Model.factory(
+				'pericog',
+				'tokens2vec',
+				dataset='google_news',
+				input_function=lambda X, Y: (tokenizer.predict(X), Y)
+			)
+		tokens2vec.load_and_train()
 
-		def classifier_input(X, Y):
-			return self.tweet2vec.predict(X), Y
-		self.classifier =\
-			Random_Forest('random_forest', properties='crowdflower', input_fn=classifier_input, load=False)
+		classifier = Model.factory(
+				'pericog',
+				'classifier',
+				dataset='random_forest',
+				properties='crowdflower',
+				input_function=lambda X, Y: (tokens2vec.predict(X), Y)
+			)
 
-		X, Y = self.classifier.training_data()
-		self.analyze(X, Y, classifier_input)
+		X, Y = classifier.training_data()
+		self.analyze(X, Y, lambda X, Y: (tokens2vec.predict(X), Y))
 
-		self.classifier.load()
+		classifier.load_and_train()
+		self.model = classifier
 
 	def predict(self, X):
-		return self.classifier.predict(X)
+		return self.model.predict(X)
 
 	def analyze(self, X, Y, input_fn):
 		tokenizer = RegexpTokenizer(r'\w+')
@@ -59,7 +62,7 @@ class Pericog(Model):
 		print("\n%s words total, with a vocabulary size of %s" % (len(all_words), len(VOCAB)))
 		print("Max sentence length is %s" % max(sentence_lengths))
 
-		fig = pyplot.figure(figsize=(10, 10))
+		figure = pyplot.figure(figsize=(10, 10))
 		pyplot.xlabel('Sentence length')
 		pyplot.ylabel('Number of sentences')
 		pyplot.hist(sentence_lengths)
@@ -77,6 +80,6 @@ class Pericog(Model):
 				blue_patch = mpatches.Patch(color='blue', label='Disaster')
 				pyplot.legend(handles=[orange_patch, blue_patch], prop={'size': 30})
 
-		fig = pyplot.figure(figsize=(16, 16))
+		figure = pyplot.figure(figsize=(16, 16))
 		plot_LSA(X, Y)
 		pyplot.show()

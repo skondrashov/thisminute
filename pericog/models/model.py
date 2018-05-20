@@ -7,44 +7,50 @@ from util import config, db_tweets_connect
 
 import numpy
 
+# for use by the factory method
+sys.path.append(os.path.abspath('/srv/lib/models'))
+
 class Model:
 	Xs = {}
 	Ys = {}
 
-	def __init__(self, dataset, properties='exact', input_fn=None, load=True):
+	@staticmethod
+	def factory(agent, model, dataset=None, properties='True', input_function=None):
+		model = config(agent, model)
+		Class = getattr(__import__(model, fromlist=[model]), model)
+		return Class(dataset, properties, input_function)
+
+	def __init__(self, dataset, properties, input_function):
 		self.name = self.__class__.__name__.lower()
 		self.dataset = dataset
-		self.input_fn = input_fn if input_fn else lambda X, Y: (X, Y)
+		self.input_function = input_function if input_function else lambda X, Y: (X, Y)
 		self.properties = properties
 
 		if not isinstance(self.properties, list):
 			self.properties = [self.properties]
 
-		if load:
-			self.load()
-
-	def load(self):
-		if self.dataset is not None:
+	def load_and_train(self):
+		if self.dataset is None:
+			print("Loading unsupervised model")
+		else:
 			self.path = '/srv/models/' + self.name + '_' + self.dataset
+			print("Loading model", self.name, "using training set", self.dataset)
 			try:
-				print("Loading model", self.name, "for dataset", self.dataset)
-				self.cache()
+				self.load()
 				print("Succesfully loaded cached model:", self.path)
+				return
 			except Exception, e:
 				print("Unable to load from cache:", e)
 
-				print("Creating new model:", self.path)
-				X, Y = self.training_data()
+			print("Creating new model:", self.path)
+			X, Y = self.training_data()
 
-				print("Training model")
-				X, Y = self.input_fn(X, Y)
-				self.train(X, Y)
-				print("Loading model off disk")
-				self.cache()
-				print("New model created", self.path)
-		else:
-			print("Loading meta model:", self.name)
-			self.cache()
+			print("Training model")
+			X, Y = self.input_function(X, Y)
+			self.train(X, Y)
+			print("New model created", self.path)
+
+		self.load()
 
 	def training_data(self):
 		if self.dataset in Model.Xs:
