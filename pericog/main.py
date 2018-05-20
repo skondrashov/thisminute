@@ -11,7 +11,7 @@ from util import get_words, db_tweets_connect, config
 
 from model import Model
 
-pericog = Model.factory('pericog', 'pericog')
+pericog = Model.factory('pericog', 'pericog', verbose=True)
 pericog.load_and_train()
 
 logging.basicConfig(format='%(asctime)s : %(levelname)s : %(message)s', level=logging.DEBUG)
@@ -68,6 +68,5 @@ while True:
 		for row in zip(X,Y):
 			if not row[1]:
 				print(row[0])
-
 
 	time.sleep(1)

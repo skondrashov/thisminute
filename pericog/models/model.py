@@ -14,20 +14,20 @@ class Model:
 	Xs = {}
 	Ys = {}
 
-	@staticmethod
-	def factory(agent, model, dataset=None, properties='True', input_function=None):
-		model = config(agent, model)
-		Class = getattr(__import__(model, fromlist=[model]), model)
-		return Class(dataset, properties, input_function)
-
-	def __init__(self, dataset, properties, input_function):
+	def __init__(self, dataset, properties, input_function, verbose=False):
 		self.name = self.__class__.__name__.lower()
 		self.dataset = dataset
-		self.input_function = input_function if input_function else lambda X, Y: (X, Y)
 		self.properties = properties
+		self.input_function = input_function if input_function else lambda X, Y: (X, Y)
+		self.verbose = verbose
 
 		if not isinstance(self.properties, list):
 			self.properties = [self.properties]
+
+	def factory(self, model, dataset=None, properties='True', input_function=None):
+		model = config(self.name, model)
+		Class = getattr(__import__(model, fromlist=[model]), model)
+		return Class(dataset, properties, input_function, self.verbose)
 
 	def load_and_train(self):
 		if self.dataset is None:

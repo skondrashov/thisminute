@@ -16,30 +16,28 @@ import matplotlib.patches as mpatches
 
 class pericog(Model):
 	def load(self):
-		tokenizer = Model.factory(
-				'pericog',
+		tokenizer = self.factory(
 				'tokenizer'
 			)
 		tokenizer.load_and_train()
 
-		tokens2vec = Model.factory(
-				'pericog',
+		tokens2vec = self.factory(
 				'tokens2vec',
 				dataset='google_news',
 				input_function=lambda X, Y: (tokenizer.predict(X), Y)
 			)
 		tokens2vec.load_and_train()
 
-		classifier = Model.factory(
-				'pericog',
+		classifier = self.factory(
 				'classifier',
 				dataset='random_forest',
 				properties='crowdflower',
 				input_function=lambda X, Y: (tokens2vec.predict(X), Y)
 			)
 
-		X, Y = classifier.training_data()
-		self.analyze(X, Y, lambda X, Y: (tokens2vec.predict(X), Y))
+		if self.verbose:
+			X, Y = classifier.training_data()
+			self.analyze(X, Y, lambda X, Y: (tokens2vec.predict(X), Y))
 
 		classifier.load_and_train()
 		self.model = classifier
