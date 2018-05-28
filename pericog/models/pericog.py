@@ -6,7 +6,6 @@ sys.path.append(os.path.abspath('/srv/lib/'))
 from util import config, db_tweets_connect
 from model import Model
 
-import numpy
 import pandas
 from nltk.tokenize import RegexpTokenizer
 from sklearn.decomposition import PCA, TruncatedSVD
@@ -17,14 +16,14 @@ import matplotlib.patches as mpatches
 class pericog(Model):
 	def load(self):
 		tokenizer = self.factory(
-				'tokenizer'
+				'tokenizer',
 			)
 		tokenizer.load_and_train()
 
 		tokens2vec = self.factory(
 				'tokens2vec',
 				dataset='google_news',
-				input_function=lambda X, Y: (tokenizer.predict(X), Y)
+				input_model=tokenizer,
 			)
 		tokens2vec.load_and_train()
 
@@ -32,7 +31,7 @@ class pericog(Model):
 				'classifier',
 				dataset='random_forest',
 				properties='crowdflower',
-				input_function=lambda X, Y: (tokens2vec.predict(X), Y)
+				input_model=tokens2vec,
 			)
 
 		if self.verbose:
@@ -66,18 +65,14 @@ class pericog(Model):
 		pyplot.hist(sentence_lengths)
 		pyplot.show()
 
-		X, Y = input_fn(X, Y)
-
- 		def plot_LSA(test_data, test_labels, savepath="PCA_demo.csv", plot=True):
-			lsa = TruncatedSVD(n_components=2)
-			lsa.fit(test_data)
-			lsa_scores = lsa.transform(test_data)
-			if plot:
-				pyplot.scatter(lsa_scores[:,0], lsa_scores[:,1], s=8, alpha=.8, c=test_labels, cmap=matplotlib.colors.ListedColormap(['orange', 'blue']))
-				orange_patch = mpatches.Patch(color='orange', label='Irrelevant')
-				blue_patch = mpatches.Patch(color='blue', label='Disaster')
-				pyplot.legend(handles=[orange_patch, blue_patch], prop={'size': 30})
-
 		figure = pyplot.figure(figsize=(16, 16))
-		plot_LSA(X, Y)
+		X, Y = input_fn(X, Y)
+		lsa = TruncatedSVD(n_components=2)
+		lsa.fit(X)
+		lsa_scores = lsa.transform(X)
+		pyplot.scatter(lsa_scores[:,0], lsa_scores[:,1], s=8, alpha=.8, c=Y, cmap=matplotlib.colors.ListedColormap(['orange', 'blue']))
+		pyplot.legend(handles=[
+				mpatches.Patch(color='orange', label='Irrelevant'),
+				mpatches.Patch(color='blue', label='Disaster')
+			], prop={'size': 30})
 		pyplot.show()

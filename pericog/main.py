@@ -1,7 +1,7 @@
 #!/usr/bin/python
 from __future__ import print_function
 from __future__ import division
-print("Importing...")
+print("Importing modules for pericog")
 import sys, os
 
 import logging, time
@@ -9,9 +9,9 @@ import logging, time
 sys.path.append(os.path.abspath('/srv/lib/'))
 from util import get_words, db_tweets_connect, config
 
-from model import Model
+from pericog import pericog
 
-pericog = Model.factory('pericog', 'pericog', verbose=True)
+pericog = pericog(verbose=True)
 pericog.load_and_train()
 
 logging.basicConfig(format='%(asctime)s : %(levelname)s : %(message)s', level=logging.DEBUG)
@@ -41,23 +41,37 @@ while True:
 				user,
 				text
 			FROM tweets
+			LEFT JOIN tweet_properties ON id = tweet_id
 			WHERE TO_TIMESTAMP(%s) <= time AND time < TO_TIMESTAMP(%s)
 			ORDER BY time ASC
 		""", (last_runtime, current_time))
 
 	last_runtime = current_time
 
+	ids = []
 	X = []
 	for id, timestamp, geolocation, exact, user, text in db_tweets_cursor.fetchall():
 		if not get_words(text):
 			continue
 
+		ids.append(id)
 		X.append(text)
 
 	db_tweets_connection.commit()
 
 	if X:
 		Y = pericog.predict(X)
+
+		for id, label in zip(ids, Y):
+			if label == True:
+				db_tweets_cursor.execute("""
+						INSERT INTO tweet_properties
+							(tweet_id, tagger_train)
+						VALUES
+							(%s, True)
+						ON CONFLICT(tweet_id) DO UPDATE SET
+							tagger_train = True
+					""", (id,))
 
 		print("Positives:")
 		for row in zip(X,Y):

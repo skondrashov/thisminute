@@ -72,7 +72,7 @@ GRANT USAGE ON SEQUENCE tweets_id_seq TO
    pericog;
 
 CREATE TABLE IF NOT EXISTS tweet_properties (
-      tweet_id            BIGINT  NOT NULL,
+      tweet_id            BIGINT  UNIQUE NOT NULL,
       crowdflower         BOOLEAN DEFAULT NULL,
       source              TEXT    DEFAULT NULL,
       truncated           BOOLEAN DEFAULT NULL,

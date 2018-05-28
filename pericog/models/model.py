@@ -14,30 +14,30 @@ class Model:
 	Xs = {}
 	Ys = {}
 
-	def __init__(self, dataset, properties, input_function, verbose=False):
+	def __init__(self, dataset=None, properties='True', input_model=None, verbose=False):
 		self.name = self.__class__.__name__.lower()
 		self.dataset = dataset
 		self.properties = properties
-		self.input_function = input_function if input_function else lambda X, Y: (X, Y)
+		self.input_function = lambda X, Y: (input_model.predict(X) if input_model else X, Y)
 		self.verbose = verbose
 
 		if not isinstance(self.properties, list):
 			self.properties = [self.properties]
 
-	def factory(self, model, dataset=None, properties='True', input_function=None):
+	def factory(self, model, dataset=None, properties='True', input_model=None):
 		model = config(self.name, model)
 		Class = getattr(__import__(model, fromlist=[model]), model)
-		return Class(dataset, properties, input_function, self.verbose)
+		return Class(dataset, properties, input_model, self.verbose)
 
 	def load_and_train(self):
 		if self.dataset is None:
-			print("Loading unsupervised model")
+			print("Loading unsupervised model", self.name)
 		else:
 			self.path = '/srv/models/' + self.name + '_' + self.dataset
 			print("Loading model", self.name, "using training set", self.dataset)
 			try:
 				self.load()
-				print("Succesfully loaded cached model:", self.path)
+				print("Successfully loaded cached model:", self.path)
 				return
 			except Exception, e:
 				print("Unable to load from cache:", e)
