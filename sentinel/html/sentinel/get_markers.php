@@ -18,6 +18,6 @@ echo json_encode([
 				FROM tweet_events
 				JOIN tweets ON id=tweet_id
 				ORDER BY time DESC
-				LIMIT 50;
+				LIMIT 20;
 			')) ?: [],
 	]);

@@ -9,32 +9,63 @@ html, body, div, span {
 	background-repeat: no-repeat;
 }
 
-.infobox {
-	.tweet {
-		display: flex;
-		.vote {
-			flex-shrink: 0;
-			margin-left: auto;
-		   width: 20px;
-			div {
-				float: left;
-				width: 100%;
-			}
-			div:before {
-				content: "";
-				display: block;
-				padding-top: 100%;
-			}
-			.up {
-				background-image: url("../res/upvote.png");
-				&.voted {
-					background-color: #EEFFEE;
+#header {
+	height: 60px;
+	background-color: #000;
+	color: #FFF;
+	margin-left: auto;
+	text-align: center;
+	font: 50px arial,
+	sans-serif;
+}
+
+#box {
+	display: flex;
+	width: 100%;
+	position: absolute;
+	top: 60px;
+	bottom: 0;
+	overflow:hidden;
+}
+
+#map {
+	flex-basis: 70%;
+	height: 100%;
+}
+
+#sidebar {
+	flex-basis: 30%;
+	.infobox {
+		overflow: hidden;
+		padding: 10px;
+		font: 14px arial, sans-serif;
+		.tweet {
+			display: flex;
+			border-bottom: 1px solid black;
+			.vote {
+				flex-shrink: 0;
+				margin-left: auto;
+			   width: 20px;
+				div {
+					float: left;
+					width: 100%;
 				}
-			}
-			.down {
-				background-image: url("../res/downvote.png");
-				&.voted {
-					background-color: #FFEEEE;
+				div:before {
+					content: "";
+					display: block;
+					padding-top: 100%;
+				}
+				.up {
+					background-image: url("../res/upvote.png");
+					&.voted {
+						background-color: #EEFFEE;
+					}
+				}
+				.down {
+					background-image: url("../res/downvote.png");
+					&.voted {
+						background-color: #FFEEEE;
+					}
 				}
 			}
 		}

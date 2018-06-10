@@ -13,44 +13,27 @@ function createMarker(lon, lat, text, id, tweets) {
 	var marker = new google.maps.Marker({
 			position: {lat: parseFloat(lat), lng: parseFloat(lon)},
 			map: map,
-			icon: default_icon
+			icon: highlighted_icon
 		});
-	var highlighted;
 
-	marker.addListener('click', function() {
-			if (highlighted)
-			{
-				highlighted = false;
-				marker.setIcon(default_icon);
-				$(`#marker_${id}`).remove();
-			}
-			else
-			{
-				highlighted = true;
-				marker.setIcon(highlighted_icon);
-				$("#sidebar").append($(`
-						<div id="marker_${id}" class="infobox"></div>
-					`));
-				for (var tweet of tweets)
-				{
-					$(`#marker_${id}`).append($(`
-							<div id="tweet_${tweet.id}" class="tweet">
-								<div class="text">
-									${tweet.text}
-								</div>
-								<div class="vote">
-									<div class="up"></div>
-									<div class="down"></div>
-								</div>
-							</div>
-						`));
-				}
-			}
-		});
-	marker.addListener('mouseover', function() {
-		});
-	marker.addListener('mouseout', function() {
-		});
+	$("#sidebar").append($(`
+			<div id="marker_${id}" class="infobox"></div>
+		`));
+	for (var tweet of tweets)
+	{
+		$(`#marker_${id}`).append($(`
+				<div id="tweet_${tweet.id}" class="tweet">
+					<div class="text">
+						${tweet.text}
+					</div>
+					<div class="vote">
+						<div class="up"></div>
+						<div class="down"></div>
+					</div>
+				</div>
+			`));
+	}
+
 	return marker;
 }
 
