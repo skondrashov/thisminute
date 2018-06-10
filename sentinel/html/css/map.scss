@@ -1,0 +1,42 @@
+html, body, div, span {
+	margin: 0;
+	padding: 0;
+	border: 0;
+	font-size: 100%;
+	font: inherit;
+	vertical-align: baseline;
+	background-size: contain;
+	background-repeat: no-repeat;
+}
+
+.infobox {
+	.tweet {
+		display: flex;
+		.vote {
+			flex-shrink: 0;
+			margin-left: auto;
+		   width: 20px;
+			div {
+				float: left;
+				width: 100%;
+			}
+			div:before {
+				content: "";
+				display: block;
+				padding-top: 100%;
+			}
+			.up {
+				background-image: url("../res/upvote.png");
+				&.voted {
+					background-color: #EEFFEE;
+				}
+			}
+			.down {
+				background-image: url("../res/downvote.png");
+				&.voted {
+					background-color: #FFEEEE;
+				}
+			}
+		}
+	}
+}

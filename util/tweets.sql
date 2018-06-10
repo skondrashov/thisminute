@@ -51,6 +51,7 @@ CREATE TABLE IF NOT EXISTS events (
          ON DELETE SET NULL
    );
 GRANT INSERT, SELECT, UPDATE ON events TO pericog;
+GRANT SELECT ON events TO sentinel;
 
 CREATE TABLE IF NOT EXISTS tweets (
       id    BIGSERIAL,
@@ -98,7 +99,7 @@ GRANT SELECT, INSERT, UPDATE ON tweet_properties TO pericog;
 
 CREATE TABLE IF NOT EXISTS tweet_events (
       tweet_id BIGINT NOT NULL,
-      event_id BIGINT NOT NULL,
+      event_id BIGINT DEFAULT NULL,
       FOREIGN KEY (tweet_id)
          REFERENCES tweets(id)
          ON DELETE CASCADE,
@@ -107,3 +108,17 @@ CREATE TABLE IF NOT EXISTS tweet_events (
          ON DELETE CASCADE
    );
 GRANT SELECT, INSERT, UPDATE ON tweet_events TO pericog;
+GRANT SELECT ON tweet_events TO sentinel;
+
+CREATE TABLE IF NOT EXISTS tweet_votes (
+      tweet_id BIGINT  NOT NULL,
+      address  INET    NOT NULL,
+      value    BOOLEAN NOT NULL,
+      FOREIGN KEY (tweet_id)
+         REFERENCES tweets(id)
+         ON DELETE CASCADE
+   );
+CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS
+   tweet_votes_tweet_id_value_idx ON tweet_votes(tweet_id, address);
+GRANT SELECT ON tweet_votes TO pericog;
+GRANT INSERT, UPDATE ON tweet_votes TO sentinel;

@@ -57,7 +57,7 @@ pericog_push() {
         local ADDRESS='';
     else
         local PUSH=tm_push;
-        local ADDRESS=$TM_PERICOG_ADDRESS;
+        local ADDRESS=$TM_PERICOG_ADDRESS:;
     fi
     echo "writing /srv/config.ini"; $PUSH                                    $TM_BASE_PATH/config.ini                                                    $ADDRESS/srv/config.ini;
     echo "writing /srv/etc/";       $PUSH --exclude 'lib' --exclude 'models' $TM_BASE_PATH/pericog/                                                      $ADDRESS/srv/etc/;

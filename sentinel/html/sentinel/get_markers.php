@@ -1,18 +1,23 @@
-<?php
+<?php declare(strict_types=1);
+
 $config = parse_ini_file("/srv/config.ini", true);
-$target = $config['connections'][$config['connections']['active']];
-$db = new mysqli($target, "sentinel", file_get_contents('/srv/auth/mysql/sentinel.pw'), "ThisMinute");
+$db = pg_connect(
+		'host=' . $config['connections'][$config['connections']['active']] . ' ' .
+		'user=sentinel ' .
+		'password=' . file_get_contents('/srv/auth/sql/sentinel.pw') . ' ' .
+		'dbname=thisminute'
+	);
 
-$result = [];
-if (!($query = $db->query("SELECT * FROM events;")))
-	die();
-$result["events"] = $query->fetch_all(MYSQLI_ASSOC);
-$query->close();
-
-if (!($query = $db->query("SELECT * FROM event_tweets ORDER BY time ASC;")))
-	die();
-$result["tweets"] = $query->fetch_all(MYSQLI_ASSOC);
-$query->close();
-
-echo json_encode($result);
-$db->close();
+echo json_encode([
+		"events" => pg_fetch_all(pg_query($db, 'SELECT * FROM events;')) ?: [],
+		"tweets" => pg_fetch_all(pg_query($db, '
+				SELECT
+					*,
+					ST_X(geo::geometry) AS lon,
+					ST_Y(geo::geometry) AS lat
+				FROM tweet_events
+				JOIN tweets ON id=tweet_id
+				ORDER BY time DESC
+				LIMIT 50;
+			')) ?: [],
+	]);

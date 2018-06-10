@@ -11,7 +11,7 @@ from util import get_words, db_tweets_connect, config
 
 from pericog import pericog
 
-pericog = pericog(verbose=True)
+pericog = pericog(verbose=False)
 pericog.load_and_train()
 
 logging.basicConfig(format='%(asctime)s : %(levelname)s : %(message)s', level=logging.DEBUG)
@@ -57,8 +57,6 @@ while True:
 		ids.append(id)
 		X.append(text)
 
-	db_tweets_connection.commit()
-
 	if X:
 		Y = pericog.predict(X)
 
@@ -72,6 +70,12 @@ while True:
 						ON CONFLICT(tweet_id) DO UPDATE SET
 							tagger_train = True
 					""", (id,))
+				db_tweets_cursor.execute("""
+						INSERT INTO tweet_events
+							(tweet_id)
+						VALUES
+							(%s)
+					""", (id,))
 
 		print("Positives:")
 		for row in zip(X,Y):
@@ -83,4 +87,5 @@ while True:
 			if not row[1]:
 				print(row[0])
 
+	db_tweets_connection.commit()
 	time.sleep(1)

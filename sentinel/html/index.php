@@ -3,7 +3,7 @@
 	<head>
 		<title>ThisMinute Event Mapping</title>
 		<meta charset="utf-8">
-		<link rel="stylesheet" href="css/animations.css">
+		<link rel="stylesheet" href="css/map.css">
 		<style type="text/css">
 			html, body { height: 100%; margin: 0; padding: 0; }
 			#header { height: 60px; background-color: #000; color: #FFF; margin-left: auto; text-align: center; font: 50px arial, sans-serif; }
