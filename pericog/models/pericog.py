@@ -41,6 +41,9 @@ class pericog(Model):
 		classifier.load_and_train()
 		self.model = classifier
 
+	def update(self):
+		self.model.load_and_train(check_cache=False)
+
 	def predict(self, X):
 		return self.model.predict(X)
 

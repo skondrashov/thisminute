@@ -26,6 +26,7 @@ db_tweets_connection = db_tweets_connect('pericog', config('connections', ACTIVE
 db_tweets_cursor = db_tweets_connection.cursor()
 
 last_runtime = time.time()
+last_traintime = time.time()
 while True:
 	db_tweets_cursor.execute("SELECT EXTRACT(EPOCH FROM MAX(time)) FROM tweets")
 	for timestamp, in db_tweets_cursor.fetchall():
@@ -48,6 +49,10 @@ while True:
 
 	last_runtime = current_time
 
+	if current_time - last_traintime >= 30:
+		pericog.update()
+		last_traintime = current_time
+
 	ids = []
 	X = []
 	for id, timestamp, geolocation, exact, user, text in db_tweets_cursor.fetchall():
@@ -57,34 +62,29 @@ while True:
 		ids.append(id)
 		X.append(text)
 
+		db_tweets_cursor.execute("""
+				INSERT INTO tweet_votes
+					(tweet_id, user_ip, disaster)
+				VALUES
+					(%s, '0.0.0.0', False)
+			""", (id,))
+
 	if X:
 		Y = pericog.predict(X)
 
 		for id, label in zip(ids, Y):
 			if label == True:
 				db_tweets_cursor.execute("""
-						INSERT INTO tweet_properties
-							(tweet_id, tagger_train)
-						VALUES
-							(%s, True)
-						ON CONFLICT(tweet_id) DO UPDATE SET
-							tagger_train = True
-					""", (id,))
-				db_tweets_cursor.execute("""
-						INSERT INTO tweet_events
-							(tweet_id)
-						VALUES
-							(%s)
+						UPDATE tweet_votes
+						SET disaster=True
+						WHERE
+							tweet_id = %s AND
+							user_ip = '0.0.0.0'
 					""", (id,))
 
 		print("Positives:")
 		for row in zip(X,Y):
 			if row[1]:
-				print(row[0])
-
-		print("Negatives:")
-		for row in zip(X,Y):
-			if not row[1]:
 				print(row[0])
 
 	db_tweets_connection.commit()

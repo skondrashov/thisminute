@@ -29,18 +29,20 @@ class Model:
 		Class = getattr(__import__(model, fromlist=[model]), model)
 		return Class(dataset, properties, input_model, self.verbose)
 
-	def load_and_train(self):
+	def load_and_train(self, check_cache=True):
 		if self.dataset is None:
 			print("Loading unsupervised model", self.name)
 		else:
 			self.path = '/srv/models/' + self.name + '_' + self.dataset
 			print("Loading model", self.name, "using training set", self.dataset)
-			try:
-				self.load()
-				print("Successfully loaded cached model:", self.path)
-				return
-			except Exception, e:
-				print("Unable to load from cache:", e)
+
+			if check_cache:
+				try:
+					self.load()
+					print("Successfully loaded cached model:", self.path)
+					return
+				except Exception, e:
+					print("Unable to load from cache:", e)
 
 			print("Creating new model:", self.path)
 			X, Y = self.training_data()
@@ -71,6 +73,7 @@ class Model:
 				LEFT JOIN tweet_properties ON
 					id=tweet_id
 				WHERE {}_train = True
+				ORDER BY id DESC
 			""".format(
 				','.join(self.properties),
 				self.dataset

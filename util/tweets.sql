@@ -96,10 +96,12 @@ CREATE TABLE IF NOT EXISTS tweet_properties (
    );
 GRANT INSERT ON tweet_properties TO archivist;
 GRANT SELECT, INSERT, UPDATE ON tweet_properties TO pericog;
+GRANT SELECT, INSERT, UPDATE ON tweet_properties TO sentinel;
 
 CREATE TABLE IF NOT EXISTS tweet_events (
       tweet_id BIGINT NOT NULL,
       event_id BIGINT DEFAULT NULL,
+      PRIMARY KEY (tweet_id, event_id),
       FOREIGN KEY (tweet_id)
          REFERENCES tweets(id)
          ON DELETE CASCADE,
@@ -111,14 +113,26 @@ GRANT SELECT, INSERT, UPDATE ON tweet_events TO pericog;
 GRANT SELECT ON tweet_events TO sentinel;
 
 CREATE TABLE IF NOT EXISTS tweet_votes (
-      tweet_id BIGINT  NOT NULL,
-      address  INET    NOT NULL,
-      value    BOOLEAN NOT NULL,
+      tweet_id    BIGINT  NOT NULL,
+      user_ip     INET    NOT NULL,
+
+      spam        BOOLEAN DEFAULT NULL,
+      fiction     BOOLEAN DEFAULT NULL,
+      poetry      BOOLEAN DEFAULT NULL,
+      use         BOOLEAN DEFAULT NULL,
+      event       BOOLEAN DEFAULT NULL,
+      disaster    BOOLEAN DEFAULT NULL,
+      personal    BOOLEAN DEFAULT NULL,
+      eyewitness  BOOLEAN DEFAULT NULL,
+      secondhand  BOOLEAN DEFAULT NULL,
+      breaking    BOOLEAN DEFAULT NULL,
+      informative BOOLEAN DEFAULT NULL,
+
+      legible     BOOLEAN DEFAULT NULL,
+      PRIMARY KEY (tweet_id, user_ip),
       FOREIGN KEY (tweet_id)
          REFERENCES tweets(id)
          ON DELETE CASCADE
    );
-CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS
-   tweet_votes_tweet_id_value_idx ON tweet_votes(tweet_id, address);
-GRANT SELECT ON tweet_votes TO pericog;
-GRANT INSERT, UPDATE ON tweet_votes TO sentinel;
+GRANT SELECT, INSERT, UPDATE ON tweet_votes TO pericog;
+GRANT SELECT, INSERT, UPDATE ON tweet_votes TO sentinel;
