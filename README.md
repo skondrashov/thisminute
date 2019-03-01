@@ -1,4 +1,7 @@
 ### Installation
+
+[![Join the chat at https://gitter.im/thisminute/community](https://badges.gitter.im/thisminute/community.svg)](https://gitter.im/thisminute/community?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
+
 1) Be on Ubuntu 16.04
 
 2) Paste the following into a terminal:
