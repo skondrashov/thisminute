@@ -35,12 +35,12 @@ I am attempting to train my sentiment analysis using a combination of sentiments
 - tweets that Mention their words intend to talk about the words mentioned
 
 ### Event/Nonevent
-- Event tweets are about the world changing state - events have a before and after, but are not necessarily momentary
+- Event tweets are about a change of state - events have a before and after, but are not necessarily momentary
 - Nonevent tweets don't talk about an event
 
 ### Disaster/Nondisaster
-- Disaster tweets are about damage to people or property, with an exception to socially sanctioned destruction (controlled - demolitions and similar)
-Nondisaster tweets don't refer to anything involving damage to people or property
+- Disaster tweets are about damage to people or property, with an exception to socially sanctioned destruction (controlled demolitions and similar)
+- Nondisaster tweets don't refer to anything involving damage to people or property
 
 ### Personal/Official
 - Personal tweets appear on personal accounts
