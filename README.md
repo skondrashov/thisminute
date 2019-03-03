@@ -18,47 +18,47 @@ Currently sentinel is in this data tagging mode where it just displays some misc
 
 I am attempting to train my sentiment analysis using a combination of sentiments rather than one pure "is this an event tweet?" sentiment. Here are the sentiment classes and their descriptions. The ideal tweet is informative nonspam nonfiction prose, uses its words (as opposed to mentioning them, see https://en.wikipedia.org/wiki/Use%E2%80%93mention_distinction), is about an event, is either eyewitness or secondhand from a nonmedia source, and is breaking new information. Whether the tweet is about a disaster or not is not important to whether the tweet is good, but I want to start with disaster tweets because I expect that classifier to be much easier to train than some others, and that information to be more useful to the world.
 
-### Spam/Nonspam
+##### Spam/Nonspam
 - Spam tweets exist primarily to attract attention to something
 - Nonspam tweets exist primarily to inform about something
 
-### Fiction/Nonfiction
+##### Fiction/Nonfiction
 - Fiction is about something not in the real world
 - Nonfiction is about the real world
 
-### Poetry/Prose
+##### Poetry/Prose
 - Poetry conveys meaning through the emotional associations of words
 - Prose has literal meaning
 
-### Use/Mention
+##### Use/Mention
 - tweets that Use their words intend to say what the words mean
 - tweets that Mention their words intend to talk about the words mentioned
 
-### Event/Nonevent
-- Event tweets are about a change of state - events have a before and after, but are not necessarily momentary
+##### Event/Nonevent
+- Event tweets are about the world changing state - events have a before and after, but are not necessarily momentary
 - Nonevent tweets don't talk about an event
 
-### Disaster/Nondisaster
+##### Disaster/Nondisaster
 - Disaster tweets are about damage to people or property, with an exception to socially sanctioned destruction (controlled demolitions and similar)
 - Nondisaster tweets don't refer to anything involving damage to people or property
 
-### Personal/Official
+##### Personal/Official
 - Personal tweets appear on personal accounts
 - Official tweets appear on official accounts
 
-### Eyewitness/Secondhand
+##### Eyewitness/Secondhand
 - Eyewitness tweets contain information acquired directly from the world by the author, unfiltered through other people
 - Secondhand tweets contain information about the world gained through another human being or organization
 
-### Secondhand (Personal)/Secondhand (Media)
+##### Secondhand (Personal)/Secondhand (Media)
 - Secondhand (Personal) tweets have secondhand information gained through a personal source
 - Secondhand (Media) tweets have secondhand information gained through a media source
 
-### Breaking/Expository
+##### Breaking/Expository
 - Breaking news tweets are intended to inform about a fact in itself
 - Expository tweets are intended to add information to a fact that may already be known to a reader
 
-### Informative/Uninformative
+##### Informative/Uninformative
 - Informative tweets contain information that is likely to be new to twitter
 - Uninformative tweets contain no information, or information that is widely accessible online
 
