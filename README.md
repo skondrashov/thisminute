@@ -18,7 +18,7 @@ Mostly just an external library. There is some custom code in archivist.php and 
 The "intelligent" tweet filter
 Currently sentinel is in this data tagging mode where it just displays some miscellaneous selection of tweets. The results when it was running were interesting, but not cutting-edge or anything I'd put on a production site. I'd love to get enough data to train it on my sentiments as a next step and attempt a leap in NLP theory rather than settling for a commercial sentiment analysis tool. If you are interested in helping with data tagging, contact me!
 
-I am attempting to train my sentiment analysis using a combination of sentiments rather than one pure "is this an event tweet?" sentiment. Here are the sentiment classes and their descriptions. The ideal tweet is informative nonspam nonfiction prose, uses its words (as opposed to mentioning them, see https://en.wikipedia.org/wiki/Use%E2%80%93mention_distinction), is about an event, is either eyewitness or secondhand from a nonmedia source, and is breaking new information. Whether the tweet is about a disaster or not is not important to whether the tweet is good, but I want to start with disaster tweets because I expect that classifier to be much easier to train than some others, and that information to be more useful to the world.
+I am attempting to train my sentiment analysis using a combination of sentiments rather than one pure "is this an event tweet?" sentiment. Here are the sentiment classes and their descriptions. The ideal tweet is informative nonspam nonfiction prose, uses its words (as opposed to mentioning them), is about an event, is either eyewitness or secondhand from a nonmedia source, and is breaking new information. Whether the tweet is about a disaster or not is not important to whether the tweet is good, but I want to start with disaster tweets because I expect that classifier to be much easier to train than some others, and that information to be more useful to the world.
 
 ##### Spam/Nonspam
 - Spam tweets exist primarily to attract attention to something
@@ -32,7 +32,7 @@ I am attempting to train my sentiment analysis using a combination of sentiments
 - Poetry conveys meaning through the emotional associations of words
 - Prose has literal meaning
 
-##### Use/Mention
+##### Use/Mention (https://en.wikipedia.org/wiki/Use%E2%80%93mention_distinction)
 - tweets that Use their words intend to say what the words mean
 - tweets that Mention their words intend to talk about the words mentioned
 
