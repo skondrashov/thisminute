@@ -1,6 +1,6 @@
 # About
 
-ThisMinute aims to involve people across the world in each other's lives by showing them what is happening in other regions. A map displays data from Twitter (other sources to come) about the realities of people around the world, in real time, in context, and in a format that allows intuitive and rapid browsing of world events. Filtering tweets to a digestible subset is the hard part. Read more about the filter under "Pericog".
+ThisMinute aims to involve people across the world in each other's lives. A map displays data from Twitter (other sources to come) about the realities of humankind, in real time, in context, and in a format that allows intuitive and rapid browsing of world events. Filtering tweets to a digestible subset is the hard part. Read more about the filter under "Pericog".
 
 [![Join the chat at https://gitter.im/thisminute/community](https://badges.gitter.im/thisminute/community.svg)](https://gitter.im/thisminute/community?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
 
