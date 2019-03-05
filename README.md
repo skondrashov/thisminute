@@ -7,7 +7,7 @@ ThisMinute aims to involve people across the world in each other's lives. A map 
 ## Sentinel
 The UI and APIs of http://thisminute.org/
 
-Press v to enter a sentiment tagging mode, and hover over each arrow for the sentiment it describes. Your IP has to be whitelisted to be able to submit the votes, so the arrows won't do anything. The sentiments are abstract ways to split up concepts of language. The tweets you see on the map are miscellaneous tweets selected for taggin. When the twitter stream is up they update in real time, and when Pericog is running it tries to filter with the model trained on the tagged data.
+Press v to enter a sentiment tagging mode, and hover over each arrow for the sentiment it describes. Your IP has to be whitelisted to be able to submit the votes, so the arrows won't do anything. The sentiments are abstract ways to split up concepts of language. The tweets you see on the map are miscellaneous tweets selected for tagging. When the twitter stream is up they update in real time, and when Pericog is running it tries to filter with the model trained on the tagged data.
 http://thisminute.org/sentinel/get_tweet.php?n=30&format=1 will give you the last 30 tweets in the database in human-readable format (you can mess with the GET parameters).
 The code for this portion of the project is named "sentinel". You can find the version that's on the server in sentinel/html, and the get_tweet API and a couple of others in sentinel/html/sentinel.
 
