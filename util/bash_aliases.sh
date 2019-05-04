@@ -57,7 +57,7 @@ pericog_push() {
         local ADDRESS='';
     else
         local PUSH=tm_push;
-        local ADDRESS=$TM_PERICOG_ADDRESS;
+        local ADDRESS=$TM_PERICOG_ADDRESS:;
     fi
     echo "writing /srv/config.ini"; $PUSH                                    $TM_BASE_PATH/config.ini                                                    $ADDRESS/srv/config.ini;
     echo "writing /srv/etc/";       $PUSH --exclude 'lib' --exclude 'models' $TM_BASE_PATH/pericog/                                                      $ADDRESS/srv/etc/;
@@ -95,9 +95,10 @@ sentinel() {
     tm_connect $TM_SENTINEL_ADDRESS;
 }
 sentinel_push() {
-    echo "writing /srv/config.ini"; tm_push $TM_BASE_PATH/config.ini     $TM_SENTINEL_ADDRESS:/srv/config.ini;
-    echo "writing /var/www/html/";  tm_push $TM_BASE_PATH/sentinel/html/ $TM_SENTINEL_ADDRESS:/var/www/html/;
-    echo "writing /srv/auth/";      tm_push $TM_BASE_PATH/auth/          $TM_SENTINEL_ADDRESS:/srv/auth/;
+    echo "writing /srv/config.ini";    tm_push                 $TM_BASE_PATH/config.ini              $TM_SENTINEL_ADDRESS:/srv/config.ini;
+    echo "writing /var/www/html/";     tm_push --exclude 'css' $TM_BASE_PATH/sentinel/html/          $TM_SENTINEL_ADDRESS:/var/www/html/;
+    echo "writing /var/www/html/css";  tm_push                 $TM_BASE_PATH/sentinel/html/css/*.css $TM_SENTINEL_ADDRESS:/var/www/html/css/;
+    echo "writing /srv/auth/";         tm_push                 $TM_BASE_PATH/auth/                   $TM_SENTINEL_ADDRESS:/srv/auth/;
 }
 sentinel_init() {
     sudo apt-get install postgresql python3-pip;

@@ -1,0 +1,9 @@
+[db_auth]
+password = <sentinel_password>
+
+[connections]
+active = tweets
+
+tweets      = tweets.thisminute.org
+tweets-test = 35.226.51.244
+tweets-usa  = 104.197.14.79

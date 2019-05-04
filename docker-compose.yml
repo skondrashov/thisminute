@@ -1,0 +1,24 @@
+version: '3'
+services:
+  router:
+    build: ./router
+    ports:
+      - "80:80"
+    restart: always
+
+  api:
+    build:
+      context: ./api
+      dockerfile: Dockerfile.dev
+    restart: always
+    volumes:
+      - /srv/node_modules
+      - ./api:/srv
+  website:
+    build:
+      context: ./website
+      dockerfile: Dockerfile.dev
+    restart: always
+    volumes:
+      - /srv/node_modules
+      - ./website:/srv
