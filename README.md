@@ -1,5 +1,5 @@
 ### Installation
-1) Be on Ubuntu 16.04
+1) Be on Ubuntu 18.04
 
 2) Paste the following into a terminal:
 ```

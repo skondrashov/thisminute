@@ -1,0 +1,8 @@
+[package]
+name = "archivist"
+version = "0.1.0"
+authors = ["Timofey Kondrashov <tkondrashov@gmail.com>"]
+
+[dependencies]
+twitter-stream = "0.9"
+rust-ini = "0.13"

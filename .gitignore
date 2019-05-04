@@ -1,9 +1,1 @@
-auth
-
-# web stuff
-node_modules
-App.css
-npm-debug.log
-*.css.map
-.sass-cache
-sentinel/html/css/*.css
+config.ini
