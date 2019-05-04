@@ -1,12 +1,11 @@
 /* globals tm */
-import React, { Component } from 'react';
+import React from 'react';
 import $ from 'jquery';
 
 $(document).on("mouseover", ".vote>div", function() {
 	let $el = $(this);
 	for (let sentiment of tm.sentiments) {
 		if ($el.parent().hasClass(sentiment.key)) {
-			console.log($('.infobox .description .' + sentiment.key));
 			$('.infobox .description .' + sentiment.key).children($el.hasClass('up') ? '.up' : '.down').show();
 		}
 	}
@@ -23,21 +22,7 @@ const sentiments = tm.sentiments.map(sentiment =>
 	</div>
 );
 
-
-export default class Vote extends Component {
-	constructor(props) {
-		super(props);
-
-		this.state = {
-			sentiments: sentiments,
-		};
-	}
-
-	render() {
-		return (
-			<>
-				{this.state.sentiments}
-			</>
-		);
-	}
-}
+export default (props) =>
+<>
+	{sentiments}
+</>
