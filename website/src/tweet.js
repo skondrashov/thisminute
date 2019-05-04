@@ -1,23 +1,33 @@
 /* globals tm, google */
-import React, {Component} from 'react';
+import React, { Component } from 'react';
 
-import Vote from './vote';
+import Votes from './votes';
 
-export default class Tweet extends Component {
+tm.markers = {};
+
+export default class extends Component {
 	constructor(props) {
 		super(props);
 
-		this.state = {
-			marker: new google.maps.Marker({
-				position: {lat: parseFloat(props.lat), lng: parseFloat(props.lon)},
+		// this.state = {
+		// 	marker: new google.maps.Marker({
+		// 		position: {lat: parseFloat(props.lat), lng: parseFloat(props.lon)},
+		// 		map: tm.map,
+		// 		icon: tm.highlighted_icon,
+		// 	})
+		// };
+
+		let marker = new google.maps.Marker({
+				position: {lat: parseFloat(props.lat), lng: parseFloat(props.lng)},
 				map: tm.map,
 				icon: tm.highlighted_icon,
-			})
-		};
+			});
+
+		tm.markers[props.id] = marker;
 	}
 
 	componentWillUnmount() {
-		this.state.marker.setMap(null);
+		// this.state.marker.setMap(null);
 	}
 
 	render() {
@@ -27,7 +37,7 @@ export default class Tweet extends Component {
 				<div className="text">
 					{this.props.text}
 				</div>
-				<Vote/>
+				<Votes/>
 			</div>
 		);
 	}

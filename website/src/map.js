@@ -1,7 +1,7 @@
 /* globals tm, google */
 import './css/map.scss';
 
-customElements.define('tm-map', class App extends HTMLElement {
+customElements.define('tm-map', class extends HTMLElement {
 	connectedCallback() {
 		window.initMap = () => {
 			tm.map = new google.maps.Map(

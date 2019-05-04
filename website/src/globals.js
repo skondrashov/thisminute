@@ -1,5 +1,4 @@
 window.tm = {};
-window.tm.markers = {};
 window.tm.sentiments = [
 		{
 			key: "spam",

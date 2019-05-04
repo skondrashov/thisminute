@@ -77,6 +77,7 @@ export default class Sidebar extends Component {
 			const markers = data.tweets.map(tweet =>
 				<Tweet
 						key={tweet.id}
+						id={tweet.id}
 						lng={tweet.lon}
 						lat={tweet.lat}
 						text={tweet.text}
