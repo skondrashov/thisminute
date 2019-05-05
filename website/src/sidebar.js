@@ -57,8 +57,6 @@ export default class Sidebar extends Component {
 						lng={tweet.lon}
 						lat={tweet.lat}
 						text={tweet.text}
-						showDescription={(description) => this.setState({description})}
-						hideDescription={this.setState({description: ''})}
 					/>
 				);
 
