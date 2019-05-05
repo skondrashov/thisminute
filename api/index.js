@@ -139,6 +139,87 @@ app.get('/markers', async (req, res) => {
 	});
 });
 
+app.post('/vote', async (req, res) => {
+	let data = req.body;
+	data.tweet_id = data.id;
+	data.user_ip = req.headers['x-forwarded-for'];
+
+	if (!(
+		data.tweet_id &&
+		[
+			'172.18.0.1',
+			'76.206.40.123',
+			'24.128.191.208',
+			'104.191.244.200',
+			'68.32.143.90',
+		].includes(data.user_ip)
+	))
+	{
+		res.send('invalid request');
+		return;
+	}
+
+	let
+		columns = [],
+		values = [],
+		updates = [],
+		params = [],
+		i = 1;
+
+	[
+		'tweet_id',
+		'user_ip',
+		'spam',
+		'fiction',
+		'poetry',
+		'use',
+		'event',
+		'disaster',
+		'personal',
+		'eyewitness',
+		'secondhand',
+		'breaking',
+		'informative',
+		'submit',
+	].forEach(property => {
+		if (typeof data[property] !== 'undefined') {
+			columns.push(property);
+			values .push(`$${i}`);
+			updates.push(`${property}=$${i}`);
+			params .push(data[property]);
+			i++;
+		}
+	});
+
+	columns = columns.join(',');
+	values  = values.join(',');
+	updates = updates.join(',');
+
+	await pgClient.query(`
+		INSERT INTO tweet_votes (${columns})
+		VALUES (${values})
+		ON CONFLICT (tweet_id, user_ip)
+		DO UPDATE
+		SET ${updates}
+	`, params);
+
+	if (typeof data.disaster !== 'undefined')
+	{
+		await pgClient.query(`
+			INSERT INTO tweet_properties (tweet_id, crowdflower, random_forest_train)
+			VALUES ($1, $2, TRUE)
+			ON CONFLICT (tweet_id)
+			DO UPDATE
+			SET random_forest_train=TRUE
+		`, [
+			data.tweet_id,
+			data.disaster,
+		]);
+	}
+
+	res.send('success');
+});
+
 const PORT=3000;
 app.listen(PORT, err => {
 	console.log(`Listening on port ${PORT}`);

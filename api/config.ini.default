@@ -1,4 +1,5 @@
 [db_auth]
+username = sentinel
 password = <sentinel_password>
 
 [connections]

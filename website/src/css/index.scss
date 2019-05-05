@@ -10,7 +10,7 @@ html, body, div, span {
 }
 
 .hidden {
-	display: none;
+	display: none !important;
 }
 
 #root {
