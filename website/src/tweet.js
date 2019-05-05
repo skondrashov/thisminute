@@ -1,7 +1,7 @@
 /* globals tm, google */
 import React, { Component } from 'react';
 
-import Votes from './votes';
+import Vote from './vote';
 
 export default class extends Component {
 	constructor(props) {
@@ -19,7 +19,7 @@ export default class extends Component {
 	}
 
 	componentWillUnmount() {
-		// this.state.marker.setMap(null);
+		this.state.marker.setMap(null);
 	}
 
 	vote(id, sentiment, value) {
