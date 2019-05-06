@@ -9,8 +9,10 @@ html, body, div, span {
 	background-repeat: no-repeat;
 }
 
-.hidden {
-	display: none !important;
+.vote-only {
+	&:not(.show) {
+		display: none !important;
+	}
 }
 
 #root {

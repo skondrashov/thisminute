@@ -21,11 +21,11 @@ export default class Sidebar extends Component {
 		$(document).keypress(e => {
 			if (e.which === 118) {
 				if (vote_mode) {
-					$(`.vote-only`).addClass('hidden');
+					$(`.vote-only`).removeClass('show');
 					vote_mode = false;
 					this.poll();
 				} else {
-					$(`.vote-only`).removeClass('hidden');
+					$(`.vote-only`).addClass('show');
 					vote_mode = true;
 				}
 			}
@@ -37,7 +37,7 @@ export default class Sidebar extends Component {
 	render() {
 		return (
 			<div className="sidebar">
-				<div className="infobox vote-only hidden">
+				<div className="infobox vote-only">
 					<div className="count">{this.state.count}</div>
 					<div className="description">{this.state.description}</div>
 				</div>

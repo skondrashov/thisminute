@@ -2,7 +2,7 @@
 import React from 'react';
 
 export default (props) =>
-<div className="vote vote-only hidden">
+<div className="vote vote-only">
 	<div
 		className="up"
 		onMouseOver={() => tm.setDescription(props.sentiment.up)}

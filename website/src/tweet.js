@@ -39,7 +39,7 @@ export default class extends Component {
 		return (
 			<div className="tweet">
 				<div
-					className="x vote-only hidden"
+					className="x vote-only"
 					onClick={() => this.vote(this.state.id, "submit", true)}
 				>
 					x
