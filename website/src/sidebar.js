@@ -1,7 +1,6 @@
 /* globals tm */
 import React, {Component} from 'react';
 import './css/sidebar.scss';
-import $ from 'jquery';
 
 import Tweet from './tweet';
 
@@ -18,18 +17,19 @@ export default class Sidebar extends Component {
 
 		tm.setDescription = (description) => this.setState({description});
 
-		$(document).keypress(e => {
+		document.addEventListener("keypress", e => {
 			if (e.which === 118) {
+				const elements = [...document.getElementsByClassName('vote-only')];
 				if (vote_mode) {
-					$(`.vote-only`).removeClass('show');
+					elements.forEach(element => element.classList.remove('show'));
 					vote_mode = false;
 					this.poll();
 				} else {
-					$(`.vote-only`).addClass('show');
+					elements.forEach(element => element.classList.add('show'));
 					vote_mode = true;
 				}
 			}
-		});
+		}, false);
 
 		this.poll();
 	}
@@ -47,24 +47,23 @@ export default class Sidebar extends Component {
 	}
 
 	poll = () => {
-		$.ajax({
-			url: "/api/markers"
-		}).done(data => {
-			const markers = data.tweets.map(tweet =>
-				<Tweet
-						key={tweet.id}
-						id={tweet.id}
-						lng={tweet.lon}
-						lat={tweet.lat}
-						text={tweet.text}
-					/>
-				);
+		fetch("/api/markers").then(response => response.json())
+			.then(data => {
+				const markers = data.tweets.map(tweet =>
+					<Tweet
+							key={tweet.id}
+							id={tweet.id}
+							lng={tweet.lon}
+							lat={tweet.lat}
+							text={tweet.text}
+						/>
+					);
 
-			this.setState({
-				count: data.count,
-				markers: markers,
+				this.setState({
+					count: data.count,
+					markers: markers,
+				});
 			});
-		});
 
 		if (!vote_mode) {
 			setTimeout(this.poll, 800);
