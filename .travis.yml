@@ -1,11 +1,6 @@
 services:
   - docker
 
-# before_install:
-#  # build a dev thing for testing
-# script:
-#     - docker run <container> npm test --
-
 after_success:
   - docker build -t thisminute/api     ./api
   - docker build -t thisminute/router  ./router
