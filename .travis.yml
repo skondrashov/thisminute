@@ -1,0 +1,11 @@
+services:
+  - docker
+
+after_success:
+  - docker build -t thisminute/api     ./api
+  - docker build -t thisminute/router  ./router
+  - docker build -t thisminute/website ./website
+  - echo $DOCKER_PASSWORD | docker login -u $DOCKER_ID --password-stdin
+  - docker push thisminute/api
+  - docker push thisminute/router
+  - docker push thisminute/website

@@ -1,95 +1,138 @@
-CREATE DATABASE IF NOT EXISTS ThisMinute;
-USE ThisMinute
+CREATE EXTENSION IF NOT EXISTS postgis;
+ALTER EXTENSION postgis UPDATE;
 
-DROP USER IF EXISTS
-	'sentinel'@'%',
-	'archivist'@'%',
-	'tweet2vec'@'%',
-	'pericog'@'%';
+-- TODO: turn this copy/pasted boilerplate into a function call... can't figure out how
+REVOKE ALL ON ALL TABLES    IN SCHEMA public FROM archivist;
+REVOKE ALL ON ALL SEQUENCES IN SCHEMA public FROM archivist;
+REVOKE ALL ON ALL FUNCTIONS IN SCHEMA public FROM archivist;
+DROP OWNED BY archivist;
+DROP USER IF EXISTS archivist;
+CREATE USER archivist PASSWORD '$PW_ARCHIVIST';
 
-/******************************************
-* DO NOT EVER:                            *
-* - DROP DATABASE ThisMinute              *
-* - DROP TABLE ThisMinute.tweets          *
-* - DROP TABLE ThisMinute.core_tweets     *
-* - DROP TABLE ThisMinute.training_tweets *
-******************************************/
-DROP TABLE IF EXISTS
-	event_tweets,
-	event_tweets_new,
-	event_tweets_old,
-	events,
-	events_new,
-	events_old;
+REVOKE ALL ON ALL TABLES    IN SCHEMA public FROM pericog;
+REVOKE ALL ON ALL SEQUENCES IN SCHEMA public FROM pericog;
+REVOKE ALL ON ALL FUNCTIONS IN SCHEMA public FROM pericog;
+DROP OWNED BY pericog;
+DROP USER IF EXISTS pericog;
+CREATE USER pericog PASSWORD '$PW_PERICOG';
 
-CREATE USER
-	'sentinel'@'%'  IDENTIFIED BY '$PW_SENTINEL',
-	'archivist'@'%' IDENTIFIED BY '$PW_ARCHIVIST',
-	'tweet2vec'@'%' IDENTIFIED BY '$PW_TWEET2VEC',
-	'pericog'@'%'   IDENTIFIED BY '$PW_PERICOG';
+REVOKE ALL ON ALL TABLES    IN SCHEMA public FROM sentinel;
+REVOKE ALL ON ALL SEQUENCES IN SCHEMA public FROM sentinel;
+REVOKE ALL ON ALL FUNCTIONS IN SCHEMA public FROM sentinel;
+DROP OWNED BY sentinel;
+DROP USER IF EXISTS sentinel;
+CREATE USER sentinel PASSWORD '$PW_SENTINEL';
+
+-- using this with ON UPDATE CASCADE allows us to easily change source names
+CREATE TABLE IF NOT EXISTS sources (
+      id TEXT,
+      PRIMARY KEY (id)
+   );
+
+CREATE TABLE IF NOT EXISTS event_types (
+      id   SERIAL,
+      name TEXT UNIQUE NOT NULL,
+      PRIMARY KEY (id)
+   );
+GRANT SELECT ON event_types TO pericog;
+
+CREATE TABLE IF NOT EXISTS events (
+      id            BIGINT,
+      event_type_id INTEGER          DEFAULT NULL,
+      name          TEXT             DEFAULT NULL,
+      start_time    TIMESTAMP(0)     NOT NULL,
+      in_progress   BOOLEAN          NOT NULL,
+      end_time      TIMESTAMP(0)     NOT NULL,
+      geo           GEOGRAPHY(POINT) NOT NULL,
+      r_meters      INTEGER          NOT NULL,
+      PRIMARY KEY (id),
+      FOREIGN KEY (event_type_id)
+         REFERENCES event_types(id)
+         ON DELETE SET NULL
+   );
+GRANT INSERT, SELECT, UPDATE ON events TO pericog;
+GRANT SELECT ON events TO sentinel;
 
 CREATE TABLE IF NOT EXISTS tweets (
-		id    BIGINT   NOT NULL AUTO_INCREMENT,
-		time  DATETIME NOT NULL DEFAULT NOW(),
-		lon   DOUBLE   NOT NULL,
-		lat   DOUBLE   NOT NULL,
-		exact BOOLEAN  NOT NULL,
-		user  BIGINT   NOT NULL,
-		text  TEXT     NOT NULL,
-		INDEX (time),
-		PRIMARY KEY (id)
-	);
-GRANT INSERT ON tweets TO 'archivist'@'%';
-GRANT SELECT ON tweets TO 'pericog'@'%';
+      id    BIGSERIAL,
+      time  TIMESTAMP(0)     NOT NULL DEFAULT NOW(),
+      geo   GEOGRAPHY(POINT) NOT NULL,
+      exact BOOLEAN          NOT NULL,
+      uid   BIGINT           NOT NULL,
+      text  TEXT             NOT NULL,
+      PRIMARY KEY (id)
+   );
+CREATE INDEX CONCURRENTLY IF NOT EXISTS
+   tweets_time_idx ON tweets(time);
+GRANT INSERT ON tweets TO archivist;
+GRANT SELECT ON tweets TO pericog;
+GRANT SELECT ON tweets TO sentinel;
+GRANT USAGE ON SEQUENCE tweets_id_seq TO
+   sentinel,
+   archivist,
+   pericog;
 
-CREATE TABLE IF NOT EXISTS core_tweets (
-		id   INT  NOT NULL AUTO_INCREMENT,
-		text TEXT NOT NULL,
-		PRIMARY KEY (id)
-	);
-GRANT SELECT ON core_tweets TO 'tweet2vec'@'%';
+CREATE TABLE IF NOT EXISTS tweet_properties (
+      tweet_id            BIGINT  UNIQUE NOT NULL,
+      crowdflower         BOOLEAN DEFAULT NULL,
+      source              TEXT    DEFAULT NULL,
+      truncated           BOOLEAN DEFAULT NULL,
+      reply               BOOLEAN DEFAULT NULL,
+      spam                BOOLEAN DEFAULT NULL,
+      legible             BOOLEAN DEFAULT NULL,
+      informative         BOOLEAN DEFAULT NULL,
+      secondhand          BOOLEAN DEFAULT NULL,
+      eyewitness          BOOLEAN DEFAULT NULL,
+      tweet2vec_train     BOOLEAN DEFAULT FALSE,
+      random_forest_train BOOLEAN DEFAULT FALSE,
+      tagger_train        BOOLEAN DEFAULT FALSE,
+      FOREIGN KEY (tweet_id)
+         REFERENCES tweets(id)
+         ON DELETE CASCADE,
+      FOREIGN KEY (source)
+         REFERENCES sources(id)
+         ON UPDATE CASCADE
+         ON DELETE SET NULL
+   );
+GRANT INSERT ON tweet_properties TO archivist;
+GRANT SELECT, INSERT, UPDATE ON tweet_properties TO pericog;
+GRANT SELECT, INSERT, UPDATE ON tweet_properties TO sentinel;
 
-CREATE TABLE IF NOT EXISTS training_tweets (
-		id   BIGINT NOT NULL,
-		text TEXT   NOT NULL,
-		PRIMARY KEY (id)
-	);
-GRANT SELECT ON training_tweets TO 'tweet2vec'@'%';
+CREATE TABLE IF NOT EXISTS tweet_events (
+      tweet_id BIGINT NOT NULL,
+      event_id BIGINT DEFAULT NULL,
+      PRIMARY KEY (tweet_id, event_id),
+      FOREIGN KEY (tweet_id)
+         REFERENCES tweets(id)
+         ON DELETE CASCADE,
+      FOREIGN KEY (event_id)
+         REFERENCES events(id)
+         ON DELETE CASCADE
+   );
+GRANT SELECT, INSERT, UPDATE ON tweet_events TO pericog;
+GRANT SELECT ON tweet_events TO sentinel;
 
-CREATE TABLE events (
-		id         BIGINT   NOT NULL,
-		lon        DOUBLE   NOT NULL,
-		lat        DOUBLE   NOT NULL,
-		start_time DATETIME NOT NULL,
-		end_time   DATETIME NOT NULL,
-		users      INT      NOT NULL,
-		PRIMARY KEY (id)
-	);
-GRANT SELECT ON events TO 'sentinel'@'%';
-GRANT ALTER, CREATE, DROP, INSERT, SELECT ON events TO 'pericog'@'%';
+CREATE TABLE IF NOT EXISTS tweet_votes (
+      tweet_id    BIGINT  NOT NULL,
+      user_ip     INET    NOT NULL,
 
-CREATE TABLE events_new LIKE events;
-GRANT ALTER, CREATE, DROP, INSERT ON events_new TO 'pericog'@'%';
+      spam        BOOLEAN DEFAULT NULL,
+      fiction     BOOLEAN DEFAULT NULL,
+      poetry      BOOLEAN DEFAULT NULL,
+      use         BOOLEAN DEFAULT NULL,
+      event       BOOLEAN DEFAULT NULL,
+      disaster    BOOLEAN DEFAULT NULL,
+      personal    BOOLEAN DEFAULT NULL,
+      eyewitness  BOOLEAN DEFAULT NULL,
+      secondhand  BOOLEAN DEFAULT NULL,
+      breaking    BOOLEAN DEFAULT NULL,
+      informative BOOLEAN DEFAULT NULL,
 
-CREATE TABLE events_old LIKE events;
-GRANT CREATE, DROP, INSERT ON events_old TO 'pericog'@'%';
-
-CREATE TABLE event_tweets (
-		event_id BIGINT   NOT NULL,
-		time     DATETIME NOT NULL,
-		lon      DOUBLE   NOT NULL,
-		lat      DOUBLE   NOT NULL,
-		exact    BOOLEAN  NOT NULL,
-		text     TEXT     NOT NULL,
-		FOREIGN KEY (event_id)
-			REFERENCES events (id)
-			ON DELETE CASCADE
-	);
-GRANT SELECT ON event_tweets TO 'sentinel'@'%';
-GRANT ALTER, CREATE, DROP, INSERT, SELECT ON event_tweets TO 'pericog'@'%';
-
-CREATE TABLE event_tweets_new LIKE event_tweets;
-GRANT ALTER, CREATE, DROP, INSERT ON event_tweets_new TO 'pericog'@'%';
-
-CREATE TABLE event_tweets_old LIKE event_tweets;
-GRANT CREATE, DROP, INSERT ON event_tweets_old TO 'pericog'@'%';
+      legible     BOOLEAN DEFAULT NULL,
+      PRIMARY KEY (tweet_id, user_ip),
+      FOREIGN KEY (tweet_id)
+         REFERENCES tweets(id)
+         ON DELETE CASCADE
+   );
+GRANT SELECT, INSERT, UPDATE ON tweet_votes TO pericog;
+GRANT SELECT, INSERT, UPDATE ON tweet_votes TO sentinel;

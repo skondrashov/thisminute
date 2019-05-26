@@ -1,4 +1,0 @@
-[Service]
-ExecStart=/srv/etc/archivist.php > /dev/null 2>/dev/null
-Type=simple
-Restart=on-failure

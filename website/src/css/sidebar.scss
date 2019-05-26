@@ -1,0 +1,65 @@
+.sidebar {
+	height: 100%;
+	padding: 10px;
+	font: 14px arial, sans-serif;
+
+	.infobox {
+		display: flex;
+		height: 50px;
+
+		.count {
+			flex-basis: 20%;
+			margin: 10px;
+		}
+
+		.description {
+			flex-basis: 80%;
+			height: auto;
+			background-color: #FAFAFA;
+		}
+
+		border-bottom: 1px solid black;
+	}
+
+	.tweet {
+		padding: 10px;
+		display: flex;
+		border-bottom: 1px solid black;
+		.text {
+			flex-grow: 1;
+		}
+
+		.x {
+			cursor: pointer;
+			margin-right: 10px;
+			flex-grow: 0;
+		}
+		.vote {
+			flex-shrink: 0;
+			margin-left: auto;
+			width: 20px;
+			.up, .down {
+				cursor: pointer;
+				float: left;
+				width: 100%;
+			}
+			.up:before, .down:before {
+				content: "";
+				display: block;
+				padding-top: 100%;
+			}
+			.up {
+				background-image: url("../res/upvote.png");
+				&.voted {
+					background-color: #EEFFEE;
+				}
+			}
+			.down {
+				background-image: url("../res/downvote.png");
+				&.voted {
+					background-color: #FFEEEE;
+				}
+			}
+		}
+	}
+}

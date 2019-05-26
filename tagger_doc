@@ -1,0 +1,39 @@
+Part I
+1) C requests tweets using requestTweets()
+2) S returns a list of the tweets that still need to be tagged sorted by their id, and returns the first X_1 of them -> tweet_queue
+3) C calculates how many of the received tweets have already been processed -> n
+4) if n > 0
+	a) C calculates the highest id of tweets it has received -> highest_id
+	b) C requests unique tweets using requestUniqueTweets(n, highest_id)
+	c) S returns a list of n tweets with id > highest_id -> unique_tweets
+	d) C replaces the tweets in tweet_queue that have already been processed with unique_tweets
+5) C is now guaranteed to have a list of X_1 tweets that the user has not seen before
+
+Part II
+1) C submits predictions using submitLabel(tweet_id, prediction)
+2) S checks whitelisted(tweet_id, ip_address, prediction)
+3) if true
+	a) S upserts the prediction to the row matching ip_address and tweet_id
+	b) S checks to see if there are over X_2 predictions
+	c) if true
+		i) S removes the tweet from the whitelist
+		ii) S upserts the final row with the prediction
+
+Part III
+1) S
+
+Game
+*Points
+	- when a prediction is confirmed, you gain 1 point
+	- when a prediction is submitted, you gain 1 point
+	- when a prediction is denied, you lose 1 point
+being trustworthy grants a 2x multiplier
+use localstorage to keep track of your points and show a point gain since your last login for newly confirmed tweets
+
+requestTweets()
+requestUniqueTweets()
+submitLabel()
+getPoints()
+
+X_1 how many tweets do we want to whitelist to a client at a time?
+X_2 how many predictions locks in a label?

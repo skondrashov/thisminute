@@ -1,0 +1,30 @@
+html, body, div, span {
+	margin: 0;
+	padding: 0;
+	border: 0;
+	font-size: 100%;
+	font: inherit;
+	vertical-align: baseline;
+	background-size: contain;
+	background-repeat: no-repeat;
+}
+
+.vote-only {
+	&:not(.show) {
+		display: none !important;
+	}
+}
+
+#root {
+	width: 100vw;
+	height: 100vh;
+	overflow: hidden;
+
+	display: flex;
+	> tm-map {
+		flex-basis: 75%;
+	}
+	> .sidebar {
+		flex-basis: 25%;
+	}
+}
