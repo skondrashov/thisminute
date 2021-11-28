@@ -1,8 +1,9 @@
 {
+  "main": "index.js",
   "license": "MIT",
   "scripts": {
     "start": "npm run build && run-p -n --aggregate-output serve watch",
-    "build": "wasm-pack build",
+    "build": "mkdir -p target/html && wasm-pack build",
     "serve": "webpack-dev-server --open",
     "test": "wasm-pack test --headless --chrome --firefox",
     "watch": "onchange -k src -- npm run build",
