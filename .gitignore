@@ -2,7 +2,3 @@ node_modules/
 pkg/
 dist/
 target/
-.idea
-
-# index.html is generated, we don't save it!
-/www/index.html

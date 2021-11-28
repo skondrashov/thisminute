@@ -4,7 +4,7 @@ Based on the https://github.com/rustwasm/wasm-pack-template.git
 
 This project uses wasm-build and webpack-dev-server together to serve a wasm binary compiled from a domain-specific syntax called [CUI](https://github.com/thisminute/cascading-ui).
 
-CUI compiles into HTML and a Wasm binary. This repository is basically a customized [wasm-pack-template](Based on the https://github.com/rustwasm/wasm-pack-template.git) for use with CUI. After installation, modify the source code in `src/lib.rs`, and run `npm install` and `npm start` while in the `www` directory to build the page and show it in a browser.
+CUI compiles into HTML and a Wasm binary. This repository is basically a customized [wasm-pack-template](Based on the https://github.com/rustwasm/wasm-pack-template.git) for use with CUI. After installation, modify the source code in `src/lib.rs`, and run `npm install` and `npm start` to build the page and show it in a browser.
 
 # Install
 
@@ -17,7 +17,7 @@ To install, you will need:
 Then:
 
 ```
-git clone https://github.com/thisminute/create-cui-app.git
+git clone https://github.com/thisminute/cui-app-template.git
 ```
 
 For windows users, run in the root directory:
@@ -30,8 +30,8 @@ rustup default stable-x86_64-pc-windows-gnu
 Then:
 
 ```
-cd create-cui-app/www # npm stuff is in the www directory
-wasm-pack build
+cd cui-app-template
+npm run build # has to be run before install for npm to install cui
 npm install
 npm start # opens a new browser tab in watch mode
 ```
@@ -55,7 +55,7 @@ my-class {
 }
 ```
 
-This block, without the `.` at the beginning, would create an element, and then modify the properties of that element directly. If both blocks set the same property, the property in the _element block_ would override the property in the _class block_. In this case, if this was used with the first code block, there will be just one element, and it will say "hello world" in green text. Writing `my-class {}` with no properties is similar to writing `<div class="my-class"></div>` in html, and setting the color inside of the block is similar to overwriting the class property with an inline style (or exactly that, in the case of css properties).
+This block type, without a `.` at the beginning, would create an element, and then modify the properties of that element directly. If both blocks set the same property, the property in the _element block_ would override the property in the _class block_. In this case, if this was used with the first code block, there will be just one element, and it will say "hello world" in green text. Writing `my-class {}` with no properties is similar to writing `<div class="my-class"></div>` in html, and setting the color inside of the block is similar to overwriting the class property with an inline style (or exactly that, in the case of css properties).
 
 ```cui
 ?click {
