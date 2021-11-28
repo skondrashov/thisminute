@@ -31,7 +31,7 @@ Then:
 
 ```
 cd cui-app-template
-npm run build # has to be run before install for npm to install cui
+wasm-pack build # has to be run before install for npm to install cui
 npm install
 npm start # opens a new browser tab in watch mode
 ```

@@ -2,7 +2,7 @@
   "license": "MIT",
   "scripts": {
     "start": "npm run build && run-p -n --aggregate-output serve watch",
-    "build": "mkdir -p target/html && mkdir -p dist && wasm-pack build && cp target/html/index.html dist/index.html",
+    "build": "wasm-pack build",
     "serve": "webpack-dev-server --open",
     "test": "wasm-pack test --headless --chrome --firefox",
     "watch": "onchange -k src -- npm run build",
