@@ -23,7 +23,7 @@
     <script defer data-domain="thisminute.org" src="https://plausible.io/js/script.js"></script>
 
     <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5.5.0/dist/maplibre-gl.css" />
-    <link rel="stylesheet" href="/static/css/style.css?v=116" />
+    <link rel="stylesheet" href="/static/css/style.css?v=120" />
 </head>
 <body>
     <div id="sidebar" role="navigation" aria-label="News filters and situations">
@@ -171,6 +171,7 @@
     <button id="sidebar-toggle" title="Toggle sidebar (s)">&lsaquo;</button>
     <button id="labels-toggle" title="Toggle map labels (m)">Aa</button>
     <button id="globe-toggle" title="Toggle globe/flat (g)">&#127758;</button>
+    <div id="map-legend"></div>
     <div id="feed-buttons">
         <button class="feed-btn" data-feed="space" title="Space stories">&#9733; Space</button>
         <button class="feed-btn" data-feed="internet" title="Internet stories">&#9883; Internet</button>
@@ -236,6 +237,15 @@
         <div id="map"></div>
         <div id="map-reticle"></div>
         <div id="map-preview"></div>
+        <div id="mobile-map-controls">
+            <button id="mobile-ctrl-toggle" title="Map controls">&#9881;</button>
+            <div id="mobile-ctrl-tray">
+                <button id="mobile-globe-btn" title="Toggle globe/flat">&#127758;</button>
+                <button id="mobile-labels-btn" title="Toggle labels">Aa</button>
+                <button id="mobile-spin-btn" class="spin-toggle-btn" title="Spin globe">&#10227;</button>
+                <button id="mobile-reload-btn" title="Refresh">&#8635;</button>
+            </div>
+        </div>
     </div>
 
     <div id="info-panel" role="complementary" aria-label="Story details">
@@ -248,6 +258,6 @@
     </div>
 
     <script src="https://unpkg.com/maplibre-gl@5.5.0/dist/maplibre-gl.js"></script>
-    <script src="/static/js/app.js?v=116"></script>
+    <script src="/static/js/app.js?v=120"></script>
 </body>
 </html>

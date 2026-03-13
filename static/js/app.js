@@ -615,12 +615,27 @@
 
   // src/js/mobile.js
   var _isMobile = () => window.innerWidth <= 768;
+  function setPaneHeight(h) {
+    var vh = window.innerHeight;
+    var clamped = Math.max(56, Math.min(vh * 0.9, h));
+    document.body.style.setProperty("--pane-height", clamped + "px");
+    var sidebar = document.getElementById("sidebar");
+    sidebar.dataset.paneHeight = clamped;
+    if (state.map) state.map.resize();
+  }
   function setSheetState(sheetState) {
-    const sidebar = document.getElementById("sidebar");
-    sidebar.classList.remove("sheet-half", "sheet-full");
-    if (sheetState === "half") sidebar.classList.add("sheet-half");
-    else if (sheetState === "full") sidebar.classList.add("sheet-full");
+    var sidebar = document.getElementById("sidebar");
+    var vh = window.innerHeight;
+    var height;
+    if (sheetState === "full") height = vh * 0.9;
+    else if (sheetState === "half") height = vh * 0.5;
+    else height = 56;
     sidebar.dataset.sheetState = sheetState || "closed";
+    setPaneHeight(height);
+    var preview = document.getElementById("map-preview");
+    if (preview) preview.style.display = sheetState === "closed" ? "" : "none";
+    var menuBtn = document.getElementById("mobile-menu-btn");
+    if (menuBtn) menuBtn.innerHTML = sheetState === "closed" ? "&#9776;" : "&#9662;";
   }
   function toggleSheet() {
     const sidebar = document.getElementById("sidebar");
@@ -654,32 +669,36 @@
   }
   function initMobileSheet() {
     if (!_isMobile()) return;
+    document.body.style.setProperty("--pane-height", "56px");
     const sidebar = document.getElementById("sidebar");
+    sidebar.dataset.paneHeight = 56;
+    sidebar.dataset.sheetState = "closed";
     const mobileBar = document.getElementById("mobile-bar");
     const menuBtn = document.getElementById("mobile-menu-btn");
     const dragHandle = document.getElementById("drag-handle");
-    function getPositions() {
-      const h = sidebar.offsetHeight;
+    function getHeights() {
       const vh = window.innerHeight;
-      return { full: vh * 0.1, half: h * 0.5, closed: h - 56 };
-    }
-    function posForState(s) {
-      const p = getPositions();
-      return p[s] || p.closed;
+      return { full: vh * 0.9, half: vh * 0.5, closed: 56 };
     }
     let touchStartY = 0;
-    let startTranslateY = 0;
-    let currentY = 0;
+    let startPaneHeight = 56;
+    let currentHeight = 56;
     let isDragging = false;
     let dragActivated = false;
     let lastTouchY = 0;
     let lastTouchTime = 0;
     let velocity = 0;
     let dragOccurred = false;
+    let rafPending = false;
+    function requestMapResize() {
+      if (rafPending) return;
+      rafPending = true;
+      requestAnimationFrame(() => { if (state.map) state.map.resize(); rafPending = false; });
+    }
     function startDrag(clientY) {
       touchStartY = clientY;
-      startTranslateY = posForState(sidebar.dataset.sheetState || "closed");
-      currentY = startTranslateY;
+      startPaneHeight = parseFloat(sidebar.dataset.paneHeight) || 56;
+      currentHeight = startPaneHeight;
       isDragging = true;
       dragActivated = false;
       lastTouchY = clientY;
@@ -693,14 +712,14 @@
       if (!dragActivated && Math.abs(delta) > 5) {
         dragActivated = true;
         dragOccurred = true;
-        sidebar.style.transition = "none";
-        sidebar.style.willChange = "transform";
-        sidebar.classList.add("dragging");
+        document.body.classList.add("pane-dragging");
       }
       if (!dragActivated) return;
-      const pos = getPositions();
-      currentY = Math.max(pos.full, Math.min(pos.closed, startTranslateY + delta));
-      sidebar.style.transform = `translateY(${currentY}px)`;
+      const vh = window.innerHeight;
+      currentHeight = Math.max(56, Math.min(vh * 0.9, startPaneHeight - delta));
+      document.body.style.setProperty("--pane-height", currentHeight + "px");
+      sidebar.dataset.paneHeight = currentHeight;
+      requestMapResize();
       const now = performance.now();
       const dt = now - lastTouchTime;
       if (dt > 0) {
@@ -713,12 +732,9 @@
     function endDrag() {
       if (!isDragging) return;
       isDragging = false;
-      sidebar.classList.remove("dragging");
-      sidebar.style.willChange = "";
-      sidebar.style.transition = "";
-      sidebar.style.transform = "";
+      document.body.classList.remove("pane-dragging");
       if (!dragActivated) return;
-      const pos = getPositions();
+      const heights = getHeights();
       const VELOCITY_THRESHOLD = 0.4;
       let targetState;
       if (Math.abs(velocity) > VELOCITY_THRESHOLD) {
@@ -729,9 +745,9 @@
           targetState = current === "full" ? "half" : "closed";
         }
       } else {
-        const distFull = Math.abs(currentY - pos.full);
-        const distHalf = Math.abs(currentY - pos.half);
-        const distClosed = Math.abs(currentY - pos.closed);
+        const distFull = Math.abs(currentHeight - heights.full);
+        const distHalf = Math.abs(currentHeight - heights.half);
+        const distClosed = Math.abs(currentHeight - heights.closed);
         if (distFull <= distHalf && distFull <= distClosed) targetState = "full";
         else if (distHalf <= distClosed) targetState = "half";
         else targetState = "closed";
@@ -741,10 +757,8 @@
     function cancelDrag() {
       isDragging = false;
       dragActivated = false;
-      sidebar.classList.remove("dragging");
-      sidebar.style.willChange = "";
-      sidebar.style.transition = "";
-      sidebar.style.transform = "";
+      document.body.classList.remove("pane-dragging");
+      setSheetState(sidebar.dataset.sheetState || "closed");
     }
     dragHandle.addEventListener("touchstart", (e) => {
       startDrag(e.touches[0].clientY);
@@ -794,7 +808,7 @@
         }
       }, { passive: true });
       el.addEventListener("touchmove", (e) => {
-        if (isDragging && currentY - startTranslateY > 0 && el.scrollTop <= 0) {
+        if (isDragging && currentHeight < startPaneHeight && el.scrollTop <= 0) {
           moveDrag(e.touches[0].clientY);
         } else if (isDragging) {
           cancelDrag();
@@ -807,6 +821,22 @@
     document.getElementById("map-container").addEventListener("click", () => {
       const current = sidebar.dataset.sheetState || "closed";
       if (current !== "closed") setSheetState("closed");
+    });
+    const mCtrlToggle = document.getElementById("mobile-ctrl-toggle");
+    const mCtrlTray = document.getElementById("mobile-ctrl-tray");
+    const mGlobe = document.getElementById("mobile-globe-btn");
+    const mLabels = document.getElementById("mobile-labels-btn");
+    const mSpin = document.getElementById("mobile-spin-btn");
+    const mReload = document.getElementById("mobile-reload-btn");
+    if (mCtrlToggle) mCtrlToggle.addEventListener("click", () => {
+      mCtrlTray.classList.toggle("open");
+    });
+    if (mGlobe) mGlobe.addEventListener("click", toggleGlobe);
+    if (mLabels) mLabels.addEventListener("click", toggleMapLabels);
+    if (mSpin) mSpin.addEventListener("click", () => { if (state.toggleAutoRotate) state.toggleAutoRotate(); });
+    if (mReload) mReload.addEventListener("click", () => {
+      mReload.classList.add("spinning");
+      setTimeout(() => location.reload(), 300);
     });
   }
   function initInfoPanelSwipe(closeInfoPanel2) {
@@ -1068,7 +1098,7 @@
       filter: ["==", ["get", "is_primary"], true],
       paint: {
         "circle-radius": ["interpolate", ["linear"], ["zoom"], 0, 3, 6, 5, 10, 7],
-        "circle-color": ["coalesce", ["get", "blended_color"], "#484f58"],
+        "circle-color": ["to-color", ["coalesce", ["get", "blended_color"], "#484f58"]],
         "circle-opacity": [
           "interpolate",
           ["linear"],
@@ -1499,7 +1529,23 @@
         clearInterval(_rotateId);
         _rotateId = null;
       }
+      _updateSpinBtn();
     }
+    function toggleAutoRotate() {
+      if (_autoRotate) {
+        stopAutoRotate();
+      } else {
+        _autoRotate = true;
+        startAutoRotate();
+      }
+      _updateSpinBtn();
+    }
+    function _updateSpinBtn() {
+      document.querySelectorAll(".spin-toggle-btn").forEach(function(b) {
+        b.classList.toggle("active", _autoRotate);
+      });
+    }
+    state.toggleAutoRotate = toggleAutoRotate;
     state.map.on("mousedown", stopAutoRotate);
     state.map.on("touchstart", stopAutoRotate);
     state.map.on("wheel", stopAutoRotate);
@@ -1568,6 +1614,7 @@
       mapContainer.style.height = rect.height + "px";
       mapContainer.style.transition = "opacity 0.4s ease";
       document.body.classList.add("map-hidden");
+      if (_isMobile()) setSheetState("full");
       requestAnimationFrame(() => {
         mapContainer.style.opacity = "0";
       });
@@ -3001,6 +3048,20 @@
         listContainer.appendChild(sep);
       }
     });
+    const removed = _getRemovedWorlds();
+    if (removed.length > 0) {
+      const restore = document.createElement("button");
+      restore.className = "world-panel-restore";
+      restore.textContent = "Restore default presets";
+      restore.addEventListener("click", (e) => {
+        e.stopPropagation();
+        localStorage.removeItem("tm_removed_worlds");
+        loadWorlds();
+        renderWorldsBar();
+        renderWorldsPanelContents();
+      });
+      listContainer.appendChild(restore);
+    }
   }
   function showSaveWorldDialog(editId) {
     closeWorldsPanel();
@@ -3777,7 +3838,7 @@
     const cloudSrc = srcPrefix + "stories-cloud";
     const proxLayer = srcPrefix + "proximity-highlight";
     function _proxPad() {
-      return Math.round(Math.min(60, 12 + m.getZoom() * 5));
+      return Math.round(Math.min(120, 24 + m.getZoom() * 10));
     }
     function _openNearbyDots(point, fallbackFeatures) {
       const pad = _proxPad();
@@ -4401,6 +4462,13 @@
     document.querySelectorAll(".feed-btn").forEach((btn) => {
       btn.addEventListener("click", () => toggleFeedPanel(btn.dataset.feed));
     });
+    const legendEl = document.getElementById("map-legend");
+    for (const [cat, color] of Object.entries(DOMAIN_COLORS)) {
+      const item = document.createElement("div");
+      item.className = "legend-item";
+      item.innerHTML = `<span class="legend-dot" style="background:${color}"></span>${cat.charAt(0).toUpperCase() + cat.slice(1)}`;
+      legendEl.appendChild(item);
+    }
     document.getElementById("theme-toggle").addEventListener("click", toggleTheme);
     document.getElementById("share-view-btn").addEventListener("click", () => {
       const btn = document.getElementById("share-view-btn");
