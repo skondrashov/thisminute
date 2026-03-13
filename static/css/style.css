@@ -3288,6 +3288,21 @@ body.light-mode .clear-all-btn:hover { color: var(--danger); border-color: var(-
 #mobile-bar { display: none; }
 #drag-handle { display: none; }
 #mobile-map-controls { display: none; }
+#legend-toggle {
+    display: none;
+    width: 24px;
+    height: 24px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-default);
+    border-radius: 4px;
+    color: var(--text-muted);
+    font-size: 10px;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+}
+body.light-mode #legend-toggle { background: rgba(246, 248, 250, 0.9); }
 
 @media (max-width: 768px) {
     body {
@@ -3736,7 +3751,26 @@ body.light-mode .clear-all-btn:hover { color: var(--danger); border-color: var(-
     #labels-toggle, #globe-toggle {
         display: none !important;
     }
-    #map-legend { display: none !important; }
+    #map-legend {
+        position: fixed;
+        top: 48px;
+        left: 8px;
+        bottom: auto;
+        grid-template-columns: 1fr 1fr 1fr;
+        gap: 1px 8px;
+        padding: 6px 10px;
+        font-size: 9px;
+    }
+    #map-legend.collapsed {
+        display: none !important;
+    }
+    #legend-toggle {
+        display: flex !important;
+        position: fixed;
+        top: 48px;
+        right: 8px;
+        z-index: 1001;
+    }
     #feed-buttons { top: 8px; right: 8px; }
     .feed-btn { padding: 5px 10px; font-size: 11px; }
     #new-badge {

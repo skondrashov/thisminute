@@ -982,8 +982,8 @@
       if (!activeCountries.has(neName)) activeCountries.set(neName, { count: 0, categories: {} });
       const entry = activeCountries.get(neName);
       entry.count++;
-      const cat = f.properties.category || "general";
-      entry.categories[cat] = (entry.categories[cat] || 0) + 1;
+      const dom = f.properties._domain || _featureDomain(f);
+      entry.categories[dom] = (entry.categories[dom] || 0) + 1;
     }
     const countryNames = [...activeCountries.keys()];
     if (countryNames.length === 0) {
@@ -4513,6 +4513,13 @@
           ["interpolate", ["linear"], ["get", "age_hours"], 0, 0.95, 6, 0.85, 24, 0.6, 72, 0.35]);
       });
       legendEl.appendChild(item);
+    }
+    const legendToggle = document.getElementById("legend-toggle");
+    if (legendToggle) {
+      legendToggle.addEventListener("click", () => {
+        legendEl.classList.toggle("collapsed");
+        legendToggle.innerHTML = legendEl.classList.contains("collapsed") ? "&#9632;" : "&#9662;";
+      });
     }
     document.addEventListener("click", (e) => {
       const tag = e.target.closest(".story-concept-tag.clickable");
