@@ -118,35 +118,47 @@
   for (var _dc in DOMAIN_COLORS) _domainHSL[_dc] = _hexToHSL(DOMAIN_COLORS[_dc]);
   var _fallbackHSL = _hexToHSL("#484f58");
   function _blendLocationColors(features) {
-    var byCoord = {};
-    for (var i = 0; i < features.length; i++) {
-      var f = features[i];
-      var key = f.geometry.coordinates[0] + "," + f.geometry.coordinates[1];
-      if (!byCoord[key]) byCoord[key] = [];
-      byCoord[key].push(f);
+    try {
+      var byCoord = {};
+      for (var i = 0; i < features.length; i++) {
+        var f = features[i];
+        if (!f.geometry || !f.geometry.coordinates) continue;
+        var key = f.geometry.coordinates[0] + "," + f.geometry.coordinates[1];
+        if (!byCoord[key]) byCoord[key] = [];
+        byCoord[key].push(f);
+      }
+      for (var k in byCoord) {
+        var group = byCoord[k];
+        var catCounts = {}, total = 0;
+        for (var j = 0; j < group.length; j++) {
+          var cat = group[j].properties.category;
+          catCounts[cat] = (catCounts[cat] || 0) + 1;
+          total++;
+        }
+        var sinSum = 0, cosSum = 0, sSum = 0, lSum = 0;
+        for (var c in catCounts) {
+          var hsl = _domainHSL[c] || _fallbackHSL;
+          var w = catCounts[c] / total;
+          var hRad = hsl[0] * Math.PI / 180;
+          sinSum += w * Math.sin(hRad);
+          cosSum += w * Math.cos(hRad);
+          sSum += w * hsl[1];
+          lSum += w * hsl[2];
+        }
+        var avgH = Math.atan2(sinSum, cosSum) * 180 / Math.PI;
+        var blended = _hslToHex(avgH, sSum, lSum);
+        if (!/^#[0-9a-f]{6}$/i.test(blended)) blended = null;
+        for (var j2 = 0; j2 < group.length; j2++) {
+          if (blended) group[j2].properties.blended_color = blended;
+        }
+      }
+    } catch (e) {
+      console.error("_blendLocationColors failed:", e);
     }
-    for (var k in byCoord) {
-      var group = byCoord[k];
-      var catCounts = {}, total = 0;
-      for (var j = 0; j < group.length; j++) {
-        var cat = group[j].properties.category;
-        catCounts[cat] = (catCounts[cat] || 0) + 1;
-        total++;
-      }
-      var sinSum = 0, cosSum = 0, sSum = 0, lSum = 0;
-      for (var c in catCounts) {
-        var hsl = _domainHSL[c] || _fallbackHSL;
-        var w = catCounts[c] / total;
-        var hRad = hsl[0] * Math.PI / 180;
-        sinSum += w * Math.sin(hRad);
-        cosSum += w * Math.cos(hRad);
-        sSum += w * hsl[1];
-        lSum += w * hsl[2];
-      }
-      var avgH = Math.atan2(sinSum, cosSum) * 180 / Math.PI;
-      var blended = _hslToHex(avgH, sSum, lSum);
-      for (var j2 = 0; j2 < group.length; j2++) {
-        group[j2].properties.blended_color = blended;
+    for (var ii = 0; ii < features.length; ii++) {
+      if (!features[ii].properties.blended_color) {
+        var cc = features[ii].properties.category;
+        features[ii].properties.blended_color = DOMAIN_COLORS[cc] || "#484f58";
       }
     }
   }
@@ -1098,7 +1110,7 @@
       filter: ["==", ["get", "is_primary"], true],
       paint: {
         "circle-radius": ["interpolate", ["linear"], ["zoom"], 0, 3, 6, 5, 10, 7],
-        "circle-color": ["to-color", ["coalesce", ["get", "blended_color"], "#484f58"]],
+        "circle-color": ["to-color", ["get", "blended_color"]],
         "circle-opacity": [
           "interpolate",
           ["linear"],
@@ -3262,7 +3274,7 @@
       const tags = (concepts || []).slice(0, 3).map((c) => {
         const domain = state.conceptDomainMap[c] || "general";
         const color = DOMAIN_COLORS[domain] || "#484f58";
-        return `<span class="story-concept-tag" style="background:${color}">${c}</span>`;
+        return `<span class="story-concept-tag clickable" style="background:${color}" data-concept="${escapeHtml(c)}">${c}</span>`;
       }).join("");
       const timeIso = p.published_at || p.scraped_at;
       const time = formatTime(timeIso);
@@ -3380,7 +3392,7 @@
       const conceptTags = concepts.map((c) => {
         const domain = state.conceptDomainMap[c] || "general";
         const color = DOMAIN_COLORS[domain] || "#484f58";
-        return `<span class="story-concept-tag" style="background:${color}">${c}</span>`;
+        return `<span class="story-concept-tag clickable" style="background:${color}" data-concept="${escapeHtml(c)}">${c}</span>`;
       }).join(" ");
       const actorPills = actors.map(
         (a) => `<span class="event-actor">${escapeHtml(a)}</span>`
@@ -4466,9 +4478,41 @@
     for (const [cat, color] of Object.entries(DOMAIN_COLORS)) {
       const item = document.createElement("div");
       item.className = "legend-item";
+      item.dataset.domain = cat;
       item.innerHTML = `<span class="legend-dot" style="background:${color}"></span>${cat.charAt(0).toUpperCase() + cat.slice(1)}`;
+      item.style.cursor = "pointer";
+      item.addEventListener("click", () => {
+        const concepts = [];
+        for (const [name, domain] of Object.entries(state.conceptDomainMap)) {
+          if (domain === cat) concepts.push(name);
+        }
+        if (concepts.length === 0) return;
+        state.activeConcepts.clear();
+        concepts.forEach((c) => state.activeConcepts.add(c));
+        applyFilters();
+        markWorldModified();
+      });
+      item.addEventListener("mouseenter", () => {
+        if (!state.map || !state.map.getLayer("cloud-points")) return;
+        state.map.setPaintProperty("cloud-points", "circle-opacity",
+          ["case", ["==", ["get", "category"], cat], 0.95, 0.15]);
+      });
+      item.addEventListener("mouseleave", () => {
+        if (!state.map || !state.map.getLayer("cloud-points")) return;
+        state.map.setPaintProperty("cloud-points", "circle-opacity",
+          ["interpolate", ["linear"], ["get", "age_hours"], 0, 0.95, 6, 0.85, 24, 0.6, 72, 0.35]);
+      });
       legendEl.appendChild(item);
     }
+    document.addEventListener("click", (e) => {
+      const tag = e.target.closest(".story-concept-tag.clickable");
+      if (!tag || !tag.dataset.concept) return;
+      e.stopPropagation();
+      state.activeConcepts.clear();
+      state.activeConcepts.add(tag.dataset.concept);
+      applyFilters();
+      markWorldModified();
+    });
     document.getElementById("theme-toggle").addEventListener("click", toggleTheme);
     document.getElementById("share-view-btn").addEventListener("click", () => {
       const btn = document.getElementById("share-view-btn");

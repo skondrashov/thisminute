@@ -3582,8 +3582,10 @@ body.light-mode .clear-all-btn:hover { color: var(--danger); border-color: var(-
         font-size: 11px;
     }
     .sort-toggle {
-        padding: 3px 6px;
-        font-size: 9px;
+        padding: 3px 8px;
+        font-size: 10px;
+        flex: 1 1 auto;
+        min-width: 0;
     }
 
     /* ---- Scrollable content ---- */
