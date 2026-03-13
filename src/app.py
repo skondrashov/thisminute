@@ -23,6 +23,17 @@ from .database import (
 )
 from .categorizer import get_all_concept_names, CONCEPT_DOMAINS
 from .geocoder import bbox_to_radius_km
+
+def _json(val, default=None):
+    """Parse a JSON string, returning *default* on failure or if already parsed."""
+    if val is None:
+        return default
+    if not isinstance(val, str):
+        return val
+    try:
+        return json.loads(val)
+    except (json.JSONDecodeError, TypeError):
+        return default
 from .ner import classify_location, _COUNTRY_SET
 from .scheduler import PipelineScheduler
 
@@ -212,24 +223,14 @@ async def api_stories(
 
     features = []
     for s in stories:
-        story_concepts = s.get("concepts", "[]")
-        if isinstance(story_concepts, str):
-            try:
-                story_concepts = json.loads(story_concepts)
-            except (json.JSONDecodeError, TypeError):
-                story_concepts = []
+        story_concepts = _json(s.get("concepts", "[]"), [])
 
         ext = extraction_map.get(s["id"], {})
 
         # Use LLM-extracted topics if available (override categorizer)
-        ext_topics = ext.get("topics")
+        ext_topics = _json(ext.get("topics"))
         if ext_topics:
-            try:
-                parsed = json.loads(ext_topics) if isinstance(ext_topics, str) else ext_topics
-                if parsed:
-                    story_concepts = parsed
-            except (json.JSONDecodeError, TypeError):
-                pass
+            story_concepts = ext_topics
 
         features.append({
             "type": "Feature",
@@ -275,14 +276,8 @@ async def api_stories(
 
 def _parse_keywords(raw) -> list[str]:
     """Parse search_keywords JSON field into a list of strings."""
-    if not raw:
-        return []
-    if isinstance(raw, str):
-        try:
-            raw = json.loads(raw)
-        except (json.JSONDecodeError, TypeError):
-            return []
-    return raw if isinstance(raw, list) else []
+    parsed = _json(raw, [])
+    return parsed if isinstance(parsed, list) else []
 
 
 def _parse_ner_entities(raw) -> list[dict]:
@@ -290,11 +285,7 @@ def _parse_ner_entities(raw) -> list[dict]:
 
     Handles both ["string", ...] and [{"text": ..., "role": ...}, ...] formats.
     """
-    if isinstance(raw, str):
-        try:
-            raw = json.loads(raw)
-        except (json.JSONDecodeError, TypeError):
-            return []
+    raw = _json(raw, [])
     if not isinstance(raw, list):
         return []
     results = []
@@ -347,12 +338,7 @@ async def api_stories_clouds(
     for s in stories:
         parsed_entities = _parse_ner_entities(s.get("ner_entities", "[]"))
 
-        story_concepts = s.get("concepts", "[]")
-        if isinstance(story_concepts, str):
-            try:
-                story_concepts = json.loads(story_concepts)
-            except (json.JSONDecodeError, TypeError):
-                story_concepts = []
+        story_concepts = _json(s.get("concepts", "[]"), [])
 
         primary_loc = s.get("location_name")
 
@@ -635,12 +621,8 @@ async def api_trending():
         counts = {}
         total = len(rows)
         for row in rows:
-            try:
-                concepts = json.loads(row["concepts"] or "[]")
-                for c in concepts:
-                    counts[c] = counts.get(c, 0) + 1
-            except (json.JSONDecodeError, TypeError):
-                pass
+            for c in _json(row["concepts"] or "[]", []):
+                counts[c] = counts.get(c, 0) + 1
         return counts, max(total, 1)
 
     recent_counts, recent_total = count_concepts(recent_rows)
@@ -941,12 +923,7 @@ async def api_events(
         eid = event["id"]
         # Parse JSON fields
         for field in ("key_actors", "concepts", "related_events", "affected_parties"):
-            val = event.get(field, "[]")
-            if isinstance(val, str):
-                try:
-                    event[field] = json.loads(val)
-                except (json.JSONDecodeError, TypeError):
-                    event[field] = []
+            event[field] = _json(event.get(field, "[]"), [])
 
         all_stories = stories_by_event.get(eid, [])
         all_titles = [s["title"] for s in all_stories if s.get("title")]
@@ -999,12 +976,7 @@ async def api_event_detail(event_id: int):
 
     # Parse JSON fields
     for field in ("key_actors", "concepts", "related_events"):
-        val = event.get(field, "[]")
-        if isinstance(val, str):
-            try:
-                event[field] = json.loads(val)
-            except (json.JSONDecodeError, TypeError):
-                event[field] = []
+        event[field] = _json(event.get(field, "[]"), [])
 
     stories = get_event_stories(conn, event_id, limit=50)
     # Bulk fetch bright_side data for these stories
@@ -1021,12 +993,7 @@ async def api_event_detail(event_id: int):
 
     event["stories"] = []
     for s in stories:
-        story_concepts = s.get("concepts", "[]")
-        if isinstance(story_concepts, str):
-            try:
-                story_concepts = json.loads(story_concepts)
-            except (json.JSONDecodeError, TypeError):
-                story_concepts = []
+        story_concepts = _json(s.get("concepts", "[]"), [])
         bs = bs_map.get(s["id"], {})
         event["stories"].append({
             "id": s["id"],
@@ -1085,12 +1052,7 @@ async def api_world_overview():
     if not overview:
         return {"summary": None, "generated_at": None, "top_events": []}
 
-    top = overview.get("top_events", "[]")
-    if isinstance(top, str):
-        try:
-            top = json.loads(top)
-        except (json.JSONDecodeError, TypeError):
-            top = []
+    top = _json(overview.get("top_events", "[]"), [])
 
     return {
         "summary": overview.get("summary"),
@@ -1147,12 +1109,7 @@ async def api_search(
 
     features = []
     for s in stories:
-        story_concepts = s.get("concepts", "[]")
-        if isinstance(story_concepts, str):
-            try:
-                story_concepts = json.loads(story_concepts)
-            except (json.JSONDecodeError, TypeError):
-                story_concepts = []
+        story_concepts = _json(s.get("concepts", "[]"), [])
 
         extraction = extraction_map.get(s["id"])
         actors = actor_map.get(s["id"], [])
@@ -1175,7 +1132,7 @@ async def api_search(
         if extraction:
             props["severity"] = extraction.get("severity")
             props["primary_action"] = extraction.get("primary_action")
-            props["topics"] = json.loads(extraction.get("topics", "[]")) if isinstance(extraction.get("topics"), str) else extraction.get("topics", [])
+            props["topics"] = _json(extraction.get("topics", "[]"), [])
 
         if s.get("lat") is not None and s.get("lon") is not None:
             features.append({
@@ -1265,12 +1222,7 @@ async def api_narratives(
 
     result = []
     for n in narratives:
-        theme_tags = n.get("theme_tags", "[]")
-        if isinstance(theme_tags, str):
-            try:
-                theme_tags = json.loads(theme_tags)
-            except (json.JSONDecodeError, TypeError):
-                theme_tags = []
+        theme_tags = _json(n.get("theme_tags", "[]"), [])
 
         events = events_map.get(n["id"], [])
         narr_story_rows = story_data_map.get(n["id"], [])
@@ -1329,12 +1281,7 @@ async def api_narrative_detail(narrative_id: int):
         conn.close()
         return {"error": "Narrative not found"}
 
-    theme_tags = narrative.get("theme_tags", "[]")
-    if isinstance(theme_tags, str):
-        try:
-            theme_tags = json.loads(theme_tags)
-        except (json.JSONDecodeError, TypeError):
-            theme_tags = []
+    theme_tags = _json(narrative.get("theme_tags", "[]"), [])
 
     events = get_narrative_events(conn, narrative_id)
     event_ids = [e["id"] for e in events]
@@ -1448,11 +1395,8 @@ async def api_topics():
         ).fetchall()
         counts = {}
         for row in raw:
-            try:
-                for t in json.loads(row["concepts"] or "[]"):
-                    counts[t] = counts.get(t, 0) + 1
-            except (json.JSONDecodeError, TypeError):
-                pass
+            for t in _json(row["concepts"] or "[]", []):
+                counts[t] = counts.get(t, 0) + 1
         sorted_topics = sorted(counts.items(), key=lambda x: x[1], reverse=True)
         result = [{"name": name, "count": count} for name, count in sorted_topics[:100]]
     conn.close()

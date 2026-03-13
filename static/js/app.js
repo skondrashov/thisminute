@@ -380,19 +380,30 @@
   }
 
   // src/js/animations.js
-  function startNetworkAnimation() {
+  function _initAnimCanvas() {
     const canvas = document.getElementById("info-panel-bg-canvas");
-    if (!canvas) return;
+    if (!canvas) return null;
     const ctx = canvas.getContext("2d");
     const isLight = document.body.classList.contains("light-mode");
     const panel = document.getElementById("info-panel");
-    const resize = () => {
-      canvas.width = panel.offsetWidth;
-      canvas.height = panel.offsetHeight;
-    };
+    const resize = () => { canvas.width = panel.offsetWidth; canvas.height = panel.offsetHeight; };
     resize();
     window.addEventListener("resize", resize);
     canvas._resizeHandler = resize;
+    return { canvas, ctx, isLight };
+  }
+  function _stopAnim(stateKey) {
+    if (state[stateKey]) { cancelAnimationFrame(state[stateKey]); state[stateKey] = null; }
+    const canvas = document.getElementById("info-panel-bg-canvas");
+    if (canvas) {
+      if (canvas._resizeHandler) { window.removeEventListener("resize", canvas._resizeHandler); canvas._resizeHandler = null; }
+      canvas.getContext("2d").clearRect(0, 0, canvas.width, canvas.height);
+    }
+  }
+  function startNetworkAnimation() {
+    const env = _initAnimCanvas();
+    if (!env) return;
+    const { canvas, ctx, isLight } = env;
     const nodeCount = 35;
     const nodes = [];
     for (let i = 0; i < nodeCount; i++) {
@@ -443,7 +454,7 @@
         if (n.x < 0 || n.x > canvas.width) n.vx *= -1;
         if (n.y < 0 || n.y > canvas.height) n.vy *= -1;
       }
-      ctx.strokeStyle = isLight ? `rgba(52, 152, 219, ${mstAlpha})` : `rgba(52, 152, 219, ${mstAlpha})`;
+      ctx.strokeStyle = `rgba(52, 152, 219, ${mstAlpha})`;
       ctx.lineWidth = 0.6;
       for (const [a, b] of mstEdges) {
         ctx.beginPath();
@@ -461,7 +472,7 @@
             ctx.beginPath();
             ctx.moveTo(nodes[i].x, nodes[i].y);
             ctx.lineTo(nodes[j].x, nodes[j].y);
-            ctx.strokeStyle = isLight ? `rgba(52, 152, 219, ${alpha})` : `rgba(52, 152, 219, ${alpha})`;
+            ctx.strokeStyle = `rgba(52, 152, 219, ${alpha})`;
             ctx.lineWidth = 0.8;
             ctx.stroke();
           }
@@ -479,34 +490,11 @@
     }
     state.networkAnimId = requestAnimationFrame(draw);
   }
-  function stopNetworkAnimation() {
-    if (state.networkAnimId) {
-      cancelAnimationFrame(state.networkAnimId);
-      state.networkAnimId = null;
-    }
-    const canvas = document.getElementById("info-panel-bg-canvas");
-    if (canvas) {
-      if (canvas._resizeHandler) {
-        window.removeEventListener("resize", canvas._resizeHandler);
-        canvas._resizeHandler = null;
-      }
-      const ctx = canvas.getContext("2d");
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-    }
-  }
+  function stopNetworkAnimation() { _stopAnim("networkAnimId"); }
   function startSpaceAnimation() {
-    const canvas = document.getElementById("info-panel-bg-canvas");
-    if (!canvas) return;
-    const ctx = canvas.getContext("2d");
-    const isLight = document.body.classList.contains("light-mode");
-    const panel = document.getElementById("info-panel");
-    const resize = () => {
-      canvas.width = panel.offsetWidth;
-      canvas.height = panel.offsetHeight;
-    };
-    resize();
-    window.addEventListener("resize", resize);
-    canvas._resizeHandler = resize;
+    const env = _initAnimCanvas();
+    if (!env) return;
+    const { canvas, ctx, isLight } = env;
     const starCount = 200;
     const stars = [];
     for (let i = 0; i < starCount; i++) {
@@ -625,21 +613,7 @@
     }
     state.spaceAnimId = requestAnimationFrame(draw);
   }
-  function stopSpaceAnimation() {
-    if (state.spaceAnimId) {
-      cancelAnimationFrame(state.spaceAnimId);
-      state.spaceAnimId = null;
-    }
-    const canvas = document.getElementById("info-panel-bg-canvas");
-    if (canvas) {
-      if (canvas._resizeHandler) {
-        window.removeEventListener("resize", canvas._resizeHandler);
-        canvas._resizeHandler = null;
-      }
-      const ctx = canvas.getContext("2d");
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-    }
-  }
+  function stopSpaceAnimation() { _stopAnim("spaceAnimId"); }
 
   // src/js/mobile.js
   var _isMobile = () => window.innerWidth <= 768;
