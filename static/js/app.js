@@ -117,28 +117,44 @@
   var _domainHSL = {};
   for (var _dc in DOMAIN_COLORS) _domainHSL[_dc] = _hexToHSL(DOMAIN_COLORS[_dc]);
   var _fallbackHSL = _hexToHSL("#484f58");
+  function _featureDomain(f) {
+    var concepts = f.properties.concepts;
+    if (typeof concepts === "string") try { concepts = JSON.parse(concepts); } catch (e) { concepts = []; }
+    if (Array.isArray(concepts)) {
+      for (var i = 0; i < concepts.length; i++) {
+        var lower = concepts[i].toLowerCase();
+        for (var r = 0; r < TOPIC_DOMAIN_RULES.length; r++) {
+          for (var k = 0; k < TOPIC_DOMAIN_RULES[r].keywords.length; k++) {
+            if (lower.includes(TOPIC_DOMAIN_RULES[r].keywords[k])) return TOPIC_DOMAIN_RULES[r].domain;
+          }
+        }
+      }
+    }
+    return "general";
+  }
   function _blendLocationColors(features) {
     try {
       var byCoord = {};
       for (var i = 0; i < features.length; i++) {
         var f = features[i];
         if (!f.geometry || !f.geometry.coordinates) continue;
+        f.properties._domain = _featureDomain(f);
         var key = f.geometry.coordinates[0] + "," + f.geometry.coordinates[1];
         if (!byCoord[key]) byCoord[key] = [];
         byCoord[key].push(f);
       }
       for (var k in byCoord) {
         var group = byCoord[k];
-        var catCounts = {}, total = 0;
+        var domainCounts = {}, total = 0;
         for (var j = 0; j < group.length; j++) {
-          var cat = group[j].properties.category;
-          catCounts[cat] = (catCounts[cat] || 0) + 1;
+          var dom = group[j].properties._domain;
+          domainCounts[dom] = (domainCounts[dom] || 0) + 1;
           total++;
         }
         var sinSum = 0, cosSum = 0, sSum = 0, lSum = 0;
-        for (var c in catCounts) {
-          var hsl = _domainHSL[c] || _fallbackHSL;
-          var w = catCounts[c] / total;
+        for (var d in domainCounts) {
+          var hsl = _domainHSL[d] || _fallbackHSL;
+          var w = domainCounts[d] / total;
           var hRad = hsl[0] * Math.PI / 180;
           sinSum += w * Math.sin(hRad);
           cosSum += w * Math.cos(hRad);
@@ -157,8 +173,8 @@
     }
     for (var ii = 0; ii < features.length; ii++) {
       if (!features[ii].properties.blended_color) {
-        var cc = features[ii].properties.category;
-        features[ii].properties.blended_color = DOMAIN_COLORS[cc] || "#484f58";
+        var dom2 = features[ii].properties._domain || "general";
+        features[ii].properties.blended_color = DOMAIN_COLORS[dom2] || "#484f58";
       }
     }
   }
@@ -793,21 +809,15 @@
       }
       endDrag();
     });
-    const refreshBtn = document.getElementById("mobile-refresh-btn");
     mobileBar.addEventListener("click", (e) => {
       if (dragOccurred) {
         dragOccurred = false;
         return;
       }
       if (e.target === menuBtn || menuBtn.contains(e.target)) return;
-      if (e.target === refreshBtn || refreshBtn.contains(e.target)) return;
       toggleSheet();
     });
     menuBtn.addEventListener("click", toggleSheet);
-    refreshBtn.addEventListener("click", () => {
-      refreshBtn.classList.add("spinning");
-      setTimeout(() => location.reload(), 300);
-    });
     const scrollables = [
       document.getElementById("narrative-list"),
       document.getElementById("event-list"),
