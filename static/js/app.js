@@ -84,6 +84,72 @@
     culture: "#f39c12",
     uplifting: "#f1c40f"
   };
+  function _hexToHSL(hex) {
+    const r = parseInt(hex.slice(1, 3), 16) / 255;
+    const g = parseInt(hex.slice(3, 5), 16) / 255;
+    const b = parseInt(hex.slice(5, 7), 16) / 255;
+    const max = Math.max(r, g, b), min = Math.min(r, g, b);
+    const l = (max + min) / 2;
+    if (max === min) return [0, 0, l];
+    const d = max - min;
+    const s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+    let h;
+    if (max === r) h = ((g - b) / d + (g < b ? 6 : 0)) / 6;
+    else if (max === g) h = ((b - r) / d + 2) / 6;
+    else h = ((r - g) / d + 4) / 6;
+    return [h * 360, s, l];
+  }
+  function _hslToHex(h, s, l) {
+    h = ((h % 360) + 360) % 360;
+    const c = (1 - Math.abs(2 * l - 1)) * s;
+    const x = c * (1 - Math.abs((h / 60) % 2 - 1));
+    const m = l - c / 2;
+    let r, g, b;
+    if (h < 60) { r = c; g = x; b = 0; }
+    else if (h < 120) { r = x; g = c; b = 0; }
+    else if (h < 180) { r = 0; g = c; b = x; }
+    else if (h < 240) { r = 0; g = x; b = c; }
+    else if (h < 300) { r = x; g = 0; b = c; }
+    else { r = c; g = 0; b = x; }
+    const toHex = (v) => Math.round(Math.min(255, Math.max(0, (v + m) * 255))).toString(16).padStart(2, "0");
+    return "#" + toHex(r) + toHex(g) + toHex(b);
+  }
+  var _domainHSL = {};
+  for (var _dc in DOMAIN_COLORS) _domainHSL[_dc] = _hexToHSL(DOMAIN_COLORS[_dc]);
+  var _fallbackHSL = _hexToHSL("#484f58");
+  function _blendLocationColors(features) {
+    var byCoord = {};
+    for (var i = 0; i < features.length; i++) {
+      var f = features[i];
+      var key = f.geometry.coordinates[0] + "," + f.geometry.coordinates[1];
+      if (!byCoord[key]) byCoord[key] = [];
+      byCoord[key].push(f);
+    }
+    for (var k in byCoord) {
+      var group = byCoord[k];
+      var catCounts = {}, total = 0;
+      for (var j = 0; j < group.length; j++) {
+        var cat = group[j].properties.category;
+        catCounts[cat] = (catCounts[cat] || 0) + 1;
+        total++;
+      }
+      var sinSum = 0, cosSum = 0, sSum = 0, lSum = 0;
+      for (var c in catCounts) {
+        var hsl = _domainHSL[c] || _fallbackHSL;
+        var w = catCounts[c] / total;
+        var hRad = hsl[0] * Math.PI / 180;
+        sinSum += w * Math.sin(hRad);
+        cosSum += w * Math.cos(hRad);
+        sSum += w * hsl[1];
+        lSum += w * hsl[2];
+      }
+      var avgH = Math.atan2(sinSum, cosSum) * 180 / Math.PI;
+      var blended = _hslToHex(avgH, sSum, lSum);
+      for (var j2 = 0; j2 < group.length; j2++) {
+        group[j2].properties.blended_color = blended;
+      }
+    }
+  }
   var COUNTRY_NAME_MAP = {
     "United States": "United States of America",
     "Czech Republic": "Czechia",
@@ -1002,29 +1068,7 @@
       filter: ["==", ["get", "is_primary"], true],
       paint: {
         "circle-radius": ["interpolate", ["linear"], ["zoom"], 0, 3, 6, 5, 10, 7],
-        "circle-color": [
-          "match",
-          ["get", "category"],
-          "violence",
-          DOMAIN_COLORS.violence,
-          "human",
-          DOMAIN_COLORS.human,
-          "power",
-          DOMAIN_COLORS.power,
-          "economy",
-          DOMAIN_COLORS.economy,
-          "planet",
-          DOMAIN_COLORS.planet,
-          "health",
-          DOMAIN_COLORS.health,
-          "tech",
-          DOMAIN_COLORS.tech,
-          "culture",
-          DOMAIN_COLORS.culture,
-          "uplifting",
-          DOMAIN_COLORS.uplifting,
-          "#484f58"
-        ],
+        "circle-color": ["coalesce", ["get", "blended_color"], "#484f58"],
         "circle-opacity": [
           "interpolate",
           ["linear"],
@@ -2111,6 +2155,7 @@
         const t = f.properties.scraped_at ? new Date(f.properties.scraped_at).getTime() : 0;
         f.properties.age_hours = t ? (now - t) / 36e5 : 999;
       }
+      _blendLocationColors(state.cloudData.features || []);
       applyFilters();
     } catch (err) {
       console.error("Failed to load cloud data:", err);
@@ -3487,7 +3532,7 @@
       const fullTime = formatFullTime(n.last_updated);
       const updatedAgo = n.last_updated ? (Date.now() - new Date(n.last_updated).getTime()) / 36e5 : 999;
       const newBadge = state._newNarrativeIds.has(n.id) ? '<span class="situation-new">new</span>' : "";
-      const developingBadge = !newBadge && updatedAgo < 2 ? '<span class="situation-developing">developing</span>' : "";
+      const developingBadge = !newBadge && updatedAgo < 2 ? '<span class="situation-developing-dot"></span>' : "";
       const age = n.first_seen ? formatTime(n.first_seen) : "";
       const ageLabel = age ? `<span class="situation-age">tracking ${age}</span>` : "";
       const isActive = state.activeNarrativeId === n.id;
@@ -3877,7 +3922,7 @@
         if (state.currentProjection === "globe") {
           const lngLat = m.unproject([cx, cy]);
           if (!lngLat || isNaN(lngLat.lng) || isNaN(lngLat.lat)) {
-            preview.classList.remove("visible");
+            _renderMobilePreviewEmpty();
             _reticleFeatures = [];
             return;
           }
@@ -3934,7 +3979,7 @@
               return;
             }
           }
-          preview.classList.remove("visible");
+          _renderMobilePreviewEmpty();
           _reticleFeatures = [];
           return;
         }
@@ -3955,7 +4000,8 @@
         });
         if (count > 3) lines.push(`<div class="hover-more">+${count - 3} more</div>`);
         preview.innerHTML = `<div class="map-preview-title"><span class="map-preview-dot" style="background:${color}"></span>${escapeHtml(title)}</div><div class="map-preview-meta">${count} ${count === 1 ? "story" : "stories"}</div><div class="map-preview-stories">${lines.join("")}</div><div class="map-preview-tap">Tap to open</div>`;
-        preview.classList.add("visible");
+      }, _renderMobilePreviewEmpty = function() {
+        preview.innerHTML = '<div class="map-preview-empty">Move the globe to explore</div>';
       };
       const preview = document.getElementById("map-preview");
       let _reticleFeatures = [];
@@ -3973,8 +4019,9 @@
         const [lon, lat] = first.geometry.coordinates;
         setLocationFilter({ type: "point", lon, lat, name: _reticleName, radius: 5 });
         openInfoPanel(_reticleName, _reticleFeatures);
-        preview.classList.remove("visible");
+        _renderMobilePreviewEmpty();
       });
+      _renderMobilePreviewEmpty();
     }
     const feedContainer = document.getElementById("feed-buttons");
     function _updateFeedZoom() {
