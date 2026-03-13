@@ -287,6 +287,11 @@ def init_db(db_path: Optional[Path] = None) -> None:
             conn.execute(f"ALTER TABLE story_extractions ADD COLUMN {col} TEXT DEFAULT {default}")
         except sqlite3.OperationalError:
             pass
+    # Migrate: add human_interest_score to story_extractions
+    try:
+        conn.execute("ALTER TABLE story_extractions ADD COLUMN human_interest_score INTEGER DEFAULT NULL")
+    except sqlite3.OperationalError:
+        pass
     # Migrate: deduplicate existing stories with same title+source, keeping newest
     try:
         dupes = conn.execute("""
@@ -756,13 +761,22 @@ def store_extraction(
         bs_category = bright_side.get("category")
         bs_headline = bright_side.get("headline")
 
+    # Extract human_interest_score
+    hi_score = extraction.get("human_interest_score")
+    if hi_score is not None:
+        try:
+            hi_score = int(hi_score)
+        except (ValueError, TypeError):
+            hi_score = None
+
     conn.execute(
         """INSERT OR REPLACE INTO story_extractions
            (story_id, extraction_json, topics, sentiment, severity,
             primary_action, event_signature, location_type, search_keywords,
             is_opinion, extracted_at, registry_event_id,
-            bright_side_score, bright_side_category, bright_side_headline)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            bright_side_score, bright_side_category, bright_side_headline,
+            human_interest_score)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
         (
             story_id,
             json.dumps(extraction),
@@ -779,6 +793,7 @@ def store_extraction(
             bs_score,
             bs_category,
             bs_headline,
+            hi_score,
         ),
     )
 

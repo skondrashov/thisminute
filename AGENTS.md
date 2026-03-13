@@ -1,5 +1,7 @@
 # thisminute.org
 
+If told to go, start, or begin — you are the **orchestrator**. See `agents/orchestrator.md`.
+
 For agent startup protocol, communication rules, and forum voting, see `PROTOCOL.md`.
 
 ## Overview
@@ -65,11 +67,13 @@ app.py (FastAPI) --> static/index.html + app.js + style.css (MapLibre GL JS 5.x)
 - **Graceful degradation** — works without ANTHROPIC_API_KEY using keyword fallbacks
 - **Bright Side system** — LLM scores stories 1-10 for positive framing, rewrites headlines
 
-## Deploying
+## Deploying & Pushing
 
-**Always use `python scripts/deploy.py`**. Never use raw tar/scp/ssh. See `agents/deployer.md` for full procedure.
+**Deploys and git pushes are handled by the ops steward** (see `../ops/agents/steward.md`). Do not deploy or push directly.
 
-**Every deploy MUST bump `?v=N`** in index.html for both CSS and JS links.
+To request a deploy: add an entry to `../ops/DEPLOY_QUEUE.md` with scope (push/deploy/both), changed files, and any notes. The steward runs tests, pushes to GitHub, deploys via `python scripts/deploy.py`, cache-busts `?v=` params, and verifies health — on a 60-minute cycle.
+
+The deployer agent (`agents/deployer.md`) retains its role for pre-deploy preparation and verification checklists, but does not execute deploys or pushes itself.
 
 ## Cost Model
 

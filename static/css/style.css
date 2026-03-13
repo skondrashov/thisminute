@@ -3332,16 +3332,17 @@ body.light-mode #legend-toggle { background: rgba(246, 248, 250, 0.9); }
     }
 
     #map-container {
+        flex: 0 0 auto;
         height: calc(100vh - var(--pane-height));
         width: 100vw;
         transition: height 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     }
 
-    /* Mobile map reticle — centered in upper 2/3 of screen */
+    /* Mobile map reticle — centered in map */
     #map-reticle {
         display: block;
         position: absolute;
-        top: 33%;
+        top: 50%;
         left: 50%;
         width: 18px;
         height: 18px;

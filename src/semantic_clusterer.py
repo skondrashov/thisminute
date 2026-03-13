@@ -10,6 +10,7 @@ import re
 from collections import Counter
 from datetime import datetime, timezone, timedelta
 
+from .config import FEED_TAG_MAP
 from .database import (
     get_active_events,
     get_unassigned_stories,
@@ -36,6 +37,461 @@ MAX_KEY_ACTORS = 8
 
 # Hours after which an event with no new stories is resolved
 RESOLVE_HOURS = 48
+
+# Sports-aware clustering: lower threshold for events sharing a tournament/league
+SPORTS_MERGE_THRESHOLD = 0.28
+
+# Minimum fraction of stories from sports sources to consider an event "sports"
+SPORTS_SOURCE_RATIO = 0.5
+
+# Known sports sources (from FEED_TAG_MAP)
+_SPORTS_SOURCES = frozenset(
+    src for src, tags in FEED_TAG_MAP.items() if "sports" in tags
+)
+
+# Entertainment-aware clustering: lower threshold for events sharing a production/franchise/award
+ENTERTAINMENT_MERGE_THRESHOLD = 0.28
+
+# Minimum fraction of stories from entertainment sources to consider an event "entertainment"
+ENTERTAINMENT_SOURCE_RATIO = 0.3
+
+# Known entertainment sources (from FEED_TAG_MAP)
+_ENTERTAINMENT_SOURCES = frozenset(
+    src for src, tags in FEED_TAG_MAP.items() if "entertainment" in tags
+)
+
+# Tournament/league/competition identifiers for sports merge.
+# Each entry is a regex pattern that, if found in a signature, identifies
+# the tournament. The matched portion is used as the merge key.
+# Order matters: more specific patterns first.
+_SPORTS_TOURNAMENT_PATTERNS = [
+    # Tennis tournaments
+    re.compile(r"\b(australian open|french open|roland garros|wimbledon|us open tennis)\b", re.I),
+    re.compile(r"\b(\d{4}\s+)?(indian wells|miami open|monte carlo|madrid open|rome open|cincinnati open|shanghai open|paris masters|atp finals|wta finals)\b", re.I),
+    # Football/Soccer leagues & cups
+    re.compile(r"\b(\d{4}(?:[-/]\d{2,4})?\s+)?(premier league|la liga|serie ?a|bundesliga|ligue ?1|eredivisie)\b", re.I),
+    re.compile(r"\b(champions league|europa league|conference league|fa cup|carabao cup|copa del rey|dfb pokal|coppa italia|coupe de france)\b", re.I),
+    re.compile(r"\b(\d{4}\s+)?(world cup|euro \d{4}|copa america|afcon|asian cup|concacaf|nations league|fifa club world cup)\b", re.I),
+    re.compile(r"\b(mls|a-?league|j-?league|k-?league|indian super league|saudi pro league)\b", re.I),
+    # Rugby
+    re.compile(r"\b(six nations|rugby world cup|super rugby|premiership rugby|top 14|united rugby)\b", re.I),
+    # Cricket
+    re.compile(r"\b(ipl|indian premier league|big bash|psl|cpl|the hundred|t20 world cup|cricket world cup|ashes|bgt|wtc final)\b", re.I),
+    # American sports
+    re.compile(r"\b(nfl|super bowl|nfl draft|nfl free agency|nfl playoffs)\b", re.I),
+    re.compile(r"\b(nba|nba playoffs|nba finals|nba draft|nba all-?star)\b", re.I),
+    re.compile(r"\b(mlb|world series|mlb playoffs|spring training)\b", re.I),
+    re.compile(r"\b(nhl|stanley cup|nhl playoffs|nhl draft)\b", re.I),
+    re.compile(r"\b(march madness|ncaa tournament|college football playoff|cfp)\b", re.I),
+    # Motorsport
+    re.compile(r"\b(f1|formula\s*1|formula\s*one)\s+([\w\s]+?\s+)?(gp|grand prix)\b", re.I),
+    re.compile(r"\b(\d{4}\s+)?f1\s+season\b", re.I),
+    re.compile(r"\b(motogp|wrc|wec|indycar|nascar|dakar rally|le mans)\b", re.I),
+    # Golf
+    re.compile(r"\b(the masters|pga championship|us open golf|the open championship|ryder cup|presidents cup)\b", re.I),
+    re.compile(r"\b(pga tour|liv golf|dp world tour)\b", re.I),
+    # Boxing/MMA
+    re.compile(r"\b(ufc\s*\d+)\b", re.I),
+    # Cycling
+    re.compile(r"\b(tour de france|giro d.italia|vuelta a espana|paris.roubaix|milan.san remo)\b", re.I),
+    # Multi-sport events
+    re.compile(r"\b(\d{4}\s+)?(olympics|olympic games|commonwealth games|asian games|pan american games)\b", re.I),
+    # Generic year + sport competition (fallback)
+    re.compile(r"\b(\d{4})\s+([\w]+\s+)?(open|masters|championship|cup|trophy|classic|invitational|grand prix)\b", re.I),
+]
+
+
+# Entertainment production/franchise/award identifiers for entertainment merge.
+# Each entry is a regex pattern that, if found in a signature, identifies
+# the entertainment entity. The matched portion is used as the merge key.
+# Order matters: more specific patterns first.
+_ENTERTAINMENT_PATTERNS = [
+    # Award shows (year + award name)
+    re.compile(r"\b(\d{4}\s+)?(academy awards?|oscars?)\b", re.I),
+    re.compile(r"\b(\d{4}\s+)?(grammy awards?|grammys?)\b", re.I),
+    re.compile(r"\b(\d{4}\s+)?(emmy awards?|emmys?|emmies)\b", re.I),
+    re.compile(r"\b(\d{4}\s+)?(golden globe(?:s| awards?)?)\b", re.I),
+    re.compile(r"\b(\d{4}\s+)?(bafta(?:s| awards?)?)\b", re.I),
+    re.compile(r"\b(\d{4}\s+)?(tony awards?|tonys?)\b", re.I),
+    re.compile(r"\b(\d{4}\s+)?(brit awards?|brits)\b", re.I),
+    re.compile(r"\b(\d{4}\s+)?(sag awards?|screen actors guild)\b", re.I),
+    re.compile(r"\b(\d{4}\s+)?(mtv (?:vma|video music|movie) awards?)\b", re.I),
+    re.compile(r"\b(\d{4}\s+)?(billboard (?:music )?awards?)\b", re.I),
+    re.compile(r"\b(\d{4}\s+)?(american music awards?|amas)\b", re.I),
+    re.compile(r"\b(\d{4}\s+)?(?:k-?pop|korean music|mama|melon music) awards?\b", re.I),
+    re.compile(r"\b(\d{4}\s+)?(filmfare awards?)\b", re.I),
+    # Film festivals
+    re.compile(r"\b(\d{4}\s+)?(cannes(?:\s+film)?\s+festival)\b", re.I),
+    re.compile(r"\b(\d{4}\s+)?(sundance(?:\s+film)?\s+festival)\b", re.I),
+    re.compile(r"\b(\d{4}\s+)?(venice(?:\s+film)?\s+festival)\b", re.I),
+    re.compile(r"\b(\d{4}\s+)?(toronto(?:\s+(?:film|international))?\s+festival|tiff)\b", re.I),
+    re.compile(r"\b(\d{4}\s+)?(berlin(?:ale|\s+film\s+festival))\b", re.I),
+    re.compile(r"\b(\d{4}\s+)?(sxsw(?:\s+festival)?)\b", re.I),
+    re.compile(r"\b(\d{4}\s+)?(tribeca(?:\s+film)?\s+festival)\b", re.I),
+    re.compile(r"\b(\d{4}\s+)?(telluride(?:\s+film)?\s+festival)\b", re.I),
+    re.compile(r"\b(\d{4}\s+)?(locarno(?:\s+film)?\s+festival)\b", re.I),
+    re.compile(r"\b(\d{4}\s+)?(busan(?:\s+(?:film|international))?\s+festival)\b", re.I),
+    # Major movie franchises/productions (match "X Production" or just the franchise name)
+    re.compile(r"\b(marvel\s+(?:phase|cinematic|studios)\s*\w*)\b", re.I),
+    re.compile(r"\b(spider[- ]?man\s*\d*(?:\s+\w+)?)\b", re.I),
+    re.compile(r"\b(star wars\s+(?:\w+\s+)?(?:movie|film|trilogy|series|season|episode|sequel|prequel|franchise|production|disney|lucasfilm|jedi|sith|mandalorian|ahsoka|andor|acolyte|skeleton crew)\w*)\b", re.I),
+    re.compile(r"\b(avatar\s+\d+|avatar\s+\w+)\b", re.I),
+    re.compile(r"\b(batman\s+(?:movie|film|sequel|returns|begins|forever|dc|arkham|gotham|robert pattinson|ben affleck))\b", re.I),
+    re.compile(r"\b(superman|dc (?:universe|studios))\b", re.I),
+    re.compile(r"\b(james bond\s*\d*|bond\s+\d{2,})\b", re.I),
+    re.compile(r"\b(mission impossible\s*\d*|mission impossible\s+\w+)\b", re.I),
+    re.compile(r"\b(fast (?:and|&) furious\s*\d*|fast\s+x+\d*)\b", re.I),
+    re.compile(r"\b(jurassic\s+(?:world|park)\s*\d*)\b", re.I),
+    re.compile(r"\b(harry potter\s+(?:\w+\s+)?(?:movie|film|series|season|sequel|prequel|franchise|production|remake|hbo|reboot|reunion|studio tour|cursed child|hogwarts)\w*|wizarding world)\b", re.I),
+    re.compile(r"\b(lord of the rings\s+(?:\w+\s+)?(?:movie|film|series|season|sequel|prequel|franchise|production|amazon|war of the rohirrim|rings of power)\w*|rings of power)\b", re.I),
+    re.compile(r"\b(game of thrones|house of the dragon)\b", re.I),
+    re.compile(r"\b(stranger things\s*(?:season)?\s*\d*)\b", re.I),
+    re.compile(r"\b(the bear\s+(?:season\s*\d+|fx|hulu|jeremy allen|carmy|chicago|finale|premiere|episode|streaming))\b", re.I),
+    re.compile(r"\b(succession\s+(?:season\s*\d+|hbo|finale|premiere|episode|roy family|logan roy|kendall|streaming))\b", re.I),
+    re.compile(r"\b(squid game\s*(?:season)?\s*\d*)\b", re.I),
+    re.compile(r"\b(wednesday\s+(?:season\s*\d+|netflix|addams|jenna ortega|finale|premiere|episode|streaming))\b", re.I),
+    # Music tours (artist + tour)
+    re.compile(r"\b(\w[\w\s]+?\s+(?:world|eras?|renaissance|stadium|arena)\s+tour)\b", re.I),
+    re.compile(r"\b(\w[\w\s]+?\s+tour\s+\d{4})\b", re.I),
+    # K-pop / international groups
+    re.compile(r"\b(bts\s+\w[\w\s]*?(?:comeback|military|reunion|album|tour))\b", re.I),
+    re.compile(r"\b(blackpink\s+\w[\w\s]*?(?:comeback|reunion|album|tour))\b", re.I),
+    re.compile(r"\b(twice\s+\w[\w\s]*?(?:comeback|album|tour))\b", re.I),
+    re.compile(r"\b(stray kids\s+\w[\w\s]*?(?:comeback|album|tour))\b", re.I),
+    # Broadway / West End / theater
+    re.compile(r"\b(broadway\s+\w[\w\s]*?(?:revival|premiere|opening|season))\b", re.I),
+    re.compile(r"\b(west end\s+\w[\w\s]*?(?:revival|premiere|opening|season))\b", re.I),
+    # Bollywood
+    re.compile(r"\b(bollywood\s+\w[\w\s]*?(?:awards?|box office|release))\b", re.I),
+    # Generic year + entertainment event (fallback)
+    re.compile(r"\b(\d{4})\s+([\w]+\s+)?(awards?|festival|gala|ceremony|premiere|season\s+\d+)\b", re.I),
+]
+
+
+def _extract_entertainment_key(signature: str) -> str | None:
+    """Extract a normalized entertainment entity key from a signature.
+
+    Returns a lowercase key like "2026 academy awards", "spider-man 4 production",
+    "cannes film festival", or None if no entertainment pattern is detected.
+    """
+    if not signature:
+        return None
+    for pattern in _ENTERTAINMENT_PATTERNS:
+        m = pattern.search(signature)
+        if m:
+            # Use the full match, normalized
+            key = m.group(0).strip().lower()
+            # Normalize whitespace
+            key = re.sub(r"\s+", " ", key)
+            return key
+    return None
+
+
+def _is_entertainment_event(conn, event_id: int) -> bool:
+    """Check if an event is entertainment-dominated based on source feed tags.
+
+    Returns True if >= ENTERTAINMENT_SOURCE_RATIO of the event's stories
+    come from entertainment-tagged feeds.
+    """
+    rows = conn.execute(
+        """SELECT s.source FROM stories s
+           JOIN event_stories es ON s.id = es.story_id
+           WHERE es.event_id = ?""",
+        (event_id,),
+    ).fetchall()
+    if not rows:
+        return False
+    ent_count = sum(1 for r in rows if r["source"] in _ENTERTAINMENT_SOURCES)
+    return ent_count / len(rows) >= ENTERTAINMENT_SOURCE_RATIO
+
+
+def _batch_check_entertainment_events(conn, event_ids: list[int]) -> set[int]:
+    """Batch-check which events are entertainment-dominated. Returns set of entertainment event IDs."""
+    if not event_ids:
+        return set()
+    ph = ",".join("?" * len(event_ids))
+    rows = conn.execute(
+        f"""SELECT es.event_id, s.source
+            FROM stories s
+            JOIN event_stories es ON s.id = es.story_id
+            WHERE es.event_id IN ({ph})""",
+        event_ids,
+    ).fetchall()
+
+    # Count total and entertainment stories per event
+    totals = Counter()
+    entertainment = Counter()
+    for r in rows:
+        eid = r["event_id"]
+        totals[eid] += 1
+        if r["source"] in _ENTERTAINMENT_SOURCES:
+            entertainment[eid] += 1
+
+    return {eid for eid in totals if entertainment[eid] / totals[eid] >= ENTERTAINMENT_SOURCE_RATIO}
+
+
+def _merge_entertainment_by_production(conn, events: list[dict]) -> int:
+    """Merge entertainment events that share the same production/franchise/award.
+
+    This is an entertainment-specific merge pass that uses production/franchise
+    pattern detection on event signatures. Events sharing the same entertainment key
+    (e.g., "2026 academy awards", "spider-man 4 production") are merged into the
+    largest event in the group.
+
+    Only applies to events where a significant fraction of stories come from
+    entertainment-tagged feeds, preventing false merges of news events that
+    happen to mention an entertainment entity.
+    """
+    if not events:
+        return 0
+
+    event_ids = [e["id"] for e in events]
+
+    # Batch-check which are entertainment events
+    entertainment_ids = _batch_check_entertainment_events(conn, event_ids)
+    if not entertainment_ids:
+        return 0
+
+    # Get signatures for entertainment events only
+    ent_events = [e for e in events if e["id"] in entertainment_ids]
+    event_sigs = _batch_get_event_signatures(conn, [e["id"] for e in ent_events])
+
+    # Group events by entertainment key
+    ent_groups = {}  # entertainment_key -> [event_dicts]
+    for event in ent_events:
+        sigs = event_sigs.get(event["id"], [])
+        for sig in sigs:
+            key = _extract_entertainment_key(sig)
+            if key:
+                ent_groups.setdefault(key, []).append(event)
+                break  # Only use the first matching sig per event
+
+    merged = 0
+    merged_ids = set()
+
+    for ent_key, group in ent_groups.items():
+        if len(group) < 2:
+            continue
+
+        # Sort by story_count descending -- merge into the largest
+        group.sort(key=lambda e: e.get("story_count", 0), reverse=True)
+        target = group[0]
+        if target["id"] in merged_ids:
+            continue
+
+        for source_event in group[1:]:
+            if source_event["id"] in merged_ids:
+                continue
+
+            # Verify signature similarity meets the lower entertainment threshold
+            target_sigs = event_sigs.get(target["id"], [])
+            source_sigs = event_sigs.get(source_event["id"], [])
+            best_score = 0
+            for s1 in source_sigs:
+                for s2 in target_sigs:
+                    score = _signature_similarity(s1, s2)
+                    if score > best_score:
+                        best_score = score
+
+            # Entertainment events with same production key merge at a lower threshold
+            if best_score < ENTERTAINMENT_MERGE_THRESHOLD:
+                continue
+
+            combined = target.get("story_count", 0) + source_event.get("story_count", 0)
+            if combined > MAX_EVENT_STORIES:
+                continue
+
+            # Perform the merge
+            conn.execute(
+                "UPDATE event_stories SET event_id = ? WHERE event_id = ?",
+                (target["id"], source_event["id"]),
+            )
+            count = conn.execute(
+                "SELECT COUNT(*) as c FROM event_stories WHERE event_id = ?",
+                (target["id"],),
+            ).fetchone()["c"]
+            conn.execute(
+                "UPDATE events SET story_count = ? WHERE id = ?",
+                (count, target["id"]),
+            )
+            conn.execute(
+                "UPDATE events SET merged_into = ? WHERE id = ?",
+                (target["id"], source_event["id"]),
+            )
+            target["story_count"] = count
+            merged_ids.add(source_event["id"])
+            merged += 1
+            logger.info(
+                "Entertainment merge: '%s' events merged (key=%s, combined=%d stories)",
+                ent_key, ent_key, count,
+            )
+
+    if merged:
+        conn.commit()
+    return merged
+
+
+def _extract_tournament_key(signature: str) -> str | None:
+    """Extract a normalized tournament/competition key from a signature.
+
+    Returns a lowercase key like "premier league", "2026 indian wells",
+    "f1 australian gp", or None if no tournament pattern is detected.
+    """
+    if not signature:
+        return None
+    for pattern in _SPORTS_TOURNAMENT_PATTERNS:
+        m = pattern.search(signature)
+        if m:
+            # Use the full match, normalized
+            key = m.group(0).strip().lower()
+            # Normalize whitespace
+            key = re.sub(r"\s+", " ", key)
+            return key
+    return None
+
+
+def _is_sports_event(conn, event_id: int) -> bool:
+    """Check if an event is sports-dominated based on source feed tags.
+
+    Returns True if >= SPORTS_SOURCE_RATIO of the event's stories
+    come from sports-tagged feeds.
+    """
+    rows = conn.execute(
+        """SELECT s.source FROM stories s
+           JOIN event_stories es ON s.id = es.story_id
+           WHERE es.event_id = ?""",
+        (event_id,),
+    ).fetchall()
+    if not rows:
+        return False
+    sports_count = sum(1 for r in rows if r["source"] in _SPORTS_SOURCES)
+    return sports_count / len(rows) >= SPORTS_SOURCE_RATIO
+
+
+def _batch_check_sports_events(conn, event_ids: list[int]) -> set[int]:
+    """Batch-check which events are sports-dominated. Returns set of sports event IDs."""
+    if not event_ids:
+        return set()
+    ph = ",".join("?" * len(event_ids))
+    rows = conn.execute(
+        f"""SELECT es.event_id, s.source
+            FROM stories s
+            JOIN event_stories es ON s.id = es.story_id
+            WHERE es.event_id IN ({ph})""",
+        event_ids,
+    ).fetchall()
+
+    # Count total and sports stories per event
+    totals = Counter()
+    sports = Counter()
+    for r in rows:
+        eid = r["event_id"]
+        totals[eid] += 1
+        if r["source"] in _SPORTS_SOURCES:
+            sports[eid] += 1
+
+    return {eid for eid in totals if sports[eid] / totals[eid] >= SPORTS_SOURCE_RATIO}
+
+
+def _merge_sports_by_tournament(conn, events: list[dict]) -> int:
+    """Merge sports events that share the same tournament/competition.
+
+    This is a sports-specific merge pass that uses tournament pattern
+    detection on event signatures. Events sharing the same tournament key
+    (e.g., "premier league", "2026 indian wells") are merged into the
+    largest event in the group.
+
+    Only applies to events where the majority of stories come from
+    sports-tagged feeds, preventing false merges of news events that
+    happen to mention a tournament name.
+    """
+    if not events:
+        return 0
+
+    event_ids = [e["id"] for e in events]
+
+    # Batch-check which are sports events
+    sports_ids = _batch_check_sports_events(conn, event_ids)
+    if not sports_ids:
+        return 0
+
+    # Get signatures for sports events only
+    sports_events = [e for e in events if e["id"] in sports_ids]
+    event_sigs = _batch_get_event_signatures(conn, [e["id"] for e in sports_events])
+
+    # Group events by tournament key
+    tournament_groups = {}  # tournament_key -> [event_dicts]
+    for event in sports_events:
+        sigs = event_sigs.get(event["id"], [])
+        for sig in sigs:
+            key = _extract_tournament_key(sig)
+            if key:
+                tournament_groups.setdefault(key, []).append(event)
+                break  # Only use the first matching sig per event
+
+    merged = 0
+    merged_ids = set()
+
+    for tournament_key, group in tournament_groups.items():
+        if len(group) < 2:
+            continue
+
+        # Sort by story_count descending — merge into the largest
+        group.sort(key=lambda e: e.get("story_count", 0), reverse=True)
+        target = group[0]
+        if target["id"] in merged_ids:
+            continue
+
+        for source_event in group[1:]:
+            if source_event["id"] in merged_ids:
+                continue
+
+            # Verify signature similarity meets the lower sports threshold
+            target_sigs = event_sigs.get(target["id"], [])
+            source_sigs = event_sigs.get(source_event["id"], [])
+            best_score = 0
+            for s1 in source_sigs:
+                for s2 in target_sigs:
+                    score = _signature_similarity(s1, s2)
+                    if score > best_score:
+                        best_score = score
+
+            # Sports events with same tournament merge at a lower threshold
+            if best_score < SPORTS_MERGE_THRESHOLD:
+                continue
+
+            combined = target.get("story_count", 0) + source_event.get("story_count", 0)
+            if combined > MAX_EVENT_STORIES:
+                continue
+
+            # Perform the merge
+            conn.execute(
+                "UPDATE event_stories SET event_id = ? WHERE event_id = ?",
+                (target["id"], source_event["id"]),
+            )
+            count = conn.execute(
+                "SELECT COUNT(*) as c FROM event_stories WHERE event_id = ?",
+                (target["id"],),
+            ).fetchone()["c"]
+            conn.execute(
+                "UPDATE events SET story_count = ? WHERE id = ?",
+                (count, target["id"]),
+            )
+            conn.execute(
+                "UPDATE events SET merged_into = ? WHERE id = ?",
+                (target["id"], source_event["id"]),
+            )
+            target["story_count"] = count
+            merged_ids.add(source_event["id"])
+            merged += 1
+            logger.info(
+                "Sports merge: '%s' events merged (tournament=%s, combined=%d stories)",
+                tournament_key, tournament_key, count,
+            )
+
+    if merged:
+        conn.commit()
+    return merged
 
 
 def _get_event_signature(conn, story_id: int) -> str:
@@ -139,27 +595,61 @@ def _signature_similarity(sig_a: str, sig_b: str) -> float:
     return score
 
 
-def _best_event_match(signature: str, events: list[dict], event_sigs: dict) -> tuple:
+def _best_event_match(
+    signature: str,
+    events: list[dict],
+    event_sigs: dict,
+    sports_event_ids: set[int] | None = None,
+    entertainment_event_ids: set[int] | None = None,
+) -> tuple:
     """Find the best matching event for a signature.
 
     Skips events that already have MAX_EVENT_STORIES stories to prevent
     mega-events from absorbing everything.
+
+    Sports boost: when both signature and event signature share the same
+    tournament key (e.g. "premier league"), the similarity score gets a
+    boost -- but only if the target event is a confirmed sports event.
+
+    Entertainment boost: same logic for entertainment production/franchise
+    keys -- only applied to confirmed entertainment events.
 
     Returns (event_id, score) or (None, 0).
     """
     best_id = None
     best_score = 0.0
 
+    # Pre-compute tournament key for the incoming signature
+    incoming_key = _extract_tournament_key(signature)
+    # Pre-compute entertainment key for the incoming signature
+    incoming_ent_key = _extract_entertainment_key(signature)
+
+    _sports_ids = sports_event_ids or set()
+    _ent_ids = entertainment_event_ids or set()
+
     for event in events:
         # Don't add to already-large events
         if event.get("story_count", 0) >= MAX_EVENT_STORIES:
             continue
-        sigs = event_sigs.get(event["id"], [])
+        eid = event["id"]
+        sigs = event_sigs.get(eid, [])
         for esig in sigs:
             score = _signature_similarity(signature, esig)
+            # Sports tournament boost: only if the target event is a
+            # confirmed sports event (gated on domain)
+            if incoming_key and score > 0 and eid in _sports_ids:
+                esig_key = _extract_tournament_key(esig)
+                if esig_key and esig_key == incoming_key:
+                    score = min(score + 0.15, 1.0)
+            # Entertainment production boost: only if the target event is a
+            # confirmed entertainment event (gated on domain)
+            if incoming_ent_key and score > 0 and eid in _ent_ids:
+                esig_ent_key = _extract_entertainment_key(esig)
+                if esig_ent_key and esig_ent_key == incoming_ent_key:
+                    score = min(score + 0.15, 1.0)
             if score > best_score:
                 best_score = score
-                best_id = event["id"]
+                best_id = eid
 
     return best_id, best_score
 
@@ -612,9 +1102,16 @@ def cluster_new_stories(conn) -> dict:
             if ev:
                 recent_events.append(dict(ev))
 
+        # Pre-compute domain sets for boost gating (single batch query each)
+        all_event_ids = [e["id"] for e in recent_events]
+        sports_ids = _batch_check_sports_events(conn, all_event_ids)
+        entertainment_ids = _batch_check_entertainment_events(conn, all_event_ids)
+
         for sig, group in unmatched_groups.items():
             best_event_id, best_score = _best_event_match(
-                sig, recent_events, event_sigs
+                sig, recent_events, event_sigs,
+                sports_event_ids=sports_ids,
+                entertainment_event_ids=entertainment_ids,
             )
 
             if best_score >= FUZZY_MATCH_THRESHOLD and best_event_id is not None:
@@ -672,6 +1169,20 @@ def cluster_new_stories(conn) -> dict:
     # Also try fuzzy merging on recent small events
     recent = get_active_events(conn, limit=500)
     merged += _try_merge_events(conn, recent)
+
+    # Sports-specific merge: merge events sharing the same tournament/competition
+    recent = get_active_events(conn, limit=500)
+    sports_merged = _merge_sports_by_tournament(conn, recent)
+    merged += sports_merged
+    if sports_merged:
+        logger.info("Sports tournament merge: %d additional merges", sports_merged)
+
+    # Entertainment-specific merge: merge events sharing the same production/franchise/award
+    recent = get_active_events(conn, limit=500)
+    ent_merged = _merge_entertainment_by_production(conn, recent)
+    merged += ent_merged
+    if ent_merged:
+        logger.info("Entertainment production merge: %d additional merges", ent_merged)
 
     logger.info(
         "Semantic clustering: %d assigned, %d new events, %d merged",

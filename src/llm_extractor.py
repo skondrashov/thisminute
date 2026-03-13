@@ -110,6 +110,45 @@ FIELD SPECIFICATIONS
    "Various Regional Stories", "Data Quality Issues", or "Global News Roundup".
    Every story is about ONE specific event — name that event precisely.
 
+   SPORTS EVENT SIGNATURES — use tournament/competition-centric signatures, NOT match results:
+   - Individual match results within a tournament should use the TOURNAMENT name as signature
+     BAD: "Wolves Beat Liverpool 2-1", "Liverpool Lose Wolves" (match-result-centric, fragments)
+     GOOD: "2026 Premier League" (all Premier League match stories cluster together)
+   - Include the year/season and competition name:
+     GOOD: "2026 Indian Wells Tennis", "2026 Six Nations Rugby", "2026 F1 Australian GP"
+     GOOD: "2026 IPL Cricket Season", "2026 March Madness", "2026 Champions League"
+     BAD: "Medvedev Beats Sinner", "Russell Wins Australian GP" (too specific, won't cluster)
+   - For transfer/trade news, use the league + window: "2026 NFL Free Agency", "2026 Premier League Transfers"
+   - For standalone sporting events (boxing match, UFC fight), name the event: "UFC 315", "Tyson Fury Joshua Fight"
+   - Multi-day events (Grand Prix weekends, tennis tournaments, golf majors) = ONE signature for the whole event
+   - League/competition stories about standings, playoffs, relegation = use the league signature
+
+   ENTERTAINMENT EVENT SIGNATURES — use person/production/franchise-centric signatures, NOT individual news items:
+   - Movie franchise stories should cluster around the FRANCHISE or PRODUCTION name:
+     BAD: "Tom Holland Spider-Man 4 Casting", "Spider-Man 4 Filming Begins" (fragments by news item)
+     GOOD: "Spider-Man 4 Production" (all Spider-Man 4 stories cluster together)
+     GOOD: "Marvel Phase 7 Lineup", "2026 Barbie Sequel", "Dune Part Three"
+   - Music tours and albums should cluster around the TOUR or ALBUM name:
+     BAD: "Taylor Swift Eras Tour Paris", "Taylor Swift Eras Tour London" (fragments by city)
+     GOOD: "Taylor Swift Eras Tour" (all Eras Tour stories cluster together)
+     GOOD: "Beyonce 2026 World Tour", "Kendrick Lamar New Album"
+   - Awards shows and ceremonies should cluster around the AWARD EVENT:
+     BAD: "Oscar Nominations Announced", "Oscar Ceremony Results" (fragments by phase)
+     GOOD: "2026 Academy Awards" (all Oscars stories cluster together)
+     GOOD: "2026 Grammy Awards", "2026 Emmy Awards", "2026 BAFTA Awards"
+     GOOD: "2026 Golden Globe Awards", "2026 Tony Awards"
+   - Film festivals should cluster around the FESTIVAL:
+     GOOD: "2026 Cannes Film Festival", "2026 Sundance Festival", "2026 Venice Film Festival"
+     GOOD: "2026 SXSW Festival", "2026 Toronto Film Festival", "2026 Berlin Film Festival"
+   - TV show stories should cluster around the SHOW NAME:
+     GOOD: "Stranger Things Season 5", "House of the Dragon Season 3", "The Bear Season 4"
+     BAD: "Stranger Things Trailer Released", "Stranger Things Premiere Date" (fragments by news item)
+   - Celebrity/personality stories should cluster around the PERSON + context:
+     GOOD: "Taylor Swift 2026", "Drake Kendrick Feud", "BTS Military Service"
+     BAD: "Taylor Swift Seen In Paris" (too specific, won't cluster)
+   - K-pop, Bollywood, and international entertainment follow the same rules:
+     GOOD: "BLACKPINK 2026 Comeback", "Shah Rukh Khan New Film", "2026 K-pop Awards"
+
 11. "location_type" — MUST be exactly one of: "terrestrial", "space", "internet", "abstract"
 
    This determines WHERE the story appears on the map. Getting this wrong hides stories from users.
@@ -202,7 +241,34 @@ FIELD SPECIFICATIONS
     Sports results are bright side only if there's a compelling human story (comeback, underdog, milestone).
     Science stories are bright side when there's a real-world impact, not just "paper published."
 
-15. "wikipedia_events" — array of 0-3 strings (Wikipedia article titles)
+15. "human_interest_score" — integer 1-10 or null
+    How interesting, engaging, or shareable is this story to a GENERAL audience, regardless of
+    its political or geopolitical significance? This measures "you won't believe this" factor,
+    viral potential, emotional resonance, uniqueness, and human curiosity appeal.
+
+    This is DIFFERENT from bright_side. Bright side = "this is good news." Human interest = "this is
+    a fascinating/engaging story." A war crime investigation can be high human-interest (gripping,
+    dramatic) but low bright-side. A routine charity donation can be high bright-side but low
+    human-interest (not particularly engaging to read about).
+
+    1-2 = routine (standard policy announcement, quarterly earnings, minor political statement)
+    3-4 = mildly interesting (unusual angle on a common story, notable quirk, local color)
+    5-6 = engaging (surprising twist, dramatic confrontation, compelling human drama, odd science)
+    7-8 = highly interesting (viral-worthy, bizarre event, remarkable achievement, "wait really?")
+    9-10 = extraordinary (once-in-a-decade oddity, jaw-dropping discovery, universally captivating)
+
+    Stories that score high: "Dog elected mayor of small town" (9), "New deep-sea species discovered
+    in backyard pond" (8), "Man builds working rollercoaster in garage" (8), "92-year-old graduates
+    college" (7), "New island appears after underwater volcano" (8), "Twins reunited after 60 years
+    via DNA test" (7), "Scientists discover New Zealand-sized continent" (9)
+
+    Stories that score low: "Senate passes budget resolution" (2), "Company reports Q3 earnings" (1),
+    "Traffic update for highway construction" (1), "Diplomatic meeting scheduled" (2)
+
+    Return null if you cannot assess. Most hard news scores 2-4. Reserve 7+ for genuinely
+    remarkable stories that would make someone stop scrolling.
+
+16. "wikipedia_events" — array of 0-3 strings (Wikipedia article titles)
     Map this story to Wikipedia articles about the EVENT or TOPIC it covers.
     Use the exact Wikipedia article title (as it appears in the URL/page title).
     - Prefer specific event articles: "2025-2026 Israel-Hamas war", "2025 Turkish invasion of Syria"
@@ -237,7 +303,8 @@ If you cannot confidently extract a field, use reasonable defaults:
 - locations: [] (only if truly no location — but try hard to find one)
 - location_type: "terrestrial" (when in doubt, default to this)
 - search_keywords: at least 3 keywords
-- bright_side: null (when in doubt, null is safer than a low score)"""
+- bright_side: null (when in doubt, null is safer than a low score)
+- human_interest_score: null (when in doubt, null is safer than a low score)"""
 
 
 def _repair_json_array(text: str) -> Optional[list[dict]]:
@@ -590,6 +657,7 @@ def extract_stories_batch(
                 extraction.setdefault("new_event", None)
                 extraction.setdefault("wikipedia_events", [])
                 extraction.setdefault("bright_side", None)
+                extraction.setdefault("human_interest_score", None)
                 # Normalize registry_event_id: strip "R" prefix if present
                 reg_id = extraction.get("registry_event_id")
                 if isinstance(reg_id, str) and reg_id.startswith("R"):

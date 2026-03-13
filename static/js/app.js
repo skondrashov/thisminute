@@ -3952,7 +3952,7 @@
       let _updateReticlePreview = function() {
         const canvas = m.getCanvas();
         const cx = canvas.clientWidth / 2;
-        const cy = canvas.clientHeight * 0.33;
+        const cy = canvas.clientHeight / 2;
         const center = { x: cx, y: cy };
         if (state.currentProjection === "globe") {
           const lngLat = m.unproject([cx, cy]);

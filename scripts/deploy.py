@@ -111,12 +111,16 @@ echo "=== Restart issued ==="
 
 
 def deploy():
-    print("=== Building frontend ===")
-    r = subprocess.run(["npm", "run", "build"], cwd=PROJECT_DIR, capture_output=True, text=True, shell=True)
-    if r.returncode != 0:
-        print(f"BUILD FAILED:\n{r.stderr}")
-        sys.exit(1)
-    print("Build OK")
+    src_js = os.path.join(PROJECT_DIR, "src", "js")
+    if os.path.isdir(src_js):
+        print("=== Building frontend ===")
+        r = subprocess.run(["npm", "run", "build"], cwd=PROJECT_DIR, capture_output=True, text=True, shell=True)
+        if r.returncode != 0:
+            print(f"BUILD FAILED:\n{r.stderr}")
+            sys.exit(1)
+        print("Build OK")
+    else:
+        print("=== Skipping frontend build (src/js/ not found, using pre-built static/js/app.js) ===")
 
     print("=== Building tarball ===")
     tar_path = make_tarball()

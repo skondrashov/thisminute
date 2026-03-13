@@ -23,6 +23,7 @@ DOMAIN_MAX_NARRATIVES = {
     "sports": 10,
     "entertainment": 10,
     "positive": 10,
+    "curious": 10,
 }
 
 # Which feed tags map to which domain
@@ -31,6 +32,34 @@ DOMAIN_FEED_TAGS = {
     "sports": {"sports"},
     "entertainment": {"entertainment"},
     "positive": None,  # positive uses all events, filtered by bright_side_score
+    "curious": None,   # curious uses all events, filtered by human_interest_score
+}
+
+# Source-ratio thresholds per domain.  Sports events are dominated by
+# sports-only sources so 0.5 works fine.  Entertainment events get heavy
+# cross-coverage from general news outlets (BBC, CNN, NYT all cover the
+# Oscars), so the entertainment threshold must be much lower.
+# News uses the default (0.5).
+DOMAIN_SOURCE_RATIO = {
+    "news": 0.5,
+    "sports": 0.5,
+    "entertainment": 0.15,
+}
+
+# Topic slugs that act as a secondary signal for entertainment events.
+# If an event's LLM-extracted topics contain any of these, it qualifies
+# for the entertainment domain even if its source ratio is below threshold.
+_ENTERTAINMENT_TOPIC_SIGNALS = {
+    "film", "movie", "movies", "cinema", "oscars", "academy-awards",
+    "grammy", "grammys", "emmy", "emmys", "tony", "tonys", "golden-globes",
+    "bafta", "cannes", "sundance", "sxsw", "tiff", "venice-film",
+    "box-office", "streaming", "netflix", "disney", "hbo", "amazon-prime",
+    "k-pop", "kpop", "k-drama", "bollywood", "hollywood", "broadway",
+    "music", "album", "concert", "tour", "festival", "celebrity",
+    "tv-show", "television", "series", "reality-tv", "entertainment",
+    "comic-con", "anime", "manga", "gaming", "video-games",
+    "marvel", "dc-comics", "star-wars", "franchise",
+    "billboard", "charts", "record-label", "awards",
 }
 
 # Domain-specific prompt preambles
@@ -44,8 +73,8 @@ DOMAIN_PROMPTS = {
     "sports": {
         "intro": 'You are grouping current sports events into SITUATIONS — ongoing sports stories that a fan would follow as "one big thing."',
         "examples_good": '"2026 IPL Season", "NFL Free Agency 2026", "FIFA World Cup Qualifying", "NBA Playoffs 2026", "Premier League Title Race", "Tiger Woods Comeback"',
-        "examples_bad": '"Sports developments" (meaningless), "Global athletics" (too vague), "Team performance" (too abstract)',
-        "guidance": 'A situation is a tournament, a season, a transfer saga, a rivalry series, a record chase, or a scandal. Think: would a sports fan say "are you following the ___"? NEVER create catch-all buckets like "Global Sports Highlights" or "Champions & Record-Breakers." Every situation must be a SPECIFIC story.',
+        "examples_bad": '"Sports developments" (meaningless), "Global athletics" (too vague), "Team performance" (too abstract), "Cricket" with rugby/football events inside (cross-sport contamination)',
+        "guidance": 'A situation is a tournament, a season, a transfer saga, a rivalry series, a record chase, or a scandal. Think: would a sports fan say "are you following the ___"? NEVER create catch-all buckets like "Global Sports Highlights" or "Champions & Record-Breakers." Every situation must be a SPECIFIC story.\n\nCRITICAL — ONE SPORT PER SITUATION: Each situation MUST contain events from only ONE sport or ONE specific competition/league. NEVER mix sports. A cricket situation must ONLY contain cricket events. A football situation must ONLY contain football events. "2026 Six Nations Rugby" is rugby — it does NOT belong in a cricket situation. "FIFA World Cup" is football — it does NOT belong in a tennis or cricket situation. If you have cricket events and rugby events, those are SEPARATE situations, even if they are happening at the same time. A situation titled "2026 IPL Season" should contain ZERO rugby, football, tennis, motorsport, or MMA events. When in doubt, check the event title — if it names a different sport, it belongs in a different situation.',
     },
     "entertainment": {
         "intro": 'You are grouping current entertainment events into SITUATIONS — ongoing entertainment stories that a fan would follow as "one big thing."',
@@ -58,6 +87,12 @@ DOMAIN_PROMPTS = {
         "examples_good": '"Renewable Energy Milestone 2026", "Great Barrier Reef Recovery", "Global Poverty Decline Report", "Community Garden Movement", "Space Telescope Discovery"',
         "examples_bad": '"The Iran war" (even if some stories are positive, war is not a positive situation), "Bright side of economic crisis" (the crisis itself is not positive), "Record-Breaking Sports Moments" (vague thematic bucket), "Women\'s Empowerment Worldwide" (too broad — name the SPECIFIC campaign, law, or milestone)',
         "guidance": 'A positive situation is something you\'d tell a friend about to make their day better. "Progress on Middle East peace talks" qualifies. "The Iran war" does not, even if some stories within it are positive. Exclude "the bright side of a fundamentally negative situation." NEVER create thematic buckets that group unrelated stories by vibes. "Medical Breakthroughs" is too vague — "mRNA Malaria Vaccine Trial Success" is specific. If stories don\'t share a CONCRETE connection, they are separate situations, not one bucket.',
+    },
+    "curious": {
+        "intro": 'You are grouping events into CURIOUS SITUATIONS — fascinating, engaging, "you won\'t believe this" stories that capture human curiosity. These are the stories people share because they\'re remarkable, bizarre, heartwarming, or mind-bending — NOT because they\'re politically important.',
+        "examples_good": '"New Deep-Sea Species Discovered 2026", "Small Town Viral Moments", "Backyard Archaeology Finds", "AI Art Controversy", "Record-Breaking Human Feats 2026", "Weird Weather Phenomena", "Animal Heroes & Oddities"',
+        "examples_bad": '"Interesting news" (meaningless), "Human interest stories" (too vague), "Viral content" (too broad), "Miscellaneous curiosities" (catch-all bucket), "Good news roundup" (that\'s positive, not curious)',
+        "guidance": 'A curious situation is something that makes people say "wait, really?" or "you have to see this." Think viral stories, quirky science, unusual discoveries, local heroes doing remarkable things, animal stories, odd coincidences, record-breaking feats, and unexpected events. "Dog Elected Mayor of Small Town" qualifies. "Senate Passes Budget" does not. This is NOT the same as positive — a gripping true crime investigation or a bizarre natural disaster can be highly curious without being positive. And a routine charity donation is positive but not curious. Focus on stories with high engagement/shareability factor. NEVER create thematic buckets — each situation must be about ONE specific story or connected set of events.',
     },
 }
 
@@ -167,23 +202,19 @@ def _get_domain_events(conn, domain: str, limit: int = 50) -> list[dict]:
     Each domain gets its own pool of top events (by story_count), rather than
     sharing from a single global top-N. This ensures sports/entertainment events
     are found even when news events dominate by volume.
+
+    Filtering uses two signals combined with OR:
+      1. Source ratio — fraction of stories from domain-tagged feeds
+      2. Topic signal — LLM-extracted topics matching domain keywords
+         (currently used for entertainment only)
+
+    For positive: uses bright_side_score ratio OR positive-feed source ratio.
     """
     if domain == "positive":
-        rows = conn.execute(
-            """SELECT e.*,
-                      CAST(SUM(CASE WHEN se.bright_side_score >= 4 THEN 1 ELSE 0 END) AS REAL)
-                          / COUNT(*) as bright_ratio
-               FROM events e
-               JOIN event_stories es ON e.id = es.event_id
-               LEFT JOIN story_extractions se ON es.story_id = se.story_id
-               WHERE e.merged_into IS NULL AND e.status != 'resolved'
-               GROUP BY e.id
-               HAVING bright_ratio >= 0.3
-               ORDER BY e.story_count DESC
-               LIMIT ?""",
-            (limit,),
-        ).fetchall()
-        return [dict(r) for r in rows]
+        return _get_positive_events(conn, limit)
+
+    if domain == "curious":
+        return _get_curious_events(conn, limit)
 
     # Tag-based domains: find sources that have the domain's tags
     domain_tags = DOMAIN_FEED_TAGS.get(domain, {"news"})
@@ -195,6 +226,7 @@ def _get_domain_events(conn, domain: str, limit: int = 50) -> list[dict]:
     if not domain_sources:
         return []
 
+    source_threshold = DOMAIN_SOURCE_RATIO.get(domain, 0.5)
     placeholders = ",".join("?" * len(domain_sources))
     rows = conn.execute(
         f"""SELECT e.*,
@@ -205,10 +237,145 @@ def _get_domain_events(conn, domain: str, limit: int = 50) -> list[dict]:
             JOIN stories s ON es.story_id = s.id
             WHERE e.merged_into IS NULL AND e.status != 'resolved'
             GROUP BY e.id
-            HAVING CAST(domain_count AS REAL) / total_count >= 0.5
+            HAVING CAST(domain_count AS REAL) / total_count >= ?
             ORDER BY e.story_count DESC
             LIMIT ?""",
-        (*domain_sources, limit),
+        (*domain_sources, source_threshold, limit),
+    ).fetchall()
+    results = {r["id"]: dict(r) for r in rows}
+
+    # For entertainment: add events matched by topic signal
+    if domain == "entertainment":
+        topic_events = _get_events_by_topic_signal(
+            conn, _ENTERTAINMENT_TOPIC_SIGNALS, limit,
+            exclude_ids=set(results.keys()),
+        )
+        for ev in topic_events:
+            if len(results) >= limit:
+                break
+            results[ev["id"]] = ev
+
+    # Return sorted by story_count descending
+    return sorted(results.values(), key=lambda e: e.get("story_count", 0), reverse=True)[:limit]
+
+
+def _get_events_by_topic_signal(
+    conn, topic_keywords: set[str], limit: int, exclude_ids: set[int] | None = None,
+) -> list[dict]:
+    """Find events whose LLM-extracted topics match domain keywords.
+
+    Scans story_extractions.topics (JSON array of slugs) for events not
+    already matched by source ratio.  Requires at least 2 topic-matched
+    stories per event to avoid false positives from a single mis-tagged story.
+    """
+    # Build a LIKE pattern for each keyword.  Topics are stored as JSON arrays
+    # of slugs like ["oscars","film","celebrity"].  We match with LIKE against
+    # the raw JSON string for simplicity — no json_each needed.
+    if not topic_keywords:
+        return []
+
+    # We use a union of LIKE clauses: topics LIKE '%film%' OR topics LIKE '%oscars%' etc.
+    # To keep it efficient, we limit to a reasonable number of keywords.
+    like_clauses = " OR ".join(["se.topics LIKE ?"] * len(topic_keywords))
+    like_params = [f"%{kw}%" for kw in topic_keywords]
+
+    rows = conn.execute(
+        f"""SELECT e.*,
+                   COUNT(DISTINCT es.story_id) as topic_match_count
+            FROM events e
+            JOIN event_stories es ON e.id = es.event_id
+            JOIN story_extractions se ON es.story_id = se.story_id
+            WHERE e.merged_into IS NULL AND e.status != 'resolved'
+              AND ({like_clauses})
+            GROUP BY e.id
+            HAVING topic_match_count >= 2
+            ORDER BY e.story_count DESC
+            LIMIT ?""",
+        (*like_params, limit),
+    ).fetchall()
+
+    exclude = exclude_ids or set()
+    return [dict(r) for r in rows if r["id"] not in exclude]
+
+
+def _get_positive_events(conn, limit: int) -> list[dict]:
+    """Fetch events for the positive domain.
+
+    Two signals combined with OR:
+      1. Bright-side ratio: >= 15% of stories have bright_side_score >= 3
+      2. Positive-source ratio: >= 30% of stories come from positive-tagged feeds
+
+    This ensures events from dedicated positive sources (Good News Network, etc.)
+    always surface, while also catching inherently positive events from any source
+    that the LLM scored highly.
+    """
+    # Signal 1: bright_side_score ratio (lowered from >= 4/30% to >= 3/15%)
+    bright_rows = conn.execute(
+        """SELECT e.*,
+                  CAST(SUM(CASE WHEN se.bright_side_score >= 3 THEN 1 ELSE 0 END) AS REAL)
+                      / COUNT(*) as bright_ratio
+           FROM events e
+           JOIN event_stories es ON e.id = es.event_id
+           LEFT JOIN story_extractions se ON es.story_id = se.story_id
+           WHERE e.merged_into IS NULL AND e.status != 'resolved'
+           GROUP BY e.id
+           HAVING bright_ratio >= 0.15
+           ORDER BY e.story_count DESC
+           LIMIT ?""",
+        (limit,),
+    ).fetchall()
+    results = {r["id"]: dict(r) for r in bright_rows}
+
+    # Signal 2: positive-tagged feed sources
+    positive_sources = [
+        src for src, tags in FEED_TAG_MAP.items()
+        if "positive" in tags
+    ]
+    if positive_sources:
+        placeholders = ",".join("?" * len(positive_sources))
+        source_rows = conn.execute(
+            f"""SELECT e.*,
+                       SUM(CASE WHEN s.source IN ({placeholders}) THEN 1 ELSE 0 END) as pos_source_count,
+                       COUNT(*) as total_count
+                FROM events e
+                JOIN event_stories es ON e.id = es.event_id
+                JOIN stories s ON es.story_id = s.id
+                WHERE e.merged_into IS NULL AND e.status != 'resolved'
+                GROUP BY e.id
+                HAVING CAST(pos_source_count AS REAL) / total_count >= 0.3
+                ORDER BY e.story_count DESC
+                LIMIT ?""",
+            (*positive_sources, limit),
+        ).fetchall()
+        for r in source_rows:
+            if len(results) >= limit:
+                break
+            if r["id"] not in results:
+                results[r["id"]] = dict(r)
+
+    return sorted(results.values(), key=lambda e: e.get("story_count", 0), reverse=True)[:limit]
+
+
+def _get_curious_events(conn, limit: int) -> list[dict]:
+    """Fetch events for the curious/human-interest domain.
+
+    Uses human_interest_score: events where >= 15% of stories score >= 5
+    on human_interest_score qualify. This surfaces events with engaging,
+    shareable, "you won't believe this" stories regardless of domain.
+    """
+    rows = conn.execute(
+        """SELECT e.*,
+                  CAST(SUM(CASE WHEN se.human_interest_score >= 5 THEN 1 ELSE 0 END) AS REAL)
+                      / COUNT(*) as hi_ratio
+           FROM events e
+           JOIN event_stories es ON e.id = es.event_id
+           LEFT JOIN story_extractions se ON es.story_id = se.story_id
+           WHERE e.merged_into IS NULL AND e.status != 'resolved'
+           GROUP BY e.id
+           HAVING hi_ratio >= 0.15
+           ORDER BY e.story_count DESC
+           LIMIT ?""",
+        (limit,),
     ).fetchall()
     return [dict(r) for r in rows]
 
@@ -245,7 +412,7 @@ def analyze_narratives(conn, domain: str = "news") -> dict:
     # Get events relevant to this domain (each domain gets its own pool)
     events = _get_domain_events(conn, domain, limit=50)
 
-    min_events = 2 if domain in ("sports", "entertainment", "positive") else 3
+    min_events = 2 if domain in ("sports", "entertainment", "positive", "curious") else 3
     if len(events) < min_events:
         logger.info("Domain '%s': only %d events, need %d — skipping", domain, len(events), min_events)
         return {"created": 0, "updated": 0, "domain": domain}

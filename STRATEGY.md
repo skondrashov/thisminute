@@ -61,12 +61,12 @@ thisminute should work for ANY interest, not just hard news. The next major effo
 - [x] Entertainment world preset (purple, `feedTags: ["entertainment"]`)
 - [x] Economist cost check after feeds are live for 24h — verified 2026-03-13: ~$10.92/day
 
-### Phase 3: World-Aware Extraction — IN PROGRESS
+### Phase 3: World-Aware Extraction — COMPLETE
 
-- [x] **World-aware situation synthesis** — Per-domain event queries + domain-specific Sonnet prompts. Sports, entertainment, and positive situations now generated. API limit raised to 60.
-- [ ] Sports clustering (match/tournament, not just event_signature)
-- [ ] Entertainment clustering (person/production-centric)
-- [ ] "Human interest" scoring for trivial world
+- [x] **World-aware situation synthesis** — Per-domain event queries + domain-specific Sonnet prompts. All 4 domains generating at cap (20 news, 10 sports, 10 entertainment, 10 positive = 50 total). Entertainment uses topic-signal + lowered source threshold. Positive uses relaxed bright_side + source signal.
+- [x] Sports clustering (match/tournament, not just event_signature)
+- [x] Entertainment clustering (person/production-centric)
+- [x] "Human interest" scoring for trivial world (human_interest_score extraction + curious domain)
 
 ### Phase 4: Deep Customizability
 
