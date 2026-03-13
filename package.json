@@ -1,0 +1,23 @@
+{
+  "name": "thisminute",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "directories": {
+    "test": "tests"
+  },
+  "scripts": {
+    "build": "esbuild src/js/main.js --bundle --outfile=static/js/app.js --format=iife",
+    "build:watch": "esbuild src/js/main.js --bundle --outfile=static/js/app.js --format=iife --watch",
+    "dev": "node scripts/dev-server.cjs",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "devDependencies": {
+    "@playwright/test": "^1.58.2",
+    "esbuild": "^0.27.3"
+  }
+}

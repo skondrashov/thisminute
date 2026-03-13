@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+venv/
+
+# Data
+*.db
+*.db-journal
+*.db-wal
+data/
+
+# Node
+node_modules/
+
+# Test
+test-results/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Secrets
+.env
+
+# Claude Code local state
+.claude/
+
+# IDE
+.vscode/
+.idea/

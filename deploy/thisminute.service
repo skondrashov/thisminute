@@ -1,0 +1,15 @@
+[Unit]
+Description=thisminute news aggregator
+After=network.target
+
+[Service]
+User=thisminute
+Group=thisminute
+WorkingDirectory=/opt/thisminute
+ExecStart=/opt/thisminute/venv/bin/uvicorn src.app:app --host 0.0.0.0 --port 8000
+Restart=always
+RestartSec=5
+Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=multi-user.target

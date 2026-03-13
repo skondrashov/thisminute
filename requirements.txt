@@ -1,0 +1,7 @@
+fastapi>=0.104.0
+uvicorn[standard]>=0.24.0
+feedparser>=6.0.0
+# spacy not compatible with Python 3.14 — using built-in gazetteer NER
+geopy>=2.4.0
+# Optional: enables LLM-powered event analysis (works without it via templates)
+anthropic>=0.40.0

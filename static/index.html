@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>thisminute — global news, live</title>
+    <meta name="description" content="Real-time global news on an interactive map. Filter by topic, search by actor or action, track evolving narratives across thousands of stories from 50+ sources.">
+
+    <!-- Open Graph -->
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="thisminute — global news, live">
+    <meta property="og:description" content="Real-time global news on an interactive map. Filter by topic, search by actor or action, track evolving narratives across 50+ sources.">
+    <meta property="og:url" content="https://thisminute.org">
+    <meta property="og:site_name" content="thisminute">
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary">
+    <meta name="twitter:title" content="thisminute — global news, live">
+    <meta name="twitter:description" content="Real-time global news on an interactive map. Filter by topic, search by actor, track narratives.">
+
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%230d1117'/%3E%3Ctext x='16' y='24' text-anchor='middle' font-family='system-ui,sans-serif' font-weight='800' font-size='22' fill='%23f0f6fc'%3Et%3C/text%3E%3Ccircle cx='26' cy='6' r='4' fill='%23e64436'/%3E%3C/svg%3E">
+    <link rel="alternate" type="application/rss+xml" title="thisminute RSS Feed" href="/api/feed.rss">
+    <script defer data-domain="thisminute.org" src="https://plausible.io/js/script.js"></script>
+
+    <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5.5.0/dist/maplibre-gl.css" />
+    <link rel="stylesheet" href="/static/css/style.css?v=114" />
+</head>
+<body>
+    <div id="sidebar" role="navigation" aria-label="News filters and situations">
+        <div id="mobile-bar">
+            <span class="mobile-bar-stats"><span id="mobile-stat-showing">--</span> stories<span id="mobile-filter-dot" class="mobile-filter-dot"></span></span>
+            <span class="mobile-bar-world">
+                <span class="mobile-bar-world-dot"></span>
+                <span id="mobile-world-name">News</span>
+            </span>
+            <button id="mobile-refresh-btn" title="Refresh">&#8635;</button>
+            <button id="mobile-menu-btn" title="Open menu">&#9776;</button>
+        </div>
+        <div id="drag-handle"><span class="drag-handle-pill"></span></div>
+        <div id="sidebar-header">
+            <h1><a href="/" id="logo-link">thisminute</a></h1>
+            <button id="theme-toggle" title="Toggle light/dark mode">&#9788;</button>
+            <button id="share-view-btn" title="Copy link to current view" aria-label="Share current view">&#128279;</button>
+            <button id="menu-btn" title="Menu">&#8942;</button>
+            <div id="main-menu">
+                <button class="menu-item" id="menu-shortcuts"><span class="menu-icon">?</span> Keyboard shortcuts</button>
+                <button class="menu-item" id="menu-feedback"><span class="menu-icon">&#9873;</span> Send feedback</button>
+                <div class="menu-divider"></div>
+                <div class="menu-heading">Other projects</div>
+                <a class="menu-item" href="/forge/" rel="noopener"><span class="menu-icon">&#128296;</span> Agent Forge</a>
+                <a class="menu-item" href="https://rhizome.wiki" target="_blank" rel="noopener"><span class="menu-icon">&#127793;</span> Rhizome</a>
+                <a class="menu-item" href="https://mainmenu.app" target="_blank" rel="noopener"><span class="menu-icon">&#9776;</span> Mainmenu</a>
+            </div>
+        </div>
+
+        <div id="stats-bar" aria-live="polite" aria-atomic="true">
+            <span id="stat-total">--</span> stories from <span id="stat-sources" class="stat-clickable" title="View all sources">--</span> sources &middot; <span id="stat-showing">--</span> shown &middot; <span id="stat-velocity" class="stat-velocity" title="Stories ingested in the last hour"></span><span id="stat-freshness" class="stat-freshness">--</span>        </div>
+        <div id="sources-popup" class="sources-popup">
+            <div class="sources-popup-header">
+                <span>Sources</span>
+                <span class="sources-popup-actions">
+                    <button class="section-action-btn" id="btn-sources-all">All</button>
+                    <button class="section-action-btn" id="btn-sources-none">None</button>
+                </span>
+                <button id="sources-popup-close">&times;</button>
+            </div>
+            <input type="text" id="source-search" class="source-search" placeholder="Filter sources..." />
+            <div id="source-chips"></div>
+            <button class="chip-section-toggle" id="source-chips-toggle">Show all &#9662;</button>
+        </div>
+
+        <div id="world-overview-bar">
+            <span class="world-overview-label">world</span>
+            <span class="world-overview-text"></span>
+        </div>
+
+        <div class="worlds-bar-wrapper">
+        <div id="worlds-bar">
+            <button class="world-btn active" data-world="news" title="News">&#x1F4F0;</button>
+            <button class="world-btn" data-world="sports" title="Sports">&#x26BD;</button>
+            <button class="world-btn" data-world="entertainment" title="Entertainment">&#x1F3AC;</button>
+            <button class="world-btn" data-world="positive" title="Positive">&#x2728;</button>
+            <button id="worlds-more-btn" title="Manage filter presets">&#9881;</button>
+        </div>
+
+        <div id="worlds-panel">
+            <div class="worlds-panel-header">
+                <span>Presets</span>
+                <button id="worlds-panel-close">&times;</button>
+            </div>
+            <div id="worlds-panel-list"></div>
+            <div class="worlds-panel-actions">
+                <button id="worlds-save-btn">Save current filters as preset...</button>
+            </div>
+        </div>
+        </div>
+
+        <div id="filter-strip">
+            <select id="filter-time">
+                <option value="">All Time</option>
+                <option value="1">Last Hour</option>
+                <option value="3">Last 3 Hours</option>
+                <option value="6">Last 6 Hours</option>
+                <option value="12">Last 12 Hours</option>
+                <option value="24">Last 24 Hours</option>
+                <option value="48">Last 2 Days</option>
+                <option value="168">Last 7 Days</option>
+            </select>
+            <div id="search-expand">
+                <input type="text" id="search-box" placeholder="Search by keyword, actor, or location..." />
+                <button id="search-clear" class="search-clear" title="Clear search">&times;</button>
+                <span id="search-count" class="search-count"></span>
+            </div>
+            <button id="search-toggle" title="Search (/)">&#128269;</button>
+            <button id="filter-drawer-toggle">Refine</button>
+        </div>
+
+        <div id="filter-drawer">
+            <div id="origin-section">
+                <div class="drawer-section-header">
+                    <span class="drawer-section-title">Feed</span>
+                </div>
+                <div id="origin-toggles">
+                    <button class="origin-btn active" data-origin="rss">RSS</button>
+                    <button class="origin-btn active" data-origin="gdelt">GDELT</button>
+                </div>
+            </div>
+            <div id="concept-section">
+                <div class="drawer-section-header">
+                    <span class="drawer-section-title">Topics</span>
+                    <span class="drawer-section-actions"><button class="section-action-btn" id="btn-topics-all">All</button><button class="section-action-btn" id="btn-topics-none">None</button></span>
+                </div>
+                <div id="concept-chips"></div>
+            </div>
+            <label id="opinion-filter-label"><input type="checkbox" id="filter-opinion" /> Hide opinion</label>
+            <button id="btn-clear-all-filters" class="clear-all-btn">Clear all filters</button>
+        </div>
+
+        <div id="view-toggles" role="tablist" aria-label="Content view">
+            <button class="view-btn active" data-view="narratives" role="tab" aria-selected="true">Situations</button>
+            <button class="view-btn" data-view="events" role="tab" aria-selected="false">Events</button>
+            <select id="sort-toggle" class="sort-toggle" title="Sort situations">
+                <option value="volume">Volume</option>
+                <option value="new">New</option>
+                <option value="growing">Growing</option>
+                <option value="longest">Longest</option>
+                <option value="broadest">Broadest</option>
+            </select>
+        </div>
+
+        <div id="active-filters"></div>
+
+        <div id="event-list" role="tabpanel" aria-label="Events" style="display:none">
+            <div class="skeleton-item"><div class="skeleton-bar w80"></div><div class="skeleton-bar w40"></div></div>
+            <div class="skeleton-item"><div class="skeleton-bar w60"></div><div class="skeleton-bar w30"></div></div>
+            <div class="skeleton-item"><div class="skeleton-bar w80"></div><div class="skeleton-bar w40"></div></div>
+        </div>
+
+        <div id="story-list" role="tabpanel" aria-label="Stories" style="display:none"></div>
+
+        <div id="narrative-list" role="tabpanel" aria-label="Situations">
+            <div class="skeleton-item"><div class="skeleton-bar w80"></div><div class="skeleton-bar w40"></div></div>
+            <div class="skeleton-item"><div class="skeleton-bar w60"></div><div class="skeleton-bar w30"></div></div>
+            <div class="skeleton-item"><div class="skeleton-bar w80"></div><div class="skeleton-bar w40"></div></div>
+            <div class="skeleton-item"><div class="skeleton-bar w60"></div><div class="skeleton-bar w30"></div></div>
+            <div class="skeleton-item"><div class="skeleton-bar w80"></div><div class="skeleton-bar w40"></div></div>
+        </div>
+
+    </div>
+
+    <button id="sidebar-toggle" title="Toggle sidebar (s)">&lsaquo;</button>
+    <button id="labels-toggle" title="Toggle map labels (m)">Aa</button>
+    <button id="globe-toggle" title="Toggle globe/flat (g)">&#127758;</button>
+    <div id="feed-buttons">
+        <button class="feed-btn" data-feed="space" title="Space stories">&#9733; Space</button>
+        <button class="feed-btn" data-feed="internet" title="Internet stories">&#9883; Internet</button>
+    </div>
+    <div id="new-badge" role="status" aria-live="assertive">0 new stories</div>
+    <div id="shortcuts-overlay">
+        <div class="shortcuts-panel">
+            <h2>Keyboard Shortcuts</h2>
+            <div class="shortcut-row"><span class="shortcut-key">/</span><span class="shortcut-desc">Focus search</span></div>
+            <div class="shortcut-row"><span class="shortcut-key">Esc</span><span class="shortcut-desc">Close popup / clear search</span></div>
+            <div class="shortcut-row"><span class="shortcut-key">s</span><span class="shortcut-desc">Toggle sidebar</span></div>
+            <div class="shortcut-row"><span class="shortcut-key">g</span><span class="shortcut-desc">Toggle globe/flat map</span></div>
+            <div class="shortcut-row"><span class="shortcut-key">l</span><span class="shortcut-desc">Toggle light/dark mode</span></div>
+            <div class="shortcut-row"><span class="shortcut-key">w</span><span class="shortcut-desc">Cycle worlds</span></div>
+            <div class="shortcut-row"><span class="shortcut-key">e</span><span class="shortcut-desc">Toggle Situations/Events</span></div>
+            <div class="shortcut-row"><span class="shortcut-key">j / k</span><span class="shortcut-desc">Navigate situations/events</span></div>
+            <div class="shortcut-row"><span class="shortcut-key">r</span><span class="shortcut-desc">Refresh all data</span></div>
+            <div class="shortcut-row"><span class="shortcut-key">c</span><span class="shortcut-desc">Clear all filters</span></div>
+            <div class="shortcut-row"><span class="shortcut-key">o</span><span class="shortcut-desc">Open first story in new tab</span></div>
+            <div class="shortcut-row"><span class="shortcut-key">?</span><span class="shortcut-desc">Show this help</span></div>
+            <div class="shortcuts-close">Press any key to close</div>
+        </div>
+    </div>
+
+    <div id="world-save-dialog" class="modal-overlay">
+        <div class="modal-panel">
+            <h3>Save Preset</h3>
+            <input type="text" id="world-save-name" placeholder="My Preset" maxlength="24" />
+            <p class="modal-hint">Saves your current filters as a one-click preset in the bar above.</p>
+            <div class="modal-actions">
+                <button id="world-save-cancel">Cancel</button>
+                <button id="world-save-confirm">Save</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="feedback-dialog" class="modal-overlay">
+        <div class="modal-panel">
+            <h3 id="feedback-dialog-title">Report Issue</h3>
+            <div id="feedback-type-options">
+                <button class="feedback-type-btn" data-type="doesnt_belong">Doesn't belong here</button>
+                <button class="feedback-type-btn" data-type="should_merge">Should be merged with...</button>
+                <button class="feedback-type-btn" data-type="wrong_category">Wrong category</button>
+            </div>
+            <textarea id="feedback-message" placeholder="What's wrong? (optional)" maxlength="1000" rows="3"></textarea>
+            <p class="modal-hint" id="feedback-hint">Your feedback helps improve clustering.</p>
+            <div class="modal-actions">
+                <button id="feedback-cancel">Cancel</button>
+                <button id="feedback-submit">Send</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="loading-overlay" role="status" aria-label="Loading">
+        <div class="loading-status">
+            <div class="loading-logo">thisminute</div>
+            <div id="loading-step">Initializing...</div>
+        </div>
+    </div>
+
+    <!-- Main map view -->
+    <div id="map-container" role="application" aria-label="Interactive news map">
+        <div id="map"></div>
+        <div id="map-reticle"></div>
+        <div id="map-preview"></div>
+    </div>
+
+    <div id="info-panel" role="complementary" aria-label="Story details">
+        <canvas id="info-panel-bg-canvas"></canvas>
+        <div id="info-panel-header">
+            <span id="info-panel-title"></span>
+            <button id="info-panel-close">&times;</button>
+        </div>
+        <div id="info-panel-stories"></div>
+    </div>
+
+    <script src="https://unpkg.com/maplibre-gl@5.5.0/dist/maplibre-gl.js"></script>
+    <script src="/static/js/app.js?v=114"></script>
+</body>
+</html>
