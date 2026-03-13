@@ -1146,29 +1146,7 @@
       paint: {
         "circle-radius": ["number", ["get", "radius"], 6],
         "circle-radius-transition": { duration: 100, delay: 0 },
-        "circle-color": [
-          "match",
-          ["get", "category"],
-          "violence",
-          DOMAIN_COLORS.violence,
-          "human",
-          DOMAIN_COLORS.human,
-          "power",
-          DOMAIN_COLORS.power,
-          "economy",
-          DOMAIN_COLORS.economy,
-          "planet",
-          DOMAIN_COLORS.planet,
-          "health",
-          DOMAIN_COLORS.health,
-          "tech",
-          DOMAIN_COLORS.tech,
-          "culture",
-          DOMAIN_COLORS.culture,
-          "uplifting",
-          DOMAIN_COLORS.uplifting,
-          "#484f58"
-        ],
+        "circle-color": ["to-color", ["coalesce", ["get", "blended_color"], "#484f58"]],
         "circle-opacity": 0.9,
         "circle-opacity-transition": { duration: 150, delay: 0 },
         "circle-stroke-width": 1.5,
@@ -4038,7 +4016,7 @@
               const base = 3 + zoom * 0.4;
               const bonus = 8 + zoom * 0.5;
               const radius = Math.round((base + ratio * bonus) * 10) / 10;
-              proxFeatures.push({ type: "Feature", geometry: f.geometry, properties: { category: f.properties.category, radius } });
+              proxFeatures.push({ type: "Feature", geometry: f.geometry, properties: { blended_color: f.properties.blended_color, radius } });
             }
             m.getSource(proxSrc).setData({ type: "FeatureCollection", features: proxFeatures });
           } else {
