@@ -286,3 +286,16 @@
 - `METEOALARM_TIMEOUT=5` (per-request, was using global 30s). `METEOALARM_TOTAL_BUDGET=60` (total for all 20 countries). Both env-overridable.
 - Worst case reduced from 600s to 60s. Normal operation: <10s total.
 - Pattern for sequential multi-request adapters: always set a per-request timeout lower than the global default, and add a total time budget with early exit. Log which resources were skipped.
+
+## User Feeds Frontend UI (2026-03-15)
+
+- Frontend uses modal dialog pattern (same as feedback-dialog and world-save-dialog). Modal overlay with `.visible` class toggle.
+- `_getBrowserHash()` reused from feedback system for user identity. Hash is based on user agent + screen dimensions.
+- Three API endpoints consumed: `POST /api/user-feeds` (add), `GET /api/user-feeds?hash=X` (list), `DELETE /api/user-feeds/{id}?hash=X` (remove).
+- Feed status shown via colored dots: green (active/fetched), yellow (pending first fetch), red (error with `last_error`).
+- Tag dropdown matches `_VALID_FEED_TAGS` in `app.py`: news, sports, entertainment, positive, tech, science, business, health.
+- Feed count badge shows "N/20" matching `USER_FEED_MAX=20` config. API enforces this limit server-side.
+- `_escHtml()` helper uses DOM text node for safe HTML escaping (no regex). Used for feed titles and URLs.
+- All CSS uses CSS variables (--bg-primary, --text-primary, etc.) for theme compatibility. Light mode overrides added for buttons and tag badges.
+- Mobile responsive: add form wraps (URL input full-width, select and button below), panel width constrained to 90%/380px.
+- Cache-bust version bumped to `?v=140`.

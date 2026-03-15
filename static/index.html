@@ -23,7 +23,7 @@
     <script defer data-domain="thisminute.org" src="https://plausible.io/js/script.js"></script>
 
     <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5.5.0/dist/maplibre-gl.css" />
-    <link rel="stylesheet" href="/static/css/style.css?v=139" />
+    <link rel="stylesheet" href="/static/css/style.css?v=141" />
 </head>
 <body>
     <div id="sidebar" role="navigation" aria-label="News filters and situations">
@@ -43,6 +43,7 @@
             <button id="menu-btn" title="Menu">&#8942;</button>
             <div id="main-menu">
                 <button class="menu-item" id="menu-shortcuts"><span class="menu-icon">?</span> Keyboard shortcuts</button>
+                <button class="menu-item" id="menu-feeds"><span class="menu-icon">+</span> My feeds</button>
                 <button class="menu-item" id="menu-feedback"><span class="menu-icon">&#9873;</span> Send feedback</button>
                 <div class="menu-divider"></div>
                 <div class="menu-heading">Other projects</div>
@@ -246,11 +247,36 @@
         </div>
     </div>
 
-    <div id="loading-overlay" role="status" aria-label="Loading">
-        <div class="loading-status">
-            <div class="loading-logo">thisminute</div>
-            <div id="loading-step">Initializing...</div>
+    <div id="user-feeds-dialog" class="modal-overlay">
+        <div class="modal-panel user-feeds-panel">
+            <div class="user-feeds-header">
+                <h3>My Feeds</h3>
+                <span class="user-feeds-count" id="user-feeds-count"></span>
+            </div>
+            <div id="user-feeds-list" class="user-feeds-list"></div>
+            <div class="user-feeds-add">
+                <input type="text" id="user-feed-url" placeholder="Paste RSS feed URL" maxlength="2048" />
+                <select id="user-feed-tag">
+                    <option value="news">news</option>
+                    <option value="sports">sports</option>
+                    <option value="entertainment">entertainment</option>
+                    <option value="positive">positive</option>
+                    <option value="tech">tech</option>
+                    <option value="science">science</option>
+                    <option value="business">business</option>
+                    <option value="health">health</option>
+                </select>
+                <button id="user-feed-add-btn">Add</button>
+            </div>
+            <p class="modal-hint" id="user-feeds-hint">Added feeds appear on the map within 15 minutes.</p>
+            <div class="modal-actions">
+                <button id="user-feeds-close">Done</button>
+            </div>
         </div>
+    </div>
+
+    <div id="loading-bar" role="status" aria-label="Loading data">
+        <div id="loading-bar-fill"></div>
     </div>
 
     <!-- Main map view -->
@@ -279,6 +305,6 @@
     </div>
 
     <script src="https://unpkg.com/maplibre-gl@5.5.0/dist/maplibre-gl.js"></script>
-    <script src="/static/js/app.js?v=139"></script>
+    <script src="/static/js/app.js?v=141"></script>
 </body>
 </html>

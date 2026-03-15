@@ -6,17 +6,28 @@ thisminute.org shows what's happening in the world right now, plotted on a map. 
 
 **North star**: Anti-curation. Reduce the gap between "everything happening" and "what the user can find."
 
-## Current Priorities
+## Current Priorities (updated 2026-03-15)
 
-1. ~~**Event clustering improvements**~~ — DONE (v80). Root cause: clusterer only loaded 500 events into memory, missing 29k+ small events. Fixed with DB-indexed exact signature matching + full-database merge pass. Merged 2,011 duplicate events. Multi-story events went from 6% to 8.8%.
-2. ~~**Domain-specific clustering**~~ — DONE (v115). Tournament-centric sports clustering and production-centric entertainment clustering both shipped.
-3. ~~**Narrative cap enforcement**~~ — DONE. Per-domain caps enforced: news=20, sports/entertainment/positive=10 each. Lowest-ranked excess deactivated after each analysis pass.
+1. **Deploy v116 + uncommitted work** — All tested (839/839). User feeds frontend, DRY audit. Get it live.
+2. **First-use experience overhaul** — Auto-cycling world presets for new visitors, "pick your worlds" first-visit selector, prominent world bar. The product is feature-rich but new users cannot discover the 12 presets.
+3. **Shareable world preset URLs + share button** — Viral sharing mechanism. `thisminute.org/#world=crisis` should be a one-click share from the world bar.
+4. **Domain distribution endpoint** — `/api/stats/domain-distribution` for monitoring content balance.
+5. **SEO/social shareability verification** — OpenGraph tags, meta description, social preview image.
+
+### Completed Priorities
+
+- ~~**Event clustering improvements**~~ — DONE (v80).
+- ~~**Domain-specific clustering**~~ — DONE (v115).
+- ~~**Narrative cap enforcement**~~ — DONE.
 
 ### Deprioritized
 
+- **Custom topic/concept creation** — Moved to Phase 6. Power-user feature for a product that needs first-time users. 12 presets + search cover the major use cases.
+- **Usage analytics per world** — Premature. No user base to measure yet. Simple server log when needed.
+- **Feedback-driven automation** — Feedback API is live (correct). Manual triage for now; automation premature.
 - **Cheaper model evaluation** — At ~$10.92/day total (verified 2026-03-13), cost is manageable. Prompt caching + pre-LLM dedup are higher ROI with zero risk.
-- ~~**Mobile layout polish**~~ — DONE (v84-85). Smooth drag interpolation with velocity snapping, info panel swipe-to-close, auto-minimize on situation select, filter indicator, prefers-reduced-motion support.
-- **Space/Internet tile scaling** — Nice-to-have. Does not serve the directive's diversity goal. Backlog.
+- ~~**Mobile layout polish**~~ — DONE (v84-85).
+- **Space/Internet tile scaling** — Nice-to-have. Backlog.
 
 ## Completed
 
@@ -69,19 +80,31 @@ thisminute should work for ANY interest, not just hard news. The next major effo
 - [x] "Human interest" scoring for trivial world (human_interest_score extraction + curious domain)
 - [x] Curious world story-level filtering (`curiousMode` with `human_interest_score >= 6`, mirrors `brightSideMode` pattern)
 
-### Phase 4: Deep Customizability — STARTED
+### Phase 4: Deep Customizability — NEARLY COMPLETE
 
 - [x] User-added RSS feeds backend (POST/GET/DELETE endpoints, SSRF protection with DNS pinning + redirect blocking, feed validation, pipeline integration with global volume cap, `user_feeds` table, `SOURCE_ENABLED["user_feeds"]` kill switch, 85 tests)
-- [ ] User-added RSS feeds frontend UI
-- [ ] Custom topic/concept creation
-- [ ] Shareable world presets via URL
+- [x] User-added RSS feeds frontend UI (modal dialog: add/list/remove feeds, status dots, tag selection, error display)
+- [ ] Shareable world presets via URL (share button per world, copy-to-clipboard)
+
+### Phase 4.5: First-Use Experience — NOT STARTED
+
+- [ ] Auto-cycling world presets for new visitors (5s each with label overlay until interaction)
+- [ ] "Pick your worlds" first-visit selector (checkboxes, personalize world bar)
+- [ ] Prominent world bar redesign (current bar looks like secondary navigation)
+- [ ] SEO/social shareability (verify OpenGraph, meta description, social preview image)
+- [ ] Domain distribution endpoint (`/api/stats/domain-distribution`)
 
 ### Phase 5: Feedback Loop — STARTED
 
-- [ ] Usage analytics per world
 - [x] Explicit user feedback — `/api/feedback` endpoint live (v114), `user_feedback` table, feedback agent (`agents/feedback.md`), rate limiting (5/min)
-- [ ] Feedback-driven improvements (suggest feeds, suggest categories)
+- Note: Usage analytics and feedback-driven automation deferred until user base exists.
 - Note: ProMED RSS is dead (all URLs return 404, FeedBurner mirror empty since 2018). WHO DON partially covers disease outbreak space.
+
+### Phase 6: Power User Features — NOT STARTED
+
+- [ ] Custom topic/concept creation
+- [ ] Usage analytics per world
+- [ ] Feedback-driven improvements (suggest feeds, suggest categories)
 
 ### Ongoing (parallel)
 
@@ -216,7 +239,9 @@ Steps 1-3 are backend-only (no cache version bump). Step 4-5 need a version bump
 | Shareable filters                       | A                                                           |
 | Custom worlds (user-created)            | A                                                           |
 | World-aware situations                  | A- (all 5 domains generating situations, domain-specific clustering shipped) |
-| User-configurable feeds                 | D (backend complete, no frontend UI yet)                    |
-| Custom concepts                         | F                                                           |
+| User-configurable feeds                 | A- (backend + frontend complete and tested, add/list/remove with status, SSRF protection, pending deploy) |
+| Custom concepts                         | F (deferred to Phase 6)                                     |
+| First-use experience                    | D (mobile onboarding exists, desktop cold start is a wall of dots) |
+| Shareability                            | B (URL state + OpenGraph exist, no per-world share button)  |
 
-**Overall: A-** (World-aware situations live for all 5 domains with domain-specific clustering. User feeds backend complete, awaiting frontend. Main gap: custom concepts.)
+**Overall: A-** (World-aware situations live for all 5 domains with domain-specific clustering. User feeds complete. Main gaps: first-use experience for new visitors, shareability for viral growth. Custom concepts deferred.)

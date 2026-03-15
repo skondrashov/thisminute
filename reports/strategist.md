@@ -1,8 +1,10 @@
 # Strategic Analysis: Audience Growth Through Data Source Expansion
 
-**Author:** strategist | **Date:** 2026-03-14 | **Revised:** 2026-03-14 (post-skeptic review)
+**Author:** strategist | **Date:** 2026-03-14 | **Revised:** 2026-03-15 (post-v116 direction check)
 
-**Revision note:** This is a corrected version incorporating the skeptic's review (FORUM.md, 2026-03-14 04:20). Items marked [CORRECTED] were wrong in the original. Items marked [UNCHANGED] survived scrutiny. Items marked [NEW] were added based on the review.
+**Revision note (2026-03-15):** The data source expansion recommended in this report is now largely complete. 13 of 15 recommended structured APIs shipped (all Tier 1 and most Tier 2). All 12 world presets are live. The remaining gaps are ProMED (dead), Global Forest Watch, FRED, NASA NeoWs, and NOAA SWPC. The strategic focus has shifted from "build more sources" to "get users to discover what exists." See FORUM.md thread "Strategic Direction Check -- Post-v116 Priority Reset" and updated STRATEGY.md for current priorities.
+
+**Original revision note (2026-03-14):** Corrected version incorporating the skeptic's review (FORUM.md, 2026-03-14 04:20). Items marked [CORRECTED] were wrong in the original. Items marked [UNCHANGED] survived scrutiny. Items marked [NEW] were added based on the review.
 
 ---
 
@@ -301,27 +303,32 @@
 
 ## 6. Priority Recommendations
 
-[CORRECTED] Updated to reflect what's actually done, realistic time estimates, and dependency ordering.
+[UPDATED 2026-03-15] Most items from the original recommendations have shipped. The data source build-out is essentially complete. Priorities now shift to discoverability and growth.
 
-### Immediate (this week)
-1. **Ship "Science" and "Tech" world presets** (1-2 hours, config changes only, zero risk). These validate the preset system and serve the science/tech audiences with zero new backend work. All data sources are already live.
-2. **Wire "curious" domain into frontend** (2-3 hours). Add `curious` to `WORLD_DOMAIN_MAP` and `WORLD_PRESETS`. Even without `human_interest_score` filtering, curious situations from the backend will display in this world.
+### DONE (shipped in v116)
+1. ~~Ship "Science" and "Tech" world presets~~ -- DONE. All 12 presets live.
+2. ~~Wire "curious" domain into frontend~~ -- DONE. curiousMode with human_interest_score filtering.
+3. ~~OpenAQ air quality~~ -- DONE. `src/openaq.py`.
+4. ~~State Dept travel advisories~~ -- DONE. `src/travel_advisories.py`.
+5. ~~ProMED disease alerts~~ -- DEAD. All URLs return 404. WHO DON covers the space.
+6. ~~Ship "Weather" and "Crisis" composite presets~~ -- DONE. All 12 presets shipped.
+7. ~~NASA FIRMS fire data~~ -- DONE. `src/firms.py` with volume caps.
+8. ~~Meteoalarm~~ -- DONE. `src/meteoalarm.py` with 20-country coverage.
+9. ~~ACLED conflict data~~ -- DONE. `src/acled.py` with volume cap.
 
-### Next sprint (2 weeks)
-3. **OpenAQ air quality** (8-12 hours, unlocks climate audience)
-4. **State Dept travel advisories** (6-8 hours, unlocks travel audience)
-5. **ProMED disease alerts** (4-6 hours, strengthens crisis preset)
-6. **Ship "Weather" and "Crisis" composite presets** (2-3 hours each, config + origin filtering)
+### Current priorities (2026-03-15)
+1. **Deploy v116 + uncommitted work** -- tested, safe to deploy.
+2. **First-use experience overhaul** -- auto-cycling worlds, first-visit selector, prominent world bar.
+3. **Shareable world preset URLs + share button** -- viral mechanism.
+4. **Domain distribution endpoint** -- content balance monitoring.
+5. **SEO/social shareability** -- OpenGraph verification, meta description, preview image.
 
-### Following sprint
-7. **NASA FIRMS fire data** (12-16 hours, requires clustering logic and volume control)
-8. **Meteoalarm** (8-12 hours, European severe weather, makes Weather world truly global)
-9. **Ship "Climate", "Travel", "Markets" world presets**
-
-### Deferred (needs further analysis)
-10. ACLED conflict data (makes Geopolitics preset possible, but need to assess data licensing terms)
-11. NASA NeoWs (asteroid approaches, cool but low story volume)
-12. Full "Curious" preset with `human_interest_score` frontend filtering (needs new filter infrastructure)
+### Remaining data source gaps (low priority)
+- Global Forest Watch (deforestation alerts)
+- FRED (Federal Reserve economic data)
+- NASA NeoWs (asteroid approaches)
+- NOAA SWPC (space weather / solar)
+- SEC EDGAR (financial filings)
 
 ---
 

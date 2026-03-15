@@ -1775,40 +1775,29 @@
     btn.classList.toggle("flat-mode", !isGlobe);
     btn.title = isGlobe ? "Switch to flat map (g)" : "Hide map (g)";
   }
-  function setLoadingStep(text) {
-    const el = document.getElementById("loading-step");
-    if (el) el.textContent = text;
+  function showLoadingBar() {
+    const bar = document.getElementById("loading-bar");
+    if (bar) bar.classList.remove("hidden");
   }
-  function hideLoadingOverlay() {
-    const overlay = document.getElementById("loading-overlay");
-    if (!overlay) return;
-    overlay.classList.add("hidden");
-    setTimeout(() => overlay.remove(), 600);
+  function hideLoadingBar() {
+    const bar = document.getElementById("loading-bar");
+    if (!bar) return;
+    bar.classList.add("hidden");
+    setTimeout(() => bar.remove(), 600);
   }
   async function onMapLoad() {
     addMapLayers(state.map, "");
     addMapInteractions(state.map, "");
     setMapLabelsVisible(false);
-    setLoadingStep("Loading stories...");
-    const storiesP = loadAll();
+    showLoadingBar();
+    const quickStoriesP = loadAll(300);
     const conceptsP = loadConcepts();
     const sourcesP = loadSources();
     const eventsP = loadEvents();
     const overviewP = loadWorldOverview();
     const narrativesP = loadNarratives();
-    await storiesP.catch(() => {
-    });
-    let storyCount = state.geojsonData.features ? state.geojsonData.features.length : 0;
-    if (storyCount === 0) {
-      setLoadingStep("Retrying...");
-      await new Promise((r) => setTimeout(r, 2e3));
-      await loadAll().catch(() => {
-      });
-      storyCount = state.geojsonData.features ? state.geojsonData.features.length : 0;
-    }
-    setLoadingStep(storyCount > 0 ? `${storyCount.toLocaleString()} stories loaded` : "Could not load stories \u2014 try refreshing");
-    await Promise.allSettled([conceptsP, sourcesP, eventsP, overviewP, narrativesP]);
-    hideLoadingOverlay();
+    await Promise.allSettled([quickStoriesP, conceptsP, sourcesP, eventsP, overviewP, narrativesP]);
+    hideLoadingBar();
     if (state._pendingMapView && state.map) {
       state.map.jumpTo({ center: [state._pendingMapView.lon, state._pendingMapView.lat], zoom: state._pendingMapView.zoom });
       state._pendingMapView = null;
@@ -1820,6 +1809,7 @@
         setTimeout(() => setSheetState("closed"), 1500);
       }, 2e3);
     }
+    loadRemainingStories();
   }
   function showOnboardingHint() {
     if (localStorage.getItem("thisminute-onboarded")) return;
@@ -2321,24 +2311,37 @@
       console.error("Failed to load cloud data:", err);
     }
   }
-  async function fetchStories(since) {
+  async function fetchStories(since, limit) {
     const params = new URLSearchParams();
     if (since) params.set("since", since);
+    if (limit) params.set("limit", String(limit));
     const resp = await fetch(`/api/stories?${params.toString()}`);
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
     return await resp.json();
   }
-  async function loadAll() {
+  async function loadAll(limit) {
+    try {
+      const data = await fetchStories(null, limit);
+      state.geojsonData = data;
+      state.lastFetchTime = (/* @__PURE__ */ new Date()).toISOString();
+      state._lastDataUpdate = Date.now();
+      if (!limit) fetchCloudData();
+      updateStats();
+      applyFilters();
+    } catch (err) {
+      console.error("Failed to load stories:", err);
+    }
+  }
+  async function loadRemainingStories() {
     try {
       const data = await fetchStories();
       state.geojsonData = data;
-      state.lastFetchTime = (/* @__PURE__ */ new Date()).toISOString();
       state._lastDataUpdate = Date.now();
       fetchCloudData();
       updateStats();
       applyFilters();
     } catch (err) {
-      console.error("Failed to load stories:", err);
+      console.error("Failed to load remaining stories:", err);
     }
   }
   async function pollUpdates() {
@@ -4506,7 +4509,6 @@
     loadWorlds();
     renderWorldsBar();
     loadStateFromURL();
-    setLoadingStep("Loading state.map...");
     initMap();
     let searchTimer = null;
     const searchBox = document.getElementById("search-box");
@@ -4652,6 +4654,10 @@
       document.getElementById("main-menu").classList.remove("visible");
       document.getElementById("shortcuts-overlay").classList.add("visible");
     });
+    document.getElementById("menu-feeds").addEventListener("click", () => {
+      document.getElementById("main-menu").classList.remove("visible");
+      openUserFeedsDialog();
+    });
     document.getElementById("menu-feedback").addEventListener("click", () => {
       document.getElementById("main-menu").classList.remove("visible");
       openFeedbackDialog(null);
@@ -4704,6 +4710,14 @@
     document.getElementById("world-save-name").addEventListener("keydown", (e) => {
       if (e.key === "Enter") confirmSaveWorld();
     });
+    document.getElementById("user-feeds-close").addEventListener("click", closeUserFeedsDialog);
+    document.getElementById("user-feed-add-btn").addEventListener("click", _addUserFeed);
+    document.getElementById("user-feed-url").addEventListener("keydown", (e) => {
+      if (e.key === "Enter") _addUserFeed();
+    });
+    document.getElementById("user-feeds-dialog").addEventListener("click", (e) => {
+      if (e.target.id === "user-feeds-dialog") closeUserFeedsDialog();
+    });
     document.getElementById("feedback-cancel").addEventListener("click", closeFeedbackDialog);
     document.getElementById("feedback-submit").addEventListener("click", submitFeedback);
     document.querySelectorAll(".feedback-type-btn").forEach((btn) => {
@@ -4745,6 +4759,11 @@
         const mainMenu = document.getElementById("main-menu");
         if (mainMenu.classList.contains("visible")) {
           mainMenu.classList.remove("visible");
+          return;
+        }
+        const userFeedsDialog = document.getElementById("user-feeds-dialog");
+        if (userFeedsDialog.classList.contains("visible")) {
+          closeUserFeedsDialog();
           return;
         }
         const feedbackDialog = document.getElementById("feedback-dialog");
@@ -4957,6 +4976,135 @@
       document.getElementById("feedback-hint").textContent = "Failed to send. Try again.";
       submitBtn.disabled = false;
       submitBtn.textContent = "Send";
+    }
+  }
+  /* ---- User Feeds ---- */
+  function openUserFeedsDialog() {
+    var dialog = document.getElementById("user-feeds-dialog");
+    dialog.classList.add("visible");
+    _loadUserFeeds();
+  }
+  function closeUserFeedsDialog() {
+    document.getElementById("user-feeds-dialog").classList.remove("visible");
+    document.getElementById("user-feed-url").value = "";
+    document.getElementById("user-feed-url").classList.remove("input-error");
+    var hint = document.getElementById("user-feeds-hint");
+    hint.textContent = "Added feeds appear on the map within 15 minutes.";
+    hint.style.color = "";
+  }
+  async function _loadUserFeeds() {
+    var bh = _getBrowserHash();
+    var list = document.getElementById("user-feeds-list");
+    var counter = document.getElementById("user-feeds-count");
+    try {
+      var resp = await fetch("/api/user-feeds?hash=" + encodeURIComponent(bh));
+      if (!resp.ok) throw new Error("Failed to load feeds");
+      var feeds = await resp.json();
+      counter.textContent = feeds.length + "/20";
+      if (feeds.length === 0) {
+        list.innerHTML = '<div class="user-feeds-empty">No feeds added yet. Paste an RSS URL below to get started.</div>';
+        return;
+      }
+      list.innerHTML = "";
+      feeds.forEach(function(feed) {
+        var item = document.createElement("div");
+        item.className = "user-feed-item";
+        var statusClass = feed.last_error ? "error" : (feed.last_fetched ? "active" : "pending");
+        var statusTitle = feed.last_error ? "Error: " + _escHtml(feed.last_error) : (feed.last_fetched ? "Active" : "Pending first fetch");
+        var errorHtml = feed.last_error ? '<div class="user-feed-error-msg" title="' + _escHtml(feed.last_error).replace(/"/g, "&quot;") + '">' + _escHtml(feed.last_error) + '</div>' : "";
+        item.innerHTML = '<div class="user-feed-info">' +
+          '<div class="user-feed-title" title="' + _escHtml(feed.title || "").replace(/"/g, "&quot;") + '">' + _escHtml(feed.title || feed.url) + '</div>' +
+          '<div class="user-feed-url" title="' + _escHtml(feed.url).replace(/"/g, "&quot;") + '">' + _escHtml(feed.url) + '</div>' +
+          errorHtml +
+          '</div>' +
+          '<div class="user-feed-meta">' +
+          '<span class="user-feed-tag">' + _escHtml(feed.feed_tag) + '</span>' +
+          '<span class="user-feed-status ' + statusClass + '" title="' + statusTitle.replace(/"/g, "&quot;") + '"></span>' +
+          '</div>' +
+          '<button class="user-feed-delete" title="Remove feed">&times;</button>';
+        var deleteBtn = item.querySelector(".user-feed-delete");
+        deleteBtn.addEventListener("click", function() {
+          _deleteUserFeed(feed.id);
+        });
+        list.appendChild(item);
+      });
+    } catch (err) {
+      list.innerHTML = '<div class="user-feeds-empty">Failed to load feeds.</div>';
+      counter.textContent = "";
+    }
+  }
+  function _escHtml(str) {
+    var d = document.createElement("div");
+    d.textContent = str;
+    return d.innerHTML;
+  }
+  async function _addUserFeed() {
+    var urlInput = document.getElementById("user-feed-url");
+    var tagSelect = document.getElementById("user-feed-tag");
+    var addBtn = document.getElementById("user-feed-add-btn");
+    var hint = document.getElementById("user-feeds-hint");
+    var url = urlInput.value.trim();
+    if (!url) {
+      urlInput.classList.add("input-error");
+      setTimeout(function() { urlInput.classList.remove("input-error"); }, 600);
+      return;
+    }
+    addBtn.disabled = true;
+    addBtn.textContent = "Adding...";
+    hint.textContent = "Validating feed...";
+    hint.style.color = "";
+    try {
+      var resp = await fetch("/api/user-feeds", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          url: url,
+          feed_tag: tagSelect.value,
+          browser_hash: _getBrowserHash()
+        })
+      });
+      var data = await resp.json();
+      if (!resp.ok) {
+        hint.textContent = data.error || "Failed to add feed.";
+        hint.style.color = "#f85149";
+        urlInput.classList.add("input-error");
+        setTimeout(function() { urlInput.classList.remove("input-error"); }, 600);
+        addBtn.disabled = false;
+        addBtn.textContent = "Add";
+        return;
+      }
+      urlInput.value = "";
+      hint.textContent = "Feed added! Stories will appear within 15 minutes.";
+      hint.style.color = "#3fb950";
+      setTimeout(function() {
+        hint.textContent = "Added feeds appear on the map within 15 minutes.";
+        hint.style.color = "";
+      }, 3000);
+      _loadUserFeeds();
+    } catch (err) {
+      hint.textContent = "Network error. Please try again.";
+      hint.style.color = "#f85149";
+    }
+    addBtn.disabled = false;
+    addBtn.textContent = "Add";
+  }
+  async function _deleteUserFeed(feedId) {
+    var bh = _getBrowserHash();
+    var hint = document.getElementById("user-feeds-hint");
+    try {
+      var resp = await fetch("/api/user-feeds/" + feedId + "?hash=" + encodeURIComponent(bh), {
+        method: "DELETE"
+      });
+      if (!resp.ok) {
+        var data = await resp.json();
+        hint.textContent = data.error || "Failed to remove feed.";
+        hint.style.color = "#f85149";
+        return;
+      }
+      _loadUserFeeds();
+    } catch (err) {
+      hint.textContent = "Network error. Please try again.";
+      hint.style.color = "#f85149";
     }
   }
 })();

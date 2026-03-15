@@ -177,6 +177,7 @@ async def api_diagnostics():
 
 
 _stories_cache = {"data": None, "expires": 0}  # in-memory cache for default stories query
+_stories_quick_cache = {"data": None, "expires": 0}  # in-memory cache for 300-story quick request
 _narratives_cache = {"data": None, "expires": 0}  # in-memory cache for default narratives query
 _events_cache = {"data": None, "expires": 0}  # in-memory cache for default events query
 _clouds_cache = {"data": None, "expires": 0}  # in-memory cache for default clouds query
@@ -195,10 +196,16 @@ async def api_stories(
     """Return stories as GeoJSON FeatureCollection."""
     # Serve cached response for the default (no-filter) query
     is_default = not since and not source and not category and not concepts and not exclude and not search and limit == 2000
+    is_quick = not since and not source and not category and not concepts and not exclude and not search and limit == 300
     now = _time.time()
     if is_default and _stories_cache["data"] and now < _stories_cache["expires"]:
         return JSONResponse(
             content=_stories_cache["data"],
+            headers={"Cache-Control": "public, max-age=15"},
+        )
+    if is_quick and _stories_quick_cache["data"] and now < _stories_quick_cache["expires"]:
+        return JSONResponse(
+            content=_stories_quick_cache["data"],
             headers={"Cache-Control": "public, max-age=15"},
         )
 
@@ -302,6 +309,9 @@ async def api_stories(
     if is_default:
         _stories_cache["data"] = result
         _stories_cache["expires"] = now + 30  # 30s cache
+    elif is_quick:
+        _stories_quick_cache["data"] = result
+        _stories_quick_cache["expires"] = now + 30
     return JSONResponse(
         content=result,
         headers={"Cache-Control": "public, max-age=15"},
