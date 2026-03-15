@@ -976,6 +976,130 @@ body {
     background: #388bfd;
 }
 
+/* World picker dialog */
+.world-picker-panel {
+    width: 460px;
+    max-width: 90vw;
+    max-height: 85vh;
+    overflow-y: auto;
+}
+
+.world-picker-subtitle {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-bottom: 16px;
+    line-height: 1.4;
+}
+
+#world-picker-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+    margin-bottom: 16px;
+}
+
+.world-picker-card {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    border: 2px solid var(--border-default);
+    border-radius: 8px;
+    background: var(--bg-primary);
+    cursor: pointer;
+    transition: border-color 0.15s, background 0.15s, opacity 0.15s;
+    user-select: none;
+}
+
+.world-picker-card:hover {
+    border-color: var(--text-muted);
+}
+
+.world-picker-card.selected {
+    border-color: var(--world-picker-color, var(--accent-blue));
+    background: var(--bg-inset);
+}
+
+.world-picker-card.deselected {
+    opacity: 0.45;
+}
+
+.world-picker-card-icon {
+    font-size: 22px;
+    flex-shrink: 0;
+    width: 28px;
+    text-align: center;
+}
+
+.world-picker-card-info {
+    min-width: 0;
+    flex: 1;
+}
+
+.world-picker-card-name {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-primary);
+    display: block;
+}
+
+.world-picker-card-desc {
+    font-size: 11px;
+    color: var(--text-muted);
+    display: block;
+    line-height: 1.3;
+}
+
+.world-picker-check {
+    flex-shrink: 0;
+    width: 20px;
+    height: 20px;
+    border-radius: 4px;
+    border: 2px solid var(--border-default);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    color: transparent;
+    transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.world-picker-card.selected .world-picker-check {
+    background: var(--world-picker-color, var(--accent-blue));
+    border-color: var(--world-picker-color, var(--accent-blue));
+    color: #fff;
+}
+
+#world-picker-done {
+    background: #1f6feb;
+    border: 1px solid #1f6feb;
+    color: #ffffff;
+    padding: 8px 24px;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+
+#world-picker-done:hover {
+    background: #388bfd;
+}
+
+body.light-mode .world-picker-card.selected {
+    background: var(--bg-tertiary);
+}
+
+@media (max-width: 600px) {
+    #world-picker-grid {
+        grid-template-columns: 1fr;
+    }
+    .world-picker-panel {
+        width: 95vw;
+        padding: 16px;
+    }
+}
+
 /* Filter row */
 #filter-strip select {
     padding: 4px 6px;

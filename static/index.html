@@ -29,7 +29,7 @@
     <script defer data-domain="thisminute.org" src="https://plausible.io/js/script.js"></script>
 
     <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5.5.0/dist/maplibre-gl.css" />
-    <link rel="stylesheet" href="/static/css/style.css?v=145" />
+    <link rel="stylesheet" href="/static/css/style.css?v=146" />
 </head>
 <body>
     <div id="sidebar" role="navigation" aria-label="News filters and situations">
@@ -49,6 +49,7 @@
             <button id="menu-btn" title="Menu">&#8942;</button>
             <div id="main-menu">
                 <button class="menu-item" id="menu-shortcuts"><span class="menu-icon">?</span> Keyboard shortcuts</button>
+                <button class="menu-item" id="menu-pick-worlds"><span class="menu-icon">&#127760;</span> Pick worlds</button>
                 <button class="menu-item" id="menu-feeds"><span class="menu-icon">+</span> My feeds</button>
                 <button class="menu-item" id="menu-feedback"><span class="menu-icon">&#9873;</span> Send feedback</button>
                 <div class="menu-divider"></div>
@@ -282,6 +283,17 @@
         </div>
     </div>
 
+    <div id="world-picker-dialog" class="modal-overlay">
+        <div class="modal-panel world-picker-panel">
+            <h3>Pick your worlds</h3>
+            <p class="world-picker-subtitle">Choose the worlds that appear in your bar. You can change this anytime from the gear menu.</p>
+            <div id="world-picker-grid"></div>
+            <div class="modal-actions">
+                <button id="world-picker-done">Done</button>
+            </div>
+        </div>
+    </div>
+
     <div id="loading-bar" role="status" aria-label="Loading data">
         <div id="loading-bar-fill"></div>
     </div>
@@ -313,6 +325,6 @@
     </div>
 
     <script src="https://unpkg.com/maplibre-gl@5.5.0/dist/maplibre-gl.js"></script>
-    <script src="/static/js/app.js?v=145"></script>
+    <script src="/static/js/app.js?v=146"></script>
 </body>
 </html>

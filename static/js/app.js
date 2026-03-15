@@ -2656,6 +2656,15 @@
     for (const id of Object.keys(state.worldPrefs)) {
       if (!state.allWorlds[id]) delete state.worldPrefs[id];
     }
+    // Apply tm_visible_worlds to worldPrefs visibility
+    var visibleWorlds = _loadVisibleWorlds();
+    if (visibleWorlds) {
+      for (var vid in state.worldPrefs) {
+        if (WORLD_PRESETS[vid]) {
+          state.worldPrefs[vid].visible = visibleWorlds.indexOf(vid) !== -1;
+        }
+      }
+    }
     saveWorldPrefs();
   }
   function saveWorldPrefs() {
@@ -3002,13 +3011,18 @@
       overlay.classList.remove("visible");
       overlay.classList.add("fading");
     }
-    // Fire deferred onboarding after tour ends
-    showOnboardingHint();
-    if (_isMobile() && !localStorage.getItem("thisminute-onboarded")) {
-      setTimeout(() => {
-        setSheetState("half");
-        setTimeout(() => setSheetState("closed"), 1500);
-      }, 2e3);
+    // Show world picker for first-time visitors after tour ends
+    if (_shouldShowWorldPicker()) {
+      setTimeout(() => showWorldPicker(), 600);
+    } else {
+      // Fire deferred onboarding after tour ends
+      showOnboardingHint();
+      if (_isMobile() && !localStorage.getItem("thisminute-onboarded")) {
+        setTimeout(() => {
+          setSheetState("half");
+          setTimeout(() => setSheetState("closed"), 1500);
+        }, 2e3);
+      }
     }
   }
   function _showTourWorld(idx) {
@@ -3035,6 +3049,150 @@
       if (!_worldTourActive) return;
       _showTourWorld(idx);
     }, 400);
+  }
+
+  // === World Picker: First-visit world selector ===
+  var WORLD_PICKER_DESCRIPTIONS = {
+    news: "Global headlines and breaking news",
+    sports: "Live scores, transfers, tournaments",
+    entertainment: "Film, music, celebrity, awards",
+    positive: "Uplifting and feel-good stories",
+    science: "Research, discoveries, space",
+    tech: "AI, cyber, software, startups",
+    curious: "Quirky and human-interest stories",
+    weather: "Storms, forecasts, climate",
+    crisis: "Conflicts, disasters, emergencies",
+    travel: "Advisories, tourism, destinations",
+    geopolitics: "Elections, diplomacy, sanctions",
+    markets: "Stocks, finance, economy"
+  };
+  var _worldPickerSelection = null;
+  function showWorldPicker() {
+    var dialog = document.getElementById("world-picker-dialog");
+    var grid = document.getElementById("world-picker-grid");
+    if (!dialog || !grid) return;
+    grid.innerHTML = "";
+    // Start with current visible worlds or all built-in worlds
+    var savedVisible = _loadVisibleWorlds();
+    var builtInIds = Object.keys(WORLD_PRESETS);
+    _worldPickerSelection = {};
+    for (var i = 0; i < builtInIds.length; i++) {
+      var id = builtInIds[i];
+      _worldPickerSelection[id] = savedVisible ? savedVisible.indexOf(id) !== -1 : true;
+    }
+    for (var j = 0; j < builtInIds.length; j++) {
+      var wid = builtInIds[j];
+      var world = WORLD_PRESETS[wid];
+      if (!world) continue;
+      var icon = WORLD_ICONS[wid] || "";
+      var desc = WORLD_PICKER_DESCRIPTIONS[wid] || "";
+      var card = document.createElement("div");
+      card.className = "world-picker-card" + (_worldPickerSelection[wid] ? " selected" : " deselected");
+      card.dataset.world = wid;
+      card.style.setProperty("--world-picker-color", world.color);
+      card.innerHTML = '<span class="world-picker-card-icon">' + icon + "</span>" + '<div class="world-picker-card-info">' + '<span class="world-picker-card-name">' + escapeHtml(world.label) + "</span>" + '<span class="world-picker-card-desc">' + escapeHtml(desc) + "</span>" + "</div>" + '<span class="world-picker-check">\u2713</span>';
+      card.addEventListener("click", _worldPickerToggle);
+      grid.appendChild(card);
+    }
+    dialog.classList.add("visible");
+    // Click outside the panel to confirm
+    dialog.addEventListener("click", function _pickerOverlayClick(e) {
+      if (e.target === dialog) {
+        dialog.removeEventListener("click", _pickerOverlayClick);
+        confirmWorldPicker();
+      }
+    });
+  }
+  function _worldPickerToggle(e) {
+    var card = e.currentTarget;
+    var wid = card.dataset.world;
+    _worldPickerSelection[wid] = !_worldPickerSelection[wid];
+    if (_worldPickerSelection[wid]) {
+      card.classList.add("selected");
+      card.classList.remove("deselected");
+    } else {
+      card.classList.remove("selected");
+      card.classList.add("deselected");
+    }
+  }
+  function closeWorldPicker() {
+    var dialog = document.getElementById("world-picker-dialog");
+    if (dialog) dialog.classList.remove("visible");
+  }
+  function confirmWorldPicker() {
+    if (!_worldPickerSelection) { closeWorldPicker(); return; }
+    var selected = [];
+    var builtInIds = Object.keys(WORLD_PRESETS);
+    var allSelected = true;
+    for (var i = 0; i < builtInIds.length; i++) {
+      var id = builtInIds[i];
+      if (_worldPickerSelection[id]) {
+        selected.push(id);
+      } else {
+        allSelected = false;
+      }
+    }
+    // If none selected, treat as all selected (prevent empty bar)
+    if (selected.length === 0) {
+      selected = builtInIds.slice();
+      allSelected = true;
+    }
+    if (allSelected) {
+      // Remove the key entirely -- backwards compatible default
+      localStorage.removeItem("tm_visible_worlds");
+    } else {
+      localStorage.setItem("tm_visible_worlds", JSON.stringify(selected));
+    }
+    // Apply visibility to worldPrefs
+    _applyVisibleWorldsToPrefs();
+    renderWorldsBar();
+    // If current world was hidden, switch to first visible or news
+    if (state.activeWorldId !== "all" && selected.indexOf(state.activeWorldId) === -1) {
+      switchWorld(selected[0] || "news");
+    }
+    closeWorldPicker();
+    _worldPickerSelection = null;
+  }
+  function _loadVisibleWorlds() {
+    try {
+      var raw = localStorage.getItem("tm_visible_worlds");
+      if (!raw) return null;
+      var arr = JSON.parse(raw);
+      if (Array.isArray(arr) && arr.length > 0) return arr;
+    } catch (e) {}
+    return null;
+  }
+  function _applyVisibleWorldsToPrefs() {
+    var visible = _loadVisibleWorlds();
+    for (var id in state.worldPrefs) {
+      if (WORLD_PRESETS[id]) {
+        state.worldPrefs[id].visible = visible ? visible.indexOf(id) !== -1 : true;
+      }
+    }
+    saveWorldPrefs();
+  }
+  function _syncVisibleWorldsFromPrefs() {
+    // Sync worldPrefs visibility back to tm_visible_worlds
+    var visible = [];
+    var allVisible = true;
+    var builtInIds = Object.keys(WORLD_PRESETS);
+    for (var i = 0; i < builtInIds.length; i++) {
+      var id = builtInIds[i];
+      if (state.worldPrefs[id]?.visible !== false) {
+        visible.push(id);
+      } else {
+        allVisible = false;
+      }
+    }
+    if (allVisible) {
+      localStorage.removeItem("tm_visible_worlds");
+    } else {
+      localStorage.setItem("tm_visible_worlds", JSON.stringify(visible));
+    }
+  }
+  function _shouldShowWorldPicker() {
+    // Show if first visit (tour just finished) AND no saved visible worlds preference
+    return _isFirstVisitForTour && !localStorage.getItem("tm_visible_worlds");
   }
 
   function toggleWorldsPanel() {
@@ -3074,6 +3232,7 @@
         if (!state.worldPrefs[id]) state.worldPrefs[id] = { visible: true, order: idx };
         state.worldPrefs[id].visible = !isVisible;
         saveWorldPrefs();
+        _syncVisibleWorldsFromPrefs();
         renderWorldsBar();
         renderWorldsPanelContents();
       });
@@ -4087,7 +4246,7 @@
             const base = 3 + zoom * 0.4;
             const bonus = 8 + zoom * 0.5;
             const radius = Math.round((base + ratio * bonus) * 10) / 10;
-            features.push({ type: "Feature", geometry: f.geometry, properties: { category: f.properties.category, radius } });
+            features.push({ type: "Feature", geometry: f.geometry, properties: { category: f.properties.category, blended_color: f.properties.blended_color, radius } });
           }
           m.getSource(proxSrc).setData({ type: "FeatureCollection", features });
         }
@@ -4739,6 +4898,10 @@
       document.getElementById("main-menu").classList.remove("visible");
       document.getElementById("shortcuts-overlay").classList.add("visible");
     });
+    document.getElementById("menu-pick-worlds").addEventListener("click", () => {
+      document.getElementById("main-menu").classList.remove("visible");
+      showWorldPicker();
+    });
     document.getElementById("menu-feeds").addEventListener("click", () => {
       document.getElementById("main-menu").classList.remove("visible");
       openUserFeedsDialog();
@@ -4795,6 +4958,17 @@
     document.getElementById("world-save-name").addEventListener("keydown", (e) => {
       if (e.key === "Enter") confirmSaveWorld();
     });
+    document.getElementById("world-picker-done").addEventListener("click", () => {
+      confirmWorldPicker();
+      // Show onboarding hint after picker closes
+      showOnboardingHint();
+      if (_isMobile() && !localStorage.getItem("thisminute-onboarded")) {
+        setTimeout(() => {
+          setSheetState("half");
+          setTimeout(() => setSheetState("closed"), 1500);
+        }, 2e3);
+      }
+    });
     document.getElementById("user-feeds-close").addEventListener("click", closeUserFeedsDialog);
     document.getElementById("user-feed-add-btn").addEventListener("click", _addUserFeed);
     document.getElementById("user-feed-url").addEventListener("keydown", (e) => {
@@ -4841,6 +5015,11 @@
         document.getElementById("search-box").focus();
       }
       if (e.key === "Escape") {
+        const worldPickerDialog = document.getElementById("world-picker-dialog");
+        if (worldPickerDialog && worldPickerDialog.classList.contains("visible")) {
+          confirmWorldPicker();
+          return;
+        }
         const mainMenu = document.getElementById("main-menu");
         if (mainMenu.classList.contains("visible")) {
           mainMenu.classList.remove("visible");
