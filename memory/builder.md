@@ -299,3 +299,43 @@
 - All CSS uses CSS variables (--bg-primary, --text-primary, etc.) for theme compatibility. Light mode overrides added for buttons and tag badges.
 - Mobile responsive: add form wraps (URL input full-width, select and button below), panel width constrained to 90%/380px.
 - Cache-bust version bumped to `?v=140`.
+
+## WCAG AA Contrast Compliance (2026-03-15)
+
+- All 12 world button active-state CSS colors pass WCAG AA (4.5:1) with white text in both dark and light mode.
+- The WORLD_PRESETS color values in app.js (e.g., positive `#f5a623`) are the BRIGHT brand colors used for dots, highlights, and tour labels. These are NOT the button background colors.
+- The CSS active-state backgrounds (style.css lines 443-502) use independently darkened variants (e.g., positive `#a06800`, science `#0077a8`).
+- When adding new world presets: always verify the CSS active-state background has >= 4.5:1 contrast with white. Use the WCAG relative luminance formula: max luminance for 4.5:1 = 0.1833.
+- Minimum contrast in current set: sports `#218838` at 4.52:1.
+
+## Onboarding Sequencing Pattern (2026-03-15)
+
+- First-time visitors: `startWorldTour()` fires first, sets `_worldTourActive = true` synchronously.
+- The `if (!_worldTourActive)` guard in init prevents `showOnboardingHint()` and mobile sheet peek from firing during tour.
+- `stopWorldTour()` fires deferred onboarding: `showOnboardingHint()` immediately + mobile sheet peek with 2s delay.
+- Three conditions for tour: no `tm_world_tour_seen`, no `tm_last_visit`, no `tm_default_world`, no URL hash.
+- `captureFirstVisitFlag()` must be called BEFORE `loadStateFromURL()` (which sets `tm_last_visit`).
+
+## Dominance-Tinted Dot Colors (2026-03-15)
+
+- Replaced circular HSL averaging with dominance-ratio RGB lerp in `_blendLocationColors()`.
+- Old approach: weighted circular average of hue values across all domains at a location. Produced misleading intermediate colors (e.g., violence red + power blue = purple).
+- New approach: find dominant domain (highest story count), calculate ratio = dominant_count / total, lerp from base color to domain color.
+- Theme-aware base colors: dark mode = white (#ffffff, dots look like city lights), light mode = medium gray (#6e7681, avoids vanishing on light backgrounds).
+- Replaced HSL infrastructure (_hexToHSL, _hslToHex, _domainHSL, _fallbackHSL) with RGB equivalents (_hexToRGB, _rgbToHex, _domainRGB, _fallbackRGB).
+- Added re-blend call in `toggleTheme()` so dot colors update with the correct base on theme switch.
+- Country polygon fills (updateCountryPolygons) were already dominant-domain based -- unchanged.
+- `blended_color` property name preserved -- no MapLibre layer changes needed.
+- Light mode gray value (#6e7681) may need visual tuning.
+- Cache-bust version bumped to ?v=144.
+
+## World Bar Share Button (2026-03-15)
+
+- Share button (`#world-share-btn`) added to the world bar between world preset buttons and gear button.
+- Uses link icon (&#x1F517;), same pattern as `#share-view-btn` and `.situation-share-btn`.
+- Copies `window.location.href` to clipboard (hash already contains full world + filter state).
+- Visual feedback: checkmark + green border for 1.5s, title changes to "Copied!".
+- Fallback for older browsers: hidden textarea + `document.execCommand("copy")`.
+- `renderWorldsBar()` inserts world buttons before `#world-share-btn` (not `#worlds-more-btn`) to maintain correct DOM order after dynamic re-renders.
+- Overflow fade `::after` offset increased from 36px to 68px to account for the extra button.
+- Cache-bust version bumped to `?v=143`.

@@ -85,39 +85,18 @@
     culture: "#f39c12",
     uplifting: "#f1c40f"
   };
-  function _hexToHSL(hex) {
-    const r = parseInt(hex.slice(1, 3), 16) / 255;
-    const g = parseInt(hex.slice(3, 5), 16) / 255;
-    const b = parseInt(hex.slice(5, 7), 16) / 255;
-    const max = Math.max(r, g, b), min = Math.min(r, g, b);
-    const l = (max + min) / 2;
-    if (max === min) return [0, 0, l];
-    const d = max - min;
-    const s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
-    let h;
-    if (max === r) h = ((g - b) / d + (g < b ? 6 : 0)) / 6;
-    else if (max === g) h = ((b - r) / d + 2) / 6;
-    else h = ((r - g) / d + 4) / 6;
-    return [h * 360, s, l];
+  function _hexToRGB(hex) {
+    return [parseInt(hex.slice(1, 3), 16), parseInt(hex.slice(3, 5), 16), parseInt(hex.slice(5, 7), 16)];
   }
-  function _hslToHex(h, s, l) {
-    h = ((h % 360) + 360) % 360;
-    const c = (1 - Math.abs(2 * l - 1)) * s;
-    const x = c * (1 - Math.abs((h / 60) % 2 - 1));
-    const m = l - c / 2;
-    let r, g, b;
-    if (h < 60) { r = c; g = x; b = 0; }
-    else if (h < 120) { r = x; g = c; b = 0; }
-    else if (h < 180) { r = 0; g = c; b = x; }
-    else if (h < 240) { r = 0; g = x; b = c; }
-    else if (h < 300) { r = x; g = 0; b = c; }
-    else { r = c; g = 0; b = x; }
-    const toHex = (v) => Math.round(Math.min(255, Math.max(0, (v + m) * 255))).toString(16).padStart(2, "0");
+  function _rgbToHex(r, g, b) {
+    var toHex = function(v) { return Math.round(Math.min(255, Math.max(0, v))).toString(16).padStart(2, "0"); };
     return "#" + toHex(r) + toHex(g) + toHex(b);
   }
-  var _domainHSL = {};
-  for (var _dc in DOMAIN_COLORS) _domainHSL[_dc] = _hexToHSL(DOMAIN_COLORS[_dc]);
-  var _fallbackHSL = _hexToHSL("#484f58");
+  var _domainRGB = {};
+  for (var _dc in DOMAIN_COLORS) _domainRGB[_dc] = _hexToRGB(DOMAIN_COLORS[_dc]);
+  var _fallbackRGB = _hexToRGB("#484f58");
+  var _BLEND_BASE_DARK = [255, 255, 255];
+  var _BLEND_BASE_LIGHT = [110, 118, 129];
   function _featureDomain(f) {
     var concepts = f.properties.concepts;
     if (typeof concepts === "string") try { concepts = JSON.parse(concepts); } catch (e) { concepts = []; }
@@ -134,6 +113,7 @@
     return "general";
   }
   function _blendLocationColors(features) {
+    var base = state.lightMode ? _BLEND_BASE_LIGHT : _BLEND_BASE_DARK;
     try {
       var byCoord = {};
       for (var i = 0; i < features.length; i++) {
@@ -147,26 +127,25 @@
       for (var k in byCoord) {
         var group = byCoord[k];
         var domainCounts = {}, total = 0;
+        var maxDomain = "general", maxCount = 0;
         for (var j = 0; j < group.length; j++) {
           var dom = group[j].properties._domain;
           domainCounts[dom] = (domainCounts[dom] || 0) + 1;
           total++;
+          if (domainCounts[dom] > maxCount) {
+            maxCount = domainCounts[dom];
+            maxDomain = dom;
+          }
         }
-        var sinSum = 0, cosSum = 0, sSum = 0, lSum = 0;
-        for (var d in domainCounts) {
-          var hsl = _domainHSL[d] || _fallbackHSL;
-          var w = domainCounts[d] / total;
-          var hRad = hsl[0] * Math.PI / 180;
-          sinSum += w * Math.sin(hRad);
-          cosSum += w * Math.cos(hRad);
-          sSum += w * hsl[1];
-          lSum += w * hsl[2];
-        }
-        var avgH = Math.atan2(sinSum, cosSum) * 180 / Math.PI;
-        var blended = _hslToHex(avgH, sSum, lSum);
-        if (!/^#[0-9a-f]{6}$/i.test(blended)) blended = null;
+        var ratio = total > 0 ? maxCount / total : 0;
+        var domRGB = _domainRGB[maxDomain] || _fallbackRGB;
+        var blended = _rgbToHex(
+          base[0] + (domRGB[0] - base[0]) * ratio,
+          base[1] + (domRGB[1] - base[1]) * ratio,
+          base[2] + (domRGB[2] - base[2]) * ratio
+        );
         for (var j2 = 0; j2 < group.length; j2++) {
-          if (blended) group[j2].properties.blended_color = blended;
+          group[j2].properties.blended_color = blended;
         }
       }
     } catch (e) {
@@ -1802,12 +1781,15 @@
       state.map.jumpTo({ center: [state._pendingMapView.lon, state._pendingMapView.lat], zoom: state._pendingMapView.zoom });
       state._pendingMapView = null;
     }
-    showOnboardingHint();
-    if (_isMobile() && !localStorage.getItem("thisminute-onboarded")) {
-      setTimeout(() => {
-        setSheetState("half");
-        setTimeout(() => setSheetState("closed"), 1500);
-      }, 2e3);
+    startWorldTour();
+    if (!_worldTourActive) {
+      showOnboardingHint();
+      if (_isMobile() && !localStorage.getItem("thisminute-onboarded")) {
+        setTimeout(() => {
+          setSheetState("half");
+          setTimeout(() => setSheetState("closed"), 1500);
+        }, 2e3);
+      }
     }
     loadRemainingStories();
   }
@@ -2872,15 +2854,12 @@
       const d = n.domain || "news";
       domainCounts[d] = (domainCounts[d] || 0) + 1;
     }
-    const visibleEntries = _getVisibleWorldEntries();
-    const displayMode = visibleEntries.length <= 2 ? "text" : "icon";
     document.querySelectorAll(".world-btn").forEach((btn) => {
       const worldId = btn.dataset.world;
       const world = state.allWorlds[worldId];
       const isActive = worldId === state.activeWorldId;
       btn.classList.toggle("active", isActive);
       btn.classList.toggle("modified", isActive && state.worldModified);
-      btn.classList.toggle("world-btn-text-mode", displayMode === "text");
       if (isActive && world && !world.builtIn) {
         btn.style.setProperty("--custom-world-color", world.color);
         btn.classList.add("custom-color");
@@ -2891,31 +2870,19 @@
       const domain = WORLD_DOMAIN_MAP[worldId];
       const count = domain ? domainCounts[domain] || 0 : 0;
       const label = world?.label || worldId;
+      const shortLabel = WORLD_SHORT_LABELS[worldId] || label;
       const icon = WORLD_ICONS[worldId] || state.worldPrefs[worldId]?.icon;
-      if (displayMode === "text") {
-        if (count > 0) {
-          btn.innerHTML = `${escapeHtml(label)} <span class="world-btn-count">${count}</span>`;
-        } else {
-          btn.textContent = label;
-        }
-        btn.title = label;
-      } else if (icon) {
-        if (count > 0) {
-          btn.innerHTML = `${icon} <span class="world-btn-count">${count}</span>`;
-        } else {
-          btn.textContent = icon;
-        }
-        btn.title = label;
+      let html = "";
+      if (icon) {
+        html = `<span class="world-btn-icon">${icon}</span><span class="world-btn-label">${escapeHtml(shortLabel)}</span>`;
       } else {
-        const abbrev = _getAbbreviation(label);
-        if (count > 0) {
-          btn.innerHTML = `${escapeHtml(abbrev)} <span class="world-btn-count">${count}</span>`;
-        } else {
-          btn.textContent = abbrev;
-        }
-        btn.title = label;
-        btn.classList.add("world-btn-abbrev");
+        html = `<span class="world-btn-label">${escapeHtml(shortLabel)}</span>`;
       }
+      if (count > 0) {
+        html += ` <span class="world-btn-count">${count}</span>`;
+      }
+      btn.innerHTML = html;
+      btn.title = label;
     });
   }
   function saveCurrentAsWorld(name) {
@@ -2961,36 +2928,115 @@
       switchWorld("all");
     }
   }
+  var WORLD_SHORT_LABELS = { entertainment: "Ent.", geopolitics: "Geo" };
   function renderWorldsBar() {
     const bar = document.getElementById("worlds-bar");
-    const moreBtn = document.getElementById("worlds-more-btn");
+    const shareBtn = document.getElementById("world-share-btn");
     bar.querySelectorAll(".world-btn").forEach((b) => b.remove());
     const visibleEntries = _getVisibleWorldEntries();
-    const displayMode = visibleEntries.length <= 2 ? "text" : "icon";
     for (const [id, world] of visibleEntries) {
       const btn = document.createElement("button");
       btn.className = "world-btn";
-      if (displayMode === "text") btn.classList.add("world-btn-text-mode");
       btn.dataset.world = id;
       btn.dataset.color = world.color;
       const icon = WORLD_ICONS[id] || state.worldPrefs[id]?.icon;
-      if (displayMode === "text") {
-        btn.textContent = world.label;
-        btn.title = world.label;
-      } else if (icon) {
-        btn.textContent = icon;
-        btn.title = world.label;
+      const shortLabel = WORLD_SHORT_LABELS[id] || world.label;
+      if (icon) {
+        btn.innerHTML = `<span class="world-btn-icon">${icon}</span><span class="world-btn-label">${escapeHtml(shortLabel)}</span>`;
       } else {
-        btn.textContent = _getAbbreviation(world.label);
-        btn.title = world.label;
-        btn.classList.add("world-btn-abbrev");
+        btn.innerHTML = `<span class="world-btn-label">${escapeHtml(shortLabel)}</span>`;
       }
-      btn.addEventListener("click", () => switchWorld(id));
-      bar.insertBefore(btn, moreBtn);
+      btn.title = world.label;
+      btn.addEventListener("click", () => {
+        stopWorldTour();
+        switchWorld(id);
+      });
+      bar.insertBefore(btn, shareBtn);
     }
     updateWorldsBar();
     updateWorldsBarOverflow();
   }
+  // === World Tour: Auto-cycling world presets for first-time visitors ===
+  var WORLD_TOUR_SEQUENCE = ["news", "crisis", "sports", "entertainment", "positive", "curious"];
+  var WORLD_TOUR_INTERVAL = 5000;
+  var _worldTourTimer = null;
+  var _worldTourIdx = 0;
+  var _worldTourActive = false;
+  var _isFirstVisitForTour = false;
+  function captureFirstVisitFlag() {
+    _isFirstVisitForTour = !localStorage.getItem("tm_world_tour_seen") && !localStorage.getItem("tm_last_visit") && !localStorage.getItem("tm_default_world") && !window.location.hash;
+  }
+  function startWorldTour() {
+    if (!_isFirstVisitForTour) return;
+    _worldTourActive = true;
+    _worldTourIdx = 0;
+    _showTourWorld(_worldTourIdx);
+    _worldTourTimer = setInterval(() => {
+      _worldTourIdx++;
+      if (_worldTourIdx >= WORLD_TOUR_SEQUENCE.length) {
+        _worldTourIdx = 0;
+      }
+      _transitionTourWorld(_worldTourIdx);
+    }, WORLD_TOUR_INTERVAL);
+    var stopEvents = ["click", "scroll", "keydown", "touchstart", "wheel"];
+    function onInteraction() {
+      stopWorldTour();
+      for (var ev of stopEvents) {
+        document.removeEventListener(ev, onInteraction, true);
+      }
+    }
+    for (var ev of stopEvents) {
+      document.addEventListener(ev, onInteraction, true);
+    }
+  }
+  function stopWorldTour() {
+    if (!_worldTourActive) return;
+    _worldTourActive = false;
+    if (_worldTourTimer) {
+      clearInterval(_worldTourTimer);
+      _worldTourTimer = null;
+    }
+    localStorage.setItem("tm_world_tour_seen", "1");
+    var overlay = document.getElementById("world-tour-overlay");
+    if (overlay) {
+      overlay.classList.remove("visible");
+      overlay.classList.add("fading");
+    }
+    // Fire deferred onboarding after tour ends
+    showOnboardingHint();
+    if (_isMobile() && !localStorage.getItem("thisminute-onboarded")) {
+      setTimeout(() => {
+        setSheetState("half");
+        setTimeout(() => setSheetState("closed"), 1500);
+      }, 2e3);
+    }
+  }
+  function _showTourWorld(idx) {
+    var worldId = WORLD_TOUR_SEQUENCE[idx];
+    var world = state.allWorlds[worldId];
+    if (!world) return;
+    var icon = WORLD_ICONS[worldId] || "";
+    var overlay = document.getElementById("world-tour-overlay");
+    if (!overlay) return;
+    var tourIcon = overlay.querySelector(".tour-icon");
+    var tourName = overlay.querySelector(".tour-name");
+    if (tourIcon) tourIcon.textContent = icon;
+    if (tourName) tourName.textContent = world.label;
+    overlay.classList.add("visible");
+    overlay.classList.remove("fading");
+    switchWorld(worldId);
+  }
+  function _transitionTourWorld(idx) {
+    var overlay = document.getElementById("world-tour-overlay");
+    if (!overlay) return;
+    overlay.classList.add("fading");
+    overlay.classList.remove("visible");
+    setTimeout(() => {
+      if (!_worldTourActive) return;
+      _showTourWorld(idx);
+    }, 400);
+  }
+
   function toggleWorldsPanel() {
     const panel = document.getElementById("worlds-panel");
     panel.classList.toggle("visible");
@@ -4325,6 +4371,30 @@
     }
     bar.classList.add("visible");
   }
+  function _worldShareCopied(btn) {
+    btn.textContent = "\u2713";
+    btn.classList.add("copied");
+    btn.title = "Copied!";
+    setTimeout(() => {
+      btn.innerHTML = "&#x1F517;";
+      btn.classList.remove("copied");
+      btn.title = "Share this world";
+    }, 1500);
+  }
+  function _worldShareFallback(btn, url) {
+    const ta = document.createElement("textarea");
+    ta.value = url;
+    ta.style.position = "fixed";
+    ta.style.opacity = "0";
+    document.body.appendChild(ta);
+    ta.select();
+    try {
+      document.execCommand("copy");
+      _worldShareCopied(btn);
+    } catch (e) {
+    }
+    document.body.removeChild(ta);
+  }
   function toggleTheme() {
     state.lightMode = !state.lightMode;
     document.body.classList.toggle("light-mode", state.lightMode);
@@ -4336,6 +4406,7 @@
       addMapLayers(state.map, "");
       addMapInteractions(state.map, "");
       setMapLabelsVisible(state.mapLabelsVisible);
+      _blendLocationColors(state.cloudData.features || []);
       applyFilters();
     });
   }
@@ -4508,6 +4579,7 @@
     loadFeedTags();
     loadWorlds();
     renderWorldsBar();
+    captureFirstVisitFlag();
     loadStateFromURL();
     initMap();
     let searchTimer = null;
@@ -4645,6 +4717,19 @@
         }, 1500);
       }).catch(() => {
       });
+    });
+    document.getElementById("world-share-btn").addEventListener("click", () => {
+      const btn = document.getElementById("world-share-btn");
+      const url = window.location.href;
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(url).then(() => {
+          _worldShareCopied(btn);
+        }).catch(() => {
+          _worldShareFallback(btn, url);
+        });
+      } else {
+        _worldShareFallback(btn, url);
+      }
     });
     document.getElementById("menu-btn").addEventListener("click", (e) => {
       e.stopPropagation();

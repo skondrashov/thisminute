@@ -23,7 +23,7 @@
     <script defer data-domain="thisminute.org" src="https://plausible.io/js/script.js"></script>
 
     <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5.5.0/dist/maplibre-gl.css" />
-    <link rel="stylesheet" href="/static/css/style.css?v=141" />
+    <link rel="stylesheet" href="/static/css/style.css?v=144" />
 </head>
 <body>
     <div id="sidebar" role="navigation" aria-label="News filters and situations">
@@ -76,18 +76,19 @@
 
         <div class="worlds-bar-wrapper">
         <div id="worlds-bar">
-            <button class="world-btn active" data-world="news" title="News">&#x1F4F0;</button>
-            <button class="world-btn" data-world="sports" title="Sports">&#x26BD;</button>
-            <button class="world-btn" data-world="entertainment" title="Entertainment">&#x1F3AC;</button>
-            <button class="world-btn" data-world="positive" title="Positive">&#x2728;</button>
-            <button class="world-btn" data-world="science" title="Science">&#x1F52C;</button>
-            <button class="world-btn" data-world="tech" title="Tech">&#x1F4BB;</button>
-            <button class="world-btn" data-world="curious" title="Curious">&#x1F9E9;</button>
-            <button class="world-btn" data-world="weather" title="Weather">&#x26C5;</button>
-            <button class="world-btn" data-world="crisis" title="Crisis">&#x1F6A8;</button>
-            <button class="world-btn" data-world="travel" title="Travel">&#x2708;&#xFE0F;</button>
-            <button class="world-btn" data-world="geopolitics" title="Geopolitics">&#x1F310;</button>
-            <button class="world-btn" data-world="markets" title="Markets">&#x1F4C8;</button>
+            <button class="world-btn active" data-world="news" title="News"><span class="world-btn-icon">&#x1F4F0;</span><span class="world-btn-label">News</span></button>
+            <button class="world-btn" data-world="sports" title="Sports"><span class="world-btn-icon">&#x26BD;</span><span class="world-btn-label">Sports</span></button>
+            <button class="world-btn" data-world="entertainment" title="Entertainment"><span class="world-btn-icon">&#x1F3AC;</span><span class="world-btn-label">Ent.</span></button>
+            <button class="world-btn" data-world="positive" title="Positive"><span class="world-btn-icon">&#x2728;</span><span class="world-btn-label">Positive</span></button>
+            <button class="world-btn" data-world="science" title="Science"><span class="world-btn-icon">&#x1F52C;</span><span class="world-btn-label">Science</span></button>
+            <button class="world-btn" data-world="tech" title="Tech"><span class="world-btn-icon">&#x1F4BB;</span><span class="world-btn-label">Tech</span></button>
+            <button class="world-btn" data-world="curious" title="Curious"><span class="world-btn-icon">&#x1F9E9;</span><span class="world-btn-label">Curious</span></button>
+            <button class="world-btn" data-world="weather" title="Weather"><span class="world-btn-icon">&#x26C5;</span><span class="world-btn-label">Weather</span></button>
+            <button class="world-btn" data-world="crisis" title="Crisis"><span class="world-btn-icon">&#x1F6A8;</span><span class="world-btn-label">Crisis</span></button>
+            <button class="world-btn" data-world="travel" title="Travel"><span class="world-btn-icon">&#x2708;&#xFE0F;</span><span class="world-btn-label">Travel</span></button>
+            <button class="world-btn" data-world="geopolitics" title="Geopolitics"><span class="world-btn-icon">&#x1F310;</span><span class="world-btn-label">Geo</span></button>
+            <button class="world-btn" data-world="markets" title="Markets"><span class="world-btn-icon">&#x1F4C8;</span><span class="world-btn-label">Markets</span></button>
+            <button id="world-share-btn" title="Share this world" aria-label="Share this world">&#x1F517;</button>
             <button id="worlds-more-btn" title="Manage filter presets">&#9881;</button>
         </div>
 
@@ -282,6 +283,7 @@
     <!-- Main map view -->
     <div id="map-container" role="application" aria-label="Interactive news map">
         <div id="map"></div>
+        <div id="world-tour-overlay"><div class="world-tour-label"><span class="tour-icon"></span><span class="tour-name"></span><span class="tour-hint">click anywhere to explore</span></div></div>
         <div id="map-reticle"></div>
         <div id="map-preview"></div>
         <div id="mobile-map-controls">
@@ -305,6 +307,6 @@
     </div>
 
     <script src="https://unpkg.com/maplibre-gl@5.5.0/dist/maplibre-gl.js"></script>
-    <script src="/static/js/app.js?v=141"></script>
+    <script src="/static/js/app.js?v=144"></script>
 </body>
 </html>

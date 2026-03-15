@@ -339,12 +339,14 @@ body {
 .worlds-bar-wrapper {
     position: relative;
     flex-shrink: 0;
+    background: var(--bg-secondary);
+    border-bottom: 1px solid var(--border-muted);
 }
 
 #worlds-bar {
-    padding: 6px 20px 4px;
+    padding: 8px 16px 8px;
     display: flex;
-    gap: 6px;
+    gap: 4px;
     flex-shrink: 0;
     align-items: center;
     position: relative;
@@ -354,18 +356,33 @@ body {
 #worlds-bar::-webkit-scrollbar { display: none; }
 
 .world-btn {
-    padding: 6px 12px;
+    padding: 6px 10px;
     border: 1.5px solid var(--border-default);
-    border-radius: 18px;
-    font-size: 17px;
-    font-weight: 700;
+    border-radius: 8px;
+    font-size: 12px;
+    font-weight: 600;
     background: var(--bg-primary);
     color: var(--text-muted);
     cursor: pointer;
     transition: all 0.2s ease;
     white-space: nowrap;
     position: relative;
+    line-height: 1.2;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex-shrink: 0;
+}
+
+.world-btn-icon {
+    font-size: 14px;
     line-height: 1;
+}
+
+.world-btn-label {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.2px;
 }
 
 .world-btn-count {
@@ -381,7 +398,8 @@ body {
 .world-btn:hover {
     border-color: var(--accent-blue);
     color: var(--text-secondary);
-    background: rgba(88, 166, 255, 0.06);
+    background: rgba(88, 166, 255, 0.08);
+    transform: translateY(-1px);
 }
 
 .world-btn.active {
@@ -421,22 +439,149 @@ body {
     border: 1.5px solid var(--bg-primary);
 }
 
+/* Per-world active colors — domain-colored accents */
+.world-btn[data-world="news"].active {
+    background: #1f6feb;
+    border-color: #1f6feb;
+    box-shadow: 0 0 12px rgba(31, 111, 235, 0.3);
+}
 .world-btn[data-world="sports"].active {
-    background: #2ea043;
-    border-color: #2ea043;
-    box-shadow: 0 0 12px rgba(46, 160, 67, 0.3);
+    background: #218838;
+    border-color: #218838;
+    box-shadow: 0 0 12px rgba(33, 136, 56, 0.3);
 }
-
 .world-btn[data-world="entertainment"].active {
-    background: #a855f7;
-    border-color: #a855f7;
-    box-shadow: 0 0 12px rgba(168, 85, 247, 0.3);
+    background: #9645de;
+    border-color: #9645de;
+    box-shadow: 0 0 12px rgba(150, 69, 222, 0.3);
+}
+.world-btn[data-world="positive"].active {
+    background: linear-gradient(135deg, #a06800 0%, #8f5c00 100%);
+    border-color: #a06800;
+    box-shadow: 0 0 12px rgba(160, 104, 0, 0.3);
+}
+.world-btn[data-world="science"].active {
+    background: #0077a8;
+    border-color: #0077a8;
+    box-shadow: 0 0 12px rgba(0, 119, 168, 0.3);
+}
+.world-btn[data-world="tech"].active {
+    background: #d02a37;
+    border-color: #d02a37;
+    box-shadow: 0 0 12px rgba(208, 42, 55, 0.3);
+}
+.world-btn[data-world="curious"].active {
+    background: #c93a2a;
+    border-color: #c93a2a;
+    box-shadow: 0 0 12px rgba(201, 58, 42, 0.3);
+}
+.world-btn[data-world="weather"].active {
+    background: #0571a3;
+    border-color: #0571a3;
+    box-shadow: 0 0 12px rgba(5, 113, 163, 0.3);
+}
+.world-btn[data-world="crisis"].active {
+    background: #dc2626;
+    border-color: #dc2626;
+    box-shadow: 0 0 12px rgba(220, 38, 38, 0.3);
+}
+.world-btn[data-world="travel"].active {
+    background: #7441e0;
+    border-color: #7441e0;
+    box-shadow: 0 0 12px rgba(116, 65, 224, 0.3);
+}
+.world-btn[data-world="geopolitics"].active {
+    background: #6b7280;
+    border-color: #6b7280;
+    box-shadow: 0 0 12px rgba(107, 114, 128, 0.3);
+}
+.world-btn[data-world="markets"].active {
+    background: #117a38;
+    border-color: #117a38;
+    box-shadow: 0 0 12px rgba(17, 122, 56, 0.3);
 }
 
-.world-btn[data-world="positive"].active {
-    background: linear-gradient(135deg, #f5a623 0%, #e8913a 100%);
-    border-color: #f5a623;
-    box-shadow: 0 0 12px rgba(245, 166, 35, 0.3);
+/* World tour overlay — centered label on map during auto-cycle */
+#world-tour-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+    z-index: 10;
+    opacity: 0;
+    transition: opacity 0.6s ease;
+}
+#world-tour-overlay.visible {
+    opacity: 1;
+}
+.world-tour-label {
+    font-size: 48px;
+    font-weight: 800;
+    color: #ffffff;
+    text-shadow: 0 2px 20px rgba(0, 0, 0, 0.7), 0 0 60px rgba(0, 0, 0, 0.4);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    animation: world-tour-pulse 5s ease-in-out infinite;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+}
+.world-tour-label .tour-icon {
+    font-size: 56px;
+    filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.5));
+}
+.world-tour-label .tour-name {
+    font-size: 36px;
+    letter-spacing: 4px;
+}
+.world-tour-label .tour-hint {
+    font-size: 13px;
+    font-weight: 400;
+    letter-spacing: 1px;
+    opacity: 0.7;
+    text-transform: none;
+    margin-top: 4px;
+}
+@keyframes world-tour-pulse {
+    0%, 100% { transform: scale(1); opacity: 0.9; }
+    50% { transform: scale(1.04); opacity: 1; }
+}
+/* World tour transition fade */
+#world-tour-overlay.fading {
+    opacity: 0;
+    transition: opacity 0.4s ease;
+}
+
+#world-share-btn {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    border: 1.5px solid var(--border-default);
+    background: transparent;
+    color: var(--text-muted);
+    font-size: 14px;
+    font-weight: 400;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: color 0.15s, border-color 0.15s;
+    margin-left: auto;
+    flex-shrink: 0;
+}
+#world-share-btn:hover {
+    border-color: var(--accent-blue);
+    color: var(--accent-blue);
+}
+#world-share-btn.copied {
+    color: #3fb950;
+    border-color: #3fb950;
 }
 
 #worlds-more-btn {
@@ -453,7 +598,7 @@ body {
     align-items: center;
     justify-content: center;
     transition: all 0.15s;
-    margin-left: auto;
+    margin-left: 0;
     flex-shrink: 0;
 }
 
@@ -700,7 +845,7 @@ body {
     background: linear-gradient(to right, var(--bg-primary), transparent);
 }
 .worlds-bar-wrapper::after {
-    right: 36px; /* offset for gear button */
+    right: 68px; /* offset for share + gear buttons */
     background: linear-gradient(to left, var(--bg-primary), transparent);
 }
 .worlds-bar-wrapper.scroll-left::before { opacity: 1; }
@@ -3344,13 +3489,33 @@ body.light-mode .view-btn.active { background: rgba(9, 105, 218, 0.12); border-c
 body.light-mode .sort-toggle:hover { background: rgba(9, 105, 218, 0.06); }
 
 /* World buttons: unique active colors and box-shadows */
+body.light-mode .worlds-bar-wrapper { background: var(--bg-secondary); border-bottom-color: var(--border-muted); }
 body.light-mode .world-btn:hover { background: rgba(9, 105, 218, 0.04); }
 body.light-mode .world-btn.active { background: var(--accent-blue-emphasis); border-color: var(--accent-blue-emphasis); color: #fff; box-shadow: 0 0 8px rgba(9, 105, 218, 0.2); }
 body.light-mode .world-btn[data-world="sports"].active { background: var(--domain-sports); border-color: var(--domain-sports); box-shadow: 0 0 8px rgba(26, 127, 55, 0.2); }
 body.light-mode .world-btn[data-world="entertainment"].active { background: #9333ea; border-color: #9333ea; box-shadow: 0 0 8px rgba(147, 51, 234, 0.2); }
-body.light-mode .world-btn[data-world="positive"].active { background: linear-gradient(135deg, #f5a623 0%, #e8913a 100%); border-color: #e08a10; box-shadow: 0 0 8px rgba(224, 138, 16, 0.2); }
+body.light-mode .world-btn[data-world="positive"].active { background: linear-gradient(135deg, #9a6200 0%, #8f5c00 100%); border-color: #9a6200; box-shadow: 0 0 8px rgba(154, 98, 0, 0.2); }
+body.light-mode .world-btn[data-world="science"].active { background: #006d9e; border-color: #006d9e; box-shadow: 0 0 8px rgba(0, 109, 158, 0.2); }
+body.light-mode .world-btn[data-world="tech"].active { background: #dc2626; border-color: #dc2626; box-shadow: 0 0 8px rgba(220, 38, 38, 0.2); }
+body.light-mode .world-btn[data-world="curious"].active { background: #c4301e; border-color: #c4301e; box-shadow: 0 0 8px rgba(196, 48, 30, 0.2); }
+body.light-mode .world-btn[data-world="weather"].active { background: #006d9e; border-color: #006d9e; box-shadow: 0 0 8px rgba(0, 109, 158, 0.2); }
+body.light-mode .world-btn[data-world="crisis"].active { background: #b91c1c; border-color: #b91c1c; box-shadow: 0 0 8px rgba(185, 28, 28, 0.2); }
+body.light-mode .world-btn[data-world="travel"].active { background: #7c3aed; border-color: #7c3aed; box-shadow: 0 0 8px rgba(124, 58, 237, 0.2); }
+body.light-mode .world-btn[data-world="geopolitics"].active { background: #4b5563; border-color: #4b5563; box-shadow: 0 0 8px rgba(75, 85, 99, 0.2); }
+body.light-mode .world-btn[data-world="markets"].active { background: #15803d; border-color: #15803d; box-shadow: 0 0 8px rgba(21, 128, 61, 0.2); }
 body.light-mode .world-btn.active.modified::after { border-color: #ffffff; }
 body.light-mode .world-btn.custom-color.active { background: var(--custom-world-color); border-color: var(--custom-world-color); box-shadow: 0 0 8px color-mix(in srgb, var(--custom-world-color) 30%, transparent); }
+
+/* World share button — light mode */
+body.light-mode #world-share-btn { color: #656d76; border-color: #d0d7de; }
+body.light-mode #world-share-btn:hover { color: #0969da; border-color: #0969da; }
+body.light-mode #world-share-btn.copied { color: #1a7f37; border-color: #1a7f37; }
+
+/* World tour overlay — light mode */
+body.light-mode .world-tour-label {
+    color: #1a1a2e;
+    text-shadow: 0 2px 20px rgba(255, 255, 255, 0.7), 0 0 60px rgba(255, 255, 255, 0.4);
+}
 
 /* Worlds panel: lighter box-shadow */
 body.light-mode #worlds-panel { box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15); }
@@ -3806,18 +3971,29 @@ body.light-mode #legend-toggle { background: rgba(246, 248, 250, 0.9); }
 
     /* ---- Worlds bar ---- */
     #worlds-bar {
-        padding: 4px 12px 4px;
+        padding: 6px 10px 6px;
         flex-wrap: nowrap;
         overflow-x: auto;
         -webkit-overflow-scrolling: touch;
         scrollbar-width: none;
-        gap: 6px;
+        gap: 4px;
     }
     #worlds-bar::-webkit-scrollbar { display: none; }
     .world-btn {
-        padding: 5px 14px;
+        padding: 4px 8px;
         font-size: 10px;
         flex-shrink: 0;
+    }
+    .world-btn-icon { font-size: 12px; }
+    .world-btn-label { font-size: 10px; }
+    /* World tour overlay — smaller on mobile */
+    .world-tour-label .tour-icon { font-size: 36px; }
+    .world-tour-label .tour-name { font-size: 24px; letter-spacing: 2px; }
+    .world-tour-label .tour-hint { font-size: 11px; }
+    #world-share-btn {
+        width: 24px;
+        height: 24px;
+        font-size: 12px;
     }
     #worlds-more-btn {
         width: 24px;
