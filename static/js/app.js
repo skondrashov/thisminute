@@ -112,8 +112,28 @@
     }
     return "general";
   }
+  var _HEAT_STOPS = [
+    [0, [88, 166, 255]],
+    [0.25, [0, 210, 210]],
+    [0.5, [255, 255, 0]],
+    [0.75, [255, 140, 0]],
+    [1, [255, 50, 30]]
+  ];
+  function _heatColor(ratio) {
+    for (var s = 1; s < _HEAT_STOPS.length; s++) {
+      if (ratio <= _HEAT_STOPS[s][0]) {
+        var t = (ratio - _HEAT_STOPS[s - 1][0]) / (_HEAT_STOPS[s][0] - _HEAT_STOPS[s - 1][0]);
+        var a = _HEAT_STOPS[s - 1][1], b = _HEAT_STOPS[s][1];
+        return _rgbToHex(a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t);
+      }
+    }
+    return _rgbToHex(255, 50, 30);
+  }
   function _blendLocationColors(features) {
     var base = state.lightMode ? _BLEND_BASE_LIGHT : _BLEND_BASE_DARK;
+    var theme = state.dotColorTheme || "domain";
+    var classicColor = state.lightMode ? "#0969da" : "#58a6ff";
+    var monoColor = state.lightMode ? "#57606a" : "#ffffff";
     try {
       var byCoord = {};
       for (var i = 0; i < features.length; i++) {
@@ -124,26 +144,48 @@
         if (!byCoord[key]) byCoord[key] = [];
         byCoord[key].push(f);
       }
+      var maxGroupSize = 1;
+      if (theme === "heat") {
+        for (var kh in byCoord) {
+          if (byCoord[kh].length > maxGroupSize) maxGroupSize = byCoord[kh].length;
+        }
+      }
       for (var k in byCoord) {
         var group = byCoord[k];
-        var domainCounts = {}, total = 0;
-        var maxDomain = "general", maxCount = 0;
-        for (var j = 0; j < group.length; j++) {
-          var dom = group[j].properties._domain;
-          domainCounts[dom] = (domainCounts[dom] || 0) + 1;
-          total++;
-          if (domainCounts[dom] > maxCount) {
-            maxCount = domainCounts[dom];
-            maxDomain = dom;
+        var blended;
+        if (theme === "classic") {
+          blended = classicColor;
+        } else if (theme === "mono") {
+          blended = monoColor;
+        } else if (theme === "heat") {
+          var heatRatio = maxGroupSize > 1 ? (group.length - 1) / (maxGroupSize - 1) : 0;
+          blended = _heatColor(heatRatio);
+        } else {
+          /* domain or neon */
+          var domainCounts = {}, total = 0;
+          var maxDomain = "general", maxCount = 0;
+          for (var j = 0; j < group.length; j++) {
+            var dom = group[j].properties._domain;
+            domainCounts[dom] = (domainCounts[dom] || 0) + 1;
+            total++;
+            if (domainCounts[dom] > maxCount) {
+              maxCount = domainCounts[dom];
+              maxDomain = dom;
+            }
+          }
+          var domRGB = _domainRGB[maxDomain] || _fallbackRGB;
+          if (theme === "neon") {
+            blended = _rgbToHex(domRGB[0], domRGB[1], domRGB[2]);
+          } else {
+            /* domain (default) */
+            var ratio = total > 0 ? maxCount / total : 0;
+            blended = _rgbToHex(
+              base[0] + (domRGB[0] - base[0]) * ratio,
+              base[1] + (domRGB[1] - base[1]) * ratio,
+              base[2] + (domRGB[2] - base[2]) * ratio
+            );
           }
         }
-        var ratio = total > 0 ? maxCount / total : 0;
-        var domRGB = _domainRGB[maxDomain] || _fallbackRGB;
-        var blended = _rgbToHex(
-          base[0] + (domRGB[0] - base[0]) * ratio,
-          base[1] + (domRGB[1] - base[1]) * ratio,
-          base[2] + (domRGB[2] - base[2]) * ratio
-        );
         for (var j2 = 0; j2 < group.length; j2++) {
           group[j2].properties.blended_color = blended;
         }
@@ -1579,6 +1621,7 @@
   state._pendingMapView = null;
   state.activeLocationFilter = null;
   state.lightMode = localStorage.getItem("thisminute-theme") === "light";
+  state.dotColorTheme = localStorage.getItem("tm_dot_theme") || "domain";
   function _markVisited(url) {
     if (!url || state._visitedStories.has(url)) return;
     state._visitedStories.add(url);
@@ -4572,6 +4615,85 @@
   function applyInitialTheme() {
     if (state.lightMode) document.body.classList.add("light-mode");
   }
+  var _DOT_THEMES = [
+    { id: "domain", label: "Domain", desc: "Tinted by topic" },
+    { id: "classic", label: "Classic", desc: "Uniform blue" },
+    { id: "mono", label: "Mono", desc: "Single color" },
+    { id: "heat", label: "Heat", desc: "Story density" },
+    { id: "neon", label: "Neon", desc: "Vivid domains" }
+  ];
+  function setDotColorTheme(themeId) {
+    state.dotColorTheme = themeId;
+    localStorage.setItem("tm_dot_theme", themeId);
+    _blendLocationColors(state.cloudData.features || []);
+    applyFilters();
+    _updateDotThemeMenu();
+    _updateLegendForTheme();
+  }
+  function _toggleDotThemeMenu() {
+    var menu = document.getElementById("dot-theme-menu");
+    if (!menu) return;
+    menu.classList.toggle("open");
+  }
+  function _updateDotThemeMenu() {
+    var menu = document.getElementById("dot-theme-menu");
+    if (!menu) return;
+    var items = menu.querySelectorAll(".dot-theme-item");
+    for (var i = 0; i < items.length; i++) {
+      items[i].classList.toggle("active", items[i].dataset.theme === state.dotColorTheme);
+    }
+  }
+  function _updateLegendForTheme() {
+    var legendEl = document.getElementById("map-legend");
+    var heatLegend = document.getElementById("heat-legend");
+    if (!legendEl) return;
+    var theme = state.dotColorTheme || "domain";
+    if (theme === "heat") {
+      legendEl.style.display = "none";
+      if (heatLegend) heatLegend.style.display = "";
+    } else if (theme === "classic" || theme === "mono") {
+      legendEl.style.display = "none";
+      if (heatLegend) heatLegend.style.display = "none";
+    } else {
+      /* domain or neon */
+      legendEl.style.display = "";
+      if (heatLegend) heatLegend.style.display = "none";
+    }
+  }
+  function _buildDotThemeUI() {
+    /* Theme button */
+    var btn = document.getElementById("dot-theme-btn");
+    if (!btn) return;
+    btn.addEventListener("click", function(e) {
+      e.stopPropagation();
+      _toggleDotThemeMenu();
+    });
+    /* Menu items */
+    var menu = document.getElementById("dot-theme-menu");
+    if (!menu) return;
+    for (var i = 0; i < _DOT_THEMES.length; i++) {
+      var t = _DOT_THEMES[i];
+      var item = document.createElement("div");
+      item.className = "dot-theme-item" + (t.id === state.dotColorTheme ? " active" : "");
+      item.dataset.theme = t.id;
+      item.innerHTML = '<span class="dot-theme-check">&#10003;</span><span class="dot-theme-label">' + escapeHtml(t.label) + '</span><span class="dot-theme-desc">' + escapeHtml(t.desc) + '</span>';
+      item.addEventListener("click", (function(tid) {
+        return function(e) {
+          e.stopPropagation();
+          setDotColorTheme(tid);
+          setTimeout(function() { _toggleDotThemeMenu(); }, 120);
+        };
+      })(t.id));
+      menu.appendChild(item);
+    }
+    /* Close menu on outside click */
+    document.addEventListener("click", function() {
+      var m = document.getElementById("dot-theme-menu");
+      if (m && m.classList.contains("open")) m.classList.remove("open");
+    });
+    /* Apply legend state on load */
+    _updateLegendForTheme();
+  }
   function saveStateToURL() {
     const params = new URLSearchParams();
     if (state.activeWorldId && state.activeWorldId !== "news") params.set("world", state.activeWorldId);
@@ -4855,6 +4977,7 @@
         legendToggle.innerHTML = legendEl.classList.contains("collapsed") ? "&#9632;" : "&#9662;";
       });
     }
+    _buildDotThemeUI();
     document.addEventListener("click", (e) => {
       const tag = e.target.closest(".story-concept-tag.clickable");
       if (!tag || !tag.dataset.concept) return;
@@ -5043,6 +5166,11 @@
         const saveDialog = document.getElementById("world-save-dialog");
         if (saveDialog.classList.contains("visible")) {
           closeSaveWorldDialog();
+          return;
+        }
+        const dotThemeMenu = document.getElementById("dot-theme-menu");
+        if (dotThemeMenu && dotThemeMenu.classList.contains("open")) {
+          dotThemeMenu.classList.remove("open");
           return;
         }
         const sourcesPopup = document.getElementById("sources-popup");

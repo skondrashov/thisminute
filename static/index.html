@@ -29,7 +29,7 @@
     <script defer data-domain="thisminute.org" src="https://plausible.io/js/script.js"></script>
 
     <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5.5.0/dist/maplibre-gl.css" />
-    <link rel="stylesheet" href="/static/css/style.css?v=146" />
+    <link rel="stylesheet" href="/static/css/style.css?v=147" />
 </head>
 <body>
     <div id="sidebar" role="navigation" aria-label="News filters and situations">
@@ -201,6 +201,13 @@
     <button id="labels-toggle" title="Toggle map labels (m)">Aa</button>
     <button id="globe-toggle" title="Toggle globe/flat (g)">&#127758;</button>
     <div id="map-legend"></div>
+    <div id="heat-legend" style="display:none">
+        <span class="heat-label">Few</span>
+        <div class="heat-gradient"></div>
+        <span class="heat-label">Many</span>
+    </div>
+    <button id="dot-theme-btn" title="Dot color theme">&#127912;</button>
+    <div id="dot-theme-menu"></div>
     <button id="legend-toggle" title="Toggle legend">&#9632;</button>
     <div id="feed-buttons">
         <button class="feed-btn" data-feed="space" title="Space stories">&#9733; Space</button>
@@ -325,6 +332,6 @@
     </div>
 
     <script src="https://unpkg.com/maplibre-gl@5.5.0/dist/maplibre-gl.js"></script>
-    <script src="/static/js/app.js?v=146"></script>
+    <script src="/static/js/app.js?v=147"></script>
 </body>
 </html>

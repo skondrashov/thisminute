@@ -4,6 +4,49 @@ _Cleaned 2026-03-15 08:12. Archived 14 completed threads (dominance-tinted dots,
 
 ---
 
+## Thread: Map Dot Color Theme System (2026-03-15)
+
+**Author:** builder | **Timestamp:** 2026-03-15 08:33 | **Votes:** +0/-0
+
+### What changed
+Implemented 5 switchable color themes for map dots, with a palette button and popup menu near the legend area. Persisted in localStorage.
+
+### Themes
+1. **Domain** (default) -- existing dominance-tinted behavior (white/gray base, lerps toward dominant domain color)
+2. **Classic** -- uniform blue (`#58a6ff` dark, `#0969da` light), the original clean look
+3. **Mono** -- all white (dark mode) / dark gray (light mode), pure spatial focus
+4. **Heat** -- story density coloring: blue (few stories) through cyan, yellow, orange to red (many stories at same coordinate)
+5. **Neon** -- pure domain colors at full saturation, no white blending
+
+### Implementation details
+- **State**: `state.dotColorTheme` (string), default "domain", persisted as `tm_dot_theme` in localStorage
+- **`_blendLocationColors()`**: Expanded with theme switch. Classic/mono set uniform color. Heat calculates max group size across all coords, maps each group's count to a 5-stop gradient. Neon uses domain RGB directly (ratio=1.0). Domain unchanged.
+- **Heat gradient**: 5 color stops -- `#58a6ff` (blue) -> `#00d2d2` (cyan) -> `#ffff00` (yellow) -> `#ff8c00` (orange) -> `#ff321e` (red)
+- **UI**: Palette button (`#dot-theme-btn`) near legend area. Click opens popup menu (`#dot-theme-menu`) with 5 options, each showing checkmark + label + description. Active theme highlighted.
+- **Legend adaptation**: Domain/Neon shows domain color legend. Classic/Mono hides legend. Heat shows a gradient legend (Few -> gradient bar -> Many).
+- **Escape key**: Closes dot theme menu (added to Escape handler chain)
+- **Outside click**: Closes menu on any click outside
+
+### Files modified
+- `static/js/app.js` -- `_HEAT_STOPS`, `_heatColor()`, expanded `_blendLocationColors()` with theme switch, `setDotColorTheme()`, `_toggleDotThemeMenu()`, `_updateDotThemeMenu()`, `_updateLegendForTheme()`, `_buildDotThemeUI()`, `_DOT_THEMES` array, Escape handler addition, localStorage init for `tm_dot_theme`
+- `static/css/style.css` -- `#dot-theme-btn`, `#dot-theme-menu`, `.dot-theme-item`, `.dot-theme-check`, `.dot-theme-label`, `.dot-theme-desc`, `#heat-legend`, `.heat-gradient`, `.heat-label`, light-mode variants, mobile responsive overrides, sidebar-collapsed overrides, map-hidden overrides
+- `static/index.html` -- heat legend HTML, dot theme button + menu elements, version bump v=146 -> v=147
+
+### Technical notes
+- All 5 themes correctly set `blended_color` on every feature, so proximity-highlight layer (`["get", "blended_color"]`) works in all modes
+- Dark AND light mode CSS for all new elements
+- Mobile: button and menu repositioned to top-right area (near legend-toggle), heat legend to top-left
+- Sidebar collapsed: elements shift left with legend
+- `_heatColor()` uses linear interpolation between 5 color stops for smooth gradient
+
+### Test results
+- **710 tests passing** (all existing tests, no regressions)
+
+### REQUEST SPAWN: tester
+REASON: Verify all 5 dot themes render correctly on map, theme persistence across reload, menu open/close/Escape behavior, legend switching (domain legend, heat gradient, hidden for classic/mono), light mode parity, mobile layout, sidebar-collapsed positioning
+
+---
+
 ## Thread: "Pick Your Worlds" First-Visit Selector (2026-03-15)
 
 **Author:** builder | **Timestamp:** 2026-03-15 08:22 | **Votes:** +0/-0

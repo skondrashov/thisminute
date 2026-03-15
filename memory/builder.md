@@ -342,6 +342,18 @@
 - String replacements in `app.py` index() must match the exact text in `index.html`. If description text changes, update BOTH files.
 - Cache-bust version bumped to `?v=145`.
 
+## Map Dot Color Theme System (2026-03-15)
+
+- 5 switchable dot color themes: domain (default), classic, mono, heat, neon.
+- State: `state.dotColorTheme` persisted as `tm_dot_theme` in localStorage.
+- `_blendLocationColors()` expanded with switch on theme. Domain = existing dominance tinting. Classic = uniform blue. Mono = white/gray. Heat = story-count gradient. Neon = pure domain colors.
+- Heat gradient: 5 color stops via `_HEAT_STOPS` array + `_heatColor()` linear interpolation. Uses max group size across all coords as upper bound.
+- UI: palette button (`#dot-theme-btn`) + popup menu (`#dot-theme-menu`) near legend area. 5 items with checkmark, label, description.
+- Legend adaptation: domain/neon show domain legend, classic/mono hide it, heat shows gradient legend (`#heat-legend`).
+- Escape key closes menu. Outside click closes menu.
+- Dark/light mode CSS for all new elements. Mobile responsive (repositioned to top area). Sidebar-collapsed positioning. Map-hidden hiding.
+- Cache-bust version bumped to ?v=147.
+
 ## World Bar Share Button (2026-03-15)
 
 - Share button (`#world-share-btn`) added to the world bar between world preset buttons and gear button.
