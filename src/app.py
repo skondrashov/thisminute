@@ -241,6 +241,18 @@ async def add_security_headers(request: Request, call_next):
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
 
+@app.get("/robots.txt")
+async def robots_txt():
+    """Serve robots.txt from static directory."""
+    return FileResponse(str(STATIC_DIR / "robots.txt"), media_type="text/plain")
+
+
+@app.get("/sitemap.xml")
+async def sitemap_xml():
+    """Serve sitemap.xml from static directory."""
+    return FileResponse(str(STATIC_DIR / "sitemap.xml"), media_type="application/xml")
+
+
 @app.get("/")
 async def index(sit: Optional[int] = Query(None)):
     """Serve the main page, with dynamic OG tags for situation deep links."""
@@ -256,22 +268,26 @@ async def index(sit: Optional[int] = Query(None)):
     html = html_path.read_text(encoding="utf-8")
 
     if narrative:
-        title = f"{narrative['title']} — thisminute"
+        title = f"{narrative['title']} \u2014 thisminute"
         desc = narrative.get("description") or "Follow this developing situation on thisminute.org"
         # Escape for HTML attributes
         title_safe = title.replace('"', "&quot;").replace("<", "&lt;")
         desc_safe = desc.replace('"', "&quot;").replace("<", "&lt;")
+        sit_url = f"https://thisminute.org/?sit={sit}"
         html = html.replace(
             '<meta property="og:title" content="thisminute — global news, live">',
             f'<meta property="og:title" content="{title_safe}">',
         ).replace(
-            '<meta property="og:description" content="Real-time global news on an interactive map. Filter by topic, search by actor or action, track evolving narratives across 50+ sources.">',
+            '<meta property="og:description" content="Real-time global news map. Every story gets a dot. 95 sources, 12 world views. You decide what matters.">',
             f'<meta property="og:description" content="{desc_safe}">',
+        ).replace(
+            '<meta property="og:url" content="https://thisminute.org">',
+            f'<meta property="og:url" content="{sit_url}">',
         ).replace(
             '<meta name="twitter:title" content="thisminute — global news, live">',
             f'<meta name="twitter:title" content="{title_safe}">',
         ).replace(
-            '<meta name="twitter:description" content="Real-time global news on an interactive map. Filter by topic, search by actor, track narratives.">',
+            '<meta name="twitter:description" content="Real-time global news map. Every story gets a dot. 95 sources, 12 world views. You decide what matters.">',
             f'<meta name="twitter:description" content="{desc_safe}">',
         ).replace(
             "<title>thisminute — global news, live</title>",

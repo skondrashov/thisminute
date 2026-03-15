@@ -8,11 +8,11 @@ thisminute.org shows what's happening in the world right now, plotted on a map. 
 
 ## Current Priorities (updated 2026-03-15)
 
-1. **Deploy v116 + uncommitted work** — All tested (839/839). User feeds frontend, DRY audit. Get it live.
-2. **First-use experience overhaul** — Auto-cycling world presets for new visitors, "pick your worlds" first-visit selector, prominent world bar. The product is feature-rich but new users cannot discover the 12 presets.
-3. **Shareable world preset URLs + share button** — Viral sharing mechanism. `thisminute.org/#world=crisis` should be a one-click share from the world bar.
-4. **Domain distribution endpoint** — `/api/stats/domain-distribution` for monitoring content balance.
-5. **SEO/social shareability verification** — OpenGraph tags, meta description, social preview image.
+1. ~~**Deploy v116 + uncommitted work**~~ — DONE (v118 deployed).
+2. **First-use experience overhaul** — ~~Auto-cycling world presets~~, "pick your worlds" first-visit selector, ~~prominent world bar~~. MOSTLY DONE (v119). Pick-your-worlds selector remaining.
+3. ~~**Shareable world preset URLs + share button**~~ — DONE (v119). Share button in world bar.
+4. **SEO/social shareability verification** — OpenGraph tags, meta description, social preview image.
+5. **Domain distribution endpoint** — `/api/stats/domain-distribution` for monitoring content balance.
 
 ### Completed Priorities
 
@@ -84,15 +84,16 @@ thisminute should work for ANY interest, not just hard news. The next major effo
 
 - [x] User-added RSS feeds backend (POST/GET/DELETE endpoints, SSRF protection with DNS pinning + redirect blocking, feed validation, pipeline integration with global volume cap, `user_feeds` table, `SOURCE_ENABLED["user_feeds"]` kill switch, 85 tests)
 - [x] User-added RSS feeds frontend UI (modal dialog: add/list/remove feeds, status dots, tag selection, error display)
-- [ ] Shareable world presets via URL (share button per world, copy-to-clipboard)
+- [x] Shareable world presets via URL (share button per world, copy-to-clipboard)
 
-### Phase 4.5: First-Use Experience — NOT STARTED
+### Phase 4.5: First-Use Experience — STARTED
 
-- [ ] Auto-cycling world presets for new visitors (5s each with label overlay until interaction)
+- [x] Auto-cycling world presets for new visitors (6 worlds, 5s each, overlay with icon+name, stops on any interaction)
 - [ ] "Pick your worlds" first-visit selector (checkboxes, personalize world bar)
-- [ ] Prominent world bar redesign (current bar looks like secondary navigation)
+- [x] Prominent world bar redesign (icon+label buttons, 12 unique domain-colored active states, hover lift)
 - [ ] SEO/social shareability (verify OpenGraph, meta description, social preview image)
 - [ ] Domain distribution endpoint (`/api/stats/domain-distribution`)
+- [x] Dominance-tinted dot colors (white/gray base, tints toward dominant domain — replaces misleading HSL blending)
 
 ### Phase 5: Feedback Loop — STARTED
 

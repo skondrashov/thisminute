@@ -329,6 +329,19 @@
 - Light mode gray value (#6e7681) may need visual tuning.
 - Cache-bust version bumped to ?v=144.
 
+## SEO/Social Shareability (2026-03-15)
+
+- Meta description (137 chars): "Real-time global news map. Every story gets a dot. 95 sources, 12 world views. You decide what matters."
+- OG image at `/static/og-image.png` (1200x630). Generated via Pillow -- dark theme with colored dots, branding, stats subtitle.
+- Twitter card upgraded from `summary` to `summary_large_image` for large preview on Twitter/X.
+- `<link rel="canonical" href="https://thisminute.org">` added.
+- `og:image`, `og:image:width`, `og:image:height`, `og:locale`, `twitter:image` all added.
+- Dynamic OG in `app.py` now replaces `og:url` with situation-specific URL for `/?sit=N` deep links.
+- `robots.txt` served at `/robots.txt` via dedicated FastAPI route (not via `/static/` mount).
+- `sitemap.xml` served at `/sitemap.xml` -- minimal single-entry for SPA homepage.
+- String replacements in `app.py` index() must match the exact text in `index.html`. If description text changes, update BOTH files.
+- Cache-bust version bumped to `?v=145`.
+
 ## World Bar Share Button (2026-03-15)
 
 - Share button (`#world-share-btn`) added to the world bar between world preset buttons and gear button.
