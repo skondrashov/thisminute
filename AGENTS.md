@@ -79,6 +79,11 @@ app.py (FastAPI) --> static/index.html + app.js + style.css (MapLibre GL JS 5.x)
 - **5 narrative domains** — news, sports, entertainment, positive, curious. Per-domain Sonnet passes with domain-specific prompts
 - **12 world presets** — News, Sports, Entertainment, Positive, Science, Tech, Curious, Weather, Crisis, Travel, Geopolitics, Markets. Composite presets use subset `activeOrigins` arrays.
 - **DRY source adapter pattern** — `source_utils.py` shared helpers (fetch_json, build_extraction, attach_location, dedup_list, strip_html, polygon_centroid)
+- **Dominance-tinted dot colors** — Map dots use RGB lerp from a theme-aware base (white dark, gray light) toward the dominant domain color. Ratio = dominant_count / total_stories. Replaced earlier HSL circular averaging which produced misleading intermediate colors.
+- **World bar** — Icon+label buttons with 12 unique domain-colored active states (all pass WCAG AA 4.5:1). Share button copies current URL to clipboard.
+- **Auto-cycling world tour** — First-time visitors see a 6-world tour (5s per world) that stops on any interaction. Suppresses other onboarding until tour ends.
+- **SEO/social** — OG image (1200x630), meta description, canonical link, twitter:card summary_large_image, dynamic OG for situation deep links. `robots.txt` and `sitemap.xml` served via FastAPI routes.
+- **Security hardening** — Two-tier rate limiting (per-hash + per-IP), global write budgets, 64KB body size middleware, SSRF protection with DNS pinning, security response headers (nosniff, DENY, strict-origin). Application-layer ready for public launch.
 
 ## Deploying & Pushing
 

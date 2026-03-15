@@ -31,6 +31,27 @@ Filters are orthogonal AND dimensions — each narrows independently:
 - `computeFilteredState()` is the single source of truth for all filtered UI
 - All renderers are pure consumers — no renderer does its own filtering
 
+## World Bar
+
+- **Icon+label buttons** for all 12 world presets. `WORLD_SHORT_LABELS` abbreviates "Entertainment" to "Ent." and "Geopolitics" to "Geo".
+- **12 unique domain-colored active states** — CSS active backgrounds are darkened variants of the brand colors (e.g., positive `#a06800` not `#f5a623`). All pass WCAG AA 4.5:1 with white text.
+- **Share button** (`#world-share-btn`) copies current URL to clipboard. Uses `_worldShareFallback()` for older browsers. Visual feedback: checkmark + green border for 1.5s.
+- `renderWorldsBar()` inserts world buttons before `#world-share-btn` to maintain correct DOM order.
+
+## Dot Color Blending
+
+- **Dominance-tinted**: `_blendLocationColors()` finds the dominant domain at each location, calculates `ratio = dominant_count / total_stories`, then RGB-lerps from a base color to the domain color.
+- **Theme-aware bases**: Dark mode = white (`#ffffff`, dots look like city lights). Light mode = medium gray (`#6e7681`).
+- `toggleTheme()` triggers re-blend so dots update with the correct base color.
+- The `blended_color` property name is preserved for MapLibre layer compatibility. Country polygon fills use a separate code path (already dominant-domain based).
+
+## SEO Files
+
+- `static/og-image.png` — 1200x630 social preview image
+- `static/robots.txt` — served at `/robots.txt` via FastAPI route
+- `static/sitemap.xml` — served at `/sitemap.xml` via FastAPI route
+- Dynamic OG in `app.py` replaces meta tags for `/?sit=N` deep links. String replacements must match exact text in `index.html`.
+
 ## Cache Busting
 
 **Every deploy MUST bump `?v=N`** in index.html for both CSS and JS links. The browser aggressively caches these files. Forgetting this is the #1 cause of "my changes didn't work."
