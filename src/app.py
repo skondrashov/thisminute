@@ -1,18 +1,25 @@
 """FastAPI application for thisminute."""
 
 import colorsys
+import ipaddress
 import json
 import logging
+import re as _re
+import socket
+import time as _time
+from collections import Counter, defaultdict
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone, timedelta
 from typing import Optional
+from urllib.parse import urlparse as _urlparse
 
+import requests as _requests_lib
 from fastapi import FastAPI, Query, Request, Response
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from .config import STATIC_DIR, FEED_TAG_MAP
+from .config import STATIC_DIR, FEED_TAG_MAP, USER_FEED_MAX, USER_FEED_MAX_STORIES
 from .database import (
     get_connection, get_stories, get_sources, get_source_counts, get_categories, get_stats,
     get_cached_geocode, init_db, get_all_events, get_event_by_id,
@@ -23,6 +30,9 @@ from .database import (
 )
 from .categorizer import get_all_concept_names, CONCEPT_DOMAINS
 from .geocoder import bbox_to_radius_km
+from .ner import classify_location, _COUNTRY_SET
+from .scheduler import PipelineScheduler
+
 
 def _json(val, default=None):
     """Parse a JSON string, returning *default* on failure or if already parsed."""
@@ -34,8 +44,6 @@ def _json(val, default=None):
         return json.loads(val)
     except (json.JSONDecodeError, TypeError):
         return default
-from .ner import classify_location, _COUNTRY_SET
-from .scheduler import PipelineScheduler
 
 # Configure logging
 logging.basicConfig(
@@ -44,6 +52,32 @@ logging.basicConfig(
 )
 
 scheduler = PipelineScheduler()
+
+
+# ---------------------------------------------------------------------------
+# Shared rate-limiter: sliding window of max_calls per window_seconds
+# ---------------------------------------------------------------------------
+
+def _check_rate_limit(store: dict, key: str, max_calls: int = 5,
+                      window_seconds: float = 60.0) -> bool:
+    """Return True if the rate limit is exceeded for *key*.
+
+    *store* is a ``dict[str, list[float]]`` that persists between calls.
+    """
+    now = _time.time()
+    window = store.setdefault(key, [])
+    window[:] = [t for t in window if now - t < window_seconds]
+    if len(window) >= max_calls:
+        return True
+    window.append(now)
+    # Periodic sweep: prune keys whose timestamps have all expired to
+    # prevent unbounded memory growth from one-time callers.
+    if len(store) > 500:
+        stale = [k for k, v in store.items()
+                 if not any(now - t < window_seconds for t in v)]
+        for k in stale:
+            store.pop(k, None)
+    return False
 
 
 @asynccontextmanager
@@ -98,7 +132,6 @@ async def index(sit: Optional[int] = Query(None)):
             f"<title>{title_safe}</title>",
         )
 
-    from fastapi.responses import HTMLResponse
     return HTMLResponse(content=html)
 
 
@@ -160,8 +193,6 @@ async def api_stories(
     limit: int = Query(2000, ge=1, le=5000),
 ):
     """Return stories as GeoJSON FeatureCollection."""
-    import time as _time
-
     # Serve cached response for the default (no-filter) query
     is_default = not since and not source and not category and not concepts and not exclude and not search and limit == 2000
     now = _time.time()
@@ -191,7 +222,8 @@ async def api_stories(
         rows = conn.execute(
             f"""SELECT se.story_id, se.location_type, se.search_keywords, se.severity,
                        se.primary_action, se.topics, se.is_opinion, se.registry_event_id,
-                       se.bright_side_score, se.bright_side_category, se.bright_side_headline
+                       se.bright_side_score, se.bright_side_category, se.bright_side_headline,
+                       se.human_interest_score
                 FROM story_extractions se WHERE se.story_id IN ({placeholders})""",
             story_ids,
         ).fetchall()
@@ -245,6 +277,7 @@ async def api_stories(
                 "summary": s["summary"],
                 "source": s["source"],
                 "origin": s.get("origin", "rss"),
+                "source_type": s.get("source_type", "reported"),
                 "category": s.get("category", "general"),
                 "concepts": story_concepts,
                 "location_name": s.get("location_name"),
@@ -258,6 +291,7 @@ async def api_stories(
                 "bright_side_score": int(ext["bright_side_score"]) if ext.get("bright_side_score") is not None else None,
                 "bright_side_category": ext.get("bright_side_category"),
                 "bright_side_headline": ext.get("bright_side_headline"),
+                "human_interest_score": int(ext["human_interest_score"]) if ext.get("human_interest_score") is not None else None,
                 "narrative_ids": narrative_link_map.get(s["id"], []),
                 "search_keywords": _parse_keywords(ext.get("search_keywords")),
                 "image_url": s.get("image_url"),
@@ -314,7 +348,6 @@ async def api_stories_clouds(
     Each story is expanded into one Point per NER entity, with radius_km
     reflecting location specificity (city=tight, country=wide).
     """
-    import time as _time
     is_default = not since and not source and not category and not concepts and not exclude and not search and limit == 500
     now = _time.time()
     if is_default and _clouds_cache["data"] and now < _clouds_cache["expires"]:
@@ -430,7 +463,6 @@ _sources_cache = {"data": None, "expires": 0}
 @app.get("/api/sources")
 async def api_sources():
     """Return list of source names with counts (cached in memory for 30 min)."""
-    import time as _time
     now = _time.time()
     if _sources_cache["data"] and now < _sources_cache["expires"]:
         return JSONResponse(
@@ -495,7 +527,6 @@ _concepts_cache = {"data": None, "expires": 0}
 @app.get("/api/concepts")
 async def api_concepts():
     """Return all known concepts grouped by domain."""
-    import time as _time
     now = _time.time()
     if _concepts_cache["data"] and now < _concepts_cache["expires"]:
         return JSONResponse(
@@ -770,8 +801,6 @@ async def api_rss_feed(situation: Optional[int] = Query(None)):
                     headers={"Cache-Control": "public, max-age=300"})
 
 
-import re
-
 _STOP_WORDS = frozenset(
     "a an the and or but in on at to for of is it its by from with as be was "
     "were are been has had have will would could should may might shall this "
@@ -796,7 +825,7 @@ def _extract_keywords(titles: list[str], max_phrases: int = 12) -> list[dict]:
 
     for title in titles:
         # Tokenize preserving original positions
-        tokens = re.findall(r"[A-Za-z'\-]{3,}", title)
+        tokens = _re.findall(r"[A-Za-z'\-]{3,}", title)
 
         seen_bi = set()
         seen_uni = set()
@@ -864,7 +893,6 @@ async def api_events(
     min_stories: int = Query(2, ge=1, le=100, description="Minimum stories per event"),
 ):
     """Return active events with sample stories and keywords."""
-    import time as _time
     is_default = (status is None and limit == 20 and min_stories == 2)
     now = _time.time()
     if is_default and _events_cache["data"] and now < _events_cache["expires"]:
@@ -874,8 +902,6 @@ async def api_events(
         )
     conn = get_connection()
     events = get_all_events(conn, status=status, limit=limit, min_stories=min_stories)
-
-    from collections import Counter, defaultdict
 
     event_ids = [e["id"] for e in events]
     if not event_ids:
@@ -1158,7 +1184,6 @@ async def api_narratives(
     limit: int = Query(60, ge=1, le=200),
 ):
     """Return active narratives with linked event counts."""
-    import time as _time
     is_default = (limit == 60)
     now = _time.time()
     if is_default and _narratives_cache["data"] and now < _narratives_cache["expires"]:
@@ -1168,8 +1193,6 @@ async def api_narratives(
         )
     conn = get_connection()
     narratives = get_active_narratives(conn, limit=limit)
-
-    from collections import defaultdict
 
     narr_ids = [n["id"] for n in narratives]
     if not narr_ids:
@@ -1365,7 +1388,6 @@ _topics_cache = {"data": None, "expires": 0}
 @app.get("/api/topics")
 async def api_topics():
     """Return emergent topics from LLM extraction with counts."""
-    import time as _time
     now = _time.time()
     if _topics_cache["data"] and now < _topics_cache["expires"]:
         return JSONResponse(
@@ -1472,14 +1494,9 @@ async def submit_feedback(payload: FeedbackPayload, request: Request):
     if payload.feedback_type not in valid_types:
         return JSONResponse({"error": "invalid type"}, status_code=400)
     # Rate limit: 5 per minute per browser_hash (or IP if no hash)
-    import time
     key = payload.browser_hash[:64] or (request.client.host if request.client else "unknown")
-    now = time.time()
-    window = _feedback_rate.setdefault(key, [])
-    window[:] = [t for t in window if now - t < 60]
-    if len(window) >= 5:
+    if _check_rate_limit(_feedback_rate, key):
         return JSONResponse({"error": "rate limited"}, status_code=429)
-    window.append(now)
     conn = get_connection()
     try:
         conn.execute(
@@ -1495,3 +1512,267 @@ async def submit_feedback(payload: FeedbackPayload, request: Request):
     finally:
         conn.close()
     return {"status": "ok"}
+
+
+# ---------------------------------------------------------------------------
+# User-added RSS feeds
+# ---------------------------------------------------------------------------
+
+class UserFeedPayload(BaseModel):
+    url: str
+    feed_tag: str = "news"
+    browser_hash: str = ""
+
+# Reuse same rate-limiter pattern as feedback: 5/min per browser_hash
+_user_feed_rate: dict[str, list[float]] = {}
+
+_VALID_FEED_TAGS = {"news", "sports", "entertainment", "positive", "tech", "science", "business", "health"}
+
+
+def _is_private_ip(hostname: str) -> bool:
+    """Check if a hostname resolves to a private/loopback IP address.
+
+    Not called in production -- kept as a test helper (used by
+    tests/test_user_feeds.py).  Production code calls _resolve_host() directly.
+    """
+    result = _resolve_host(hostname)
+    return result[0]  # is_private flag
+
+
+def _resolve_host(hostname: str) -> tuple[bool, str | None]:
+    """Resolve hostname and check if it's private/loopback/reserved.
+
+    Returns (is_private, resolved_ip).  If DNS fails, returns (False, None).
+    The caller can use the resolved_ip to connect directly, eliminating the
+    DNS-rebinding TOCTOU gap between validation and the HTTP fetch.
+    """
+    try:
+        # First check if hostname itself is an IP literal
+        try:
+            addr = ipaddress.ip_address(hostname)
+            is_priv = addr.is_private or addr.is_loopback or addr.is_reserved
+            return is_priv, hostname
+        except ValueError:
+            pass
+        # Resolve hostname to IP -- check ALL returned addresses
+        infos = socket.getaddrinfo(hostname, None, socket.AF_UNSPEC, socket.SOCK_STREAM)
+        first_ip = None
+        for family, _type, _proto, _canonname, sockaddr in infos:
+            ip_str = sockaddr[0]
+            if first_ip is None:
+                first_ip = ip_str
+            addr = ipaddress.ip_address(ip_str)
+            if addr.is_private or addr.is_loopback or addr.is_reserved:
+                return True, ip_str
+        return False, first_ip
+    except (socket.gaierror, OSError):
+        # DNS resolution failed -- treat as suspicious but let the fetch fail naturally
+        return False, None
+
+
+def _validate_feed_url(url: str) -> tuple[str | None, str | None, str | None]:
+    """Validate a feed URL and resolve the hostname.
+
+    Returns (error, resolved_ip, hostname).
+    * error is a string if validation failed, else None.
+    * resolved_ip is the first public IP the hostname resolved to.
+    * hostname is the original hostname from the URL.
+    The caller should connect to resolved_ip directly (with Host header)
+    to prevent DNS-rebinding TOCTOU attacks.
+    """
+    if not url:
+        return "URL is required", None, None
+    if len(url) > 2048:
+        return "URL too long", None, None
+    if not url.startswith("http://") and not url.startswith("https://"):
+        return "URL must start with http:// or https://", None, None
+    # Extract hostname
+    try:
+        parsed = _urlparse(url)
+        hostname = parsed.hostname
+        if not hostname:
+            return "Invalid URL: no hostname", None, None
+    except Exception:
+        return "Invalid URL", None, None
+    # Block localhost and private IPs (SSRF protection)
+    lower_host = hostname.lower()
+    if lower_host in ("localhost", "127.0.0.1", "::1", "0.0.0.0"):
+        return "localhost URLs are not allowed", None, None
+    is_private, resolved_ip = _resolve_host(hostname)
+    if is_private:
+        return "Private/internal IP addresses are not allowed", None, None
+    return None, resolved_ip, hostname
+
+
+def _check_feed_content(content: str) -> tuple[bool, str | None]:
+    """Check if content looks like RSS/Atom XML. Returns (is_feed, title_or_none)."""
+    # Quick check for feed markers
+    if not any(marker in content for marker in ("<rss", "<feed", "<rdf:RDF")):
+        return False, None
+    # Try to extract title
+    title = None
+    # Look for <title> in the channel/feed element (not item titles)
+    # Match the first <title> that appears after <channel> or <feed> or at top level
+    title_match = _re.search(r"<title[^>]*>([^<]+)</title>", content)
+    if title_match:
+        title = title_match.group(1).strip()
+        if title:
+            # Truncate long titles
+            title = title[:200]
+    return True, title
+
+
+@app.post("/api/user-feeds")
+def add_user_feed(payload: UserFeedPayload, request: Request):
+    """Add a user RSS feed. Validates the URL by fetching it."""
+    # Require browser_hash
+    if not payload.browser_hash:
+        return JSONResponse({"error": "browser_hash is required"}, status_code=400)
+    bh = payload.browser_hash[:64]
+
+    # Rate limit: 5 per minute per browser_hash
+    if _check_rate_limit(_user_feed_rate, bh):
+        return JSONResponse({"error": "rate limited"}, status_code=429)
+
+    # Validate URL format and security (also resolves hostname to pin the IP)
+    url_error, resolved_ip, orig_hostname = _validate_feed_url(payload.url)
+    if url_error:
+        return JSONResponse({"error": url_error}, status_code=400)
+
+    # Validate feed_tag
+    feed_tag = payload.feed_tag or "news"
+    if feed_tag not in _VALID_FEED_TAGS:
+        return JSONResponse({"error": "invalid feed_tag, must be one of: " + ", ".join(sorted(_VALID_FEED_TAGS))}, status_code=400)
+
+    # Check max feeds per user
+    conn = get_connection()
+    try:
+        count = conn.execute(
+            "SELECT COUNT(*) FROM user_feeds WHERE browser_hash = ?", (bh,)
+        ).fetchone()[0]
+        if count >= USER_FEED_MAX:
+            return JSONResponse({"error": "maximum of %d feeds reached" % USER_FEED_MAX}, status_code=400)
+
+        # Check for duplicate
+        existing = conn.execute(
+            "SELECT id FROM user_feeds WHERE url = ? AND browser_hash = ?",
+            (payload.url, bh)
+        ).fetchone()
+        if existing:
+            return JSONResponse({"error": "feed already added"}, status_code=409)
+    finally:
+        conn.close()
+
+    # Fetch and validate the feed content.
+    # Connect to the resolved IP directly (with Host header) to prevent
+    # DNS-rebinding attacks.  Disable redirects to block SSRF via 302.
+    fetch_url = payload.url
+    fetch_headers = {"User-Agent": "thisminute.org/1.0 feed-validator"}
+    if resolved_ip and orig_hostname:
+        parsed_url = _urlparse(payload.url)
+        # Replace hostname with resolved IP in the URL
+        fetch_url = payload.url.replace(
+            "://%s" % (parsed_url.netloc,),
+            "://%s" % (
+                "[%s]" % resolved_ip if ":" in resolved_ip else resolved_ip
+            ) + (":%s" % parsed_url.port if parsed_url.port else ""),
+            1,
+        )
+        fetch_headers["Host"] = parsed_url.netloc
+
+    try:
+        resp = _requests_lib.get(fetch_url, timeout=10, headers=fetch_headers,
+                                 allow_redirects=False)
+        # Reject redirects -- attacker could 302 to internal targets
+        if 300 <= resp.status_code < 400:
+            return JSONResponse({"error": "Feed URL redirects are not allowed"}, status_code=400)
+        resp.raise_for_status()
+    except _requests_lib.Timeout:
+        return JSONResponse({"error": "feed URL timed out (10s limit)"}, status_code=400)
+    except _requests_lib.RequestException as e:
+        return JSONResponse({"error": "could not fetch URL: %s" % str(e)[:200]}, status_code=400)
+
+    is_feed, feed_title = _check_feed_content(resp.text[:50000])
+    if not is_feed:
+        return JSONResponse({"error": "URL does not appear to be an RSS or Atom feed"}, status_code=400)
+
+    # Use extracted title or user-provided title
+    title = feed_title or payload.url
+
+    # Insert into database
+    conn = get_connection()
+    try:
+        conn.execute(
+            """INSERT INTO user_feeds (url, title, feed_tag, browser_hash, created_at)
+               VALUES (?, ?, ?, ?, ?)""",
+            (payload.url, title, feed_tag, bh,
+             datetime.now(timezone.utc).isoformat())
+        )
+        conn.commit()
+        row = conn.execute(
+            "SELECT * FROM user_feeds WHERE url = ? AND browser_hash = ?",
+            (payload.url, bh)
+        ).fetchone()
+        return {
+            "id": row["id"],
+            "url": row["url"],
+            "title": row["title"],
+            "feed_tag": row["feed_tag"],
+            "is_active": bool(row["is_active"]),
+            "created_at": row["created_at"],
+        }
+    except Exception as e:
+        return JSONResponse({"error": "failed to save feed: %s" % str(e)[:200]}, status_code=500)
+    finally:
+        conn.close()
+
+
+@app.get("/api/user-feeds")
+def list_user_feeds(hash: str = Query("", alias="hash")):
+    """List feeds for a user by browser_hash."""
+    if not hash:
+        return JSONResponse({"error": "hash parameter is required"}, status_code=400)
+    bh = hash[:64]
+    conn = get_connection()
+    try:
+        rows = conn.execute(
+            "SELECT * FROM user_feeds WHERE browser_hash = ? ORDER BY created_at DESC",
+            (bh,)
+        ).fetchall()
+        return [
+            {
+                "id": r["id"],
+                "url": r["url"],
+                "title": r["title"],
+                "feed_tag": r["feed_tag"],
+                "is_active": bool(r["is_active"]),
+                "last_fetched": r["last_fetched"],
+                "last_error": r["last_error"],
+                "created_at": r["created_at"],
+            }
+            for r in rows
+        ]
+    finally:
+        conn.close()
+
+
+@app.delete("/api/user-feeds/{feed_id}")
+def delete_user_feed(feed_id: int, hash: str = Query("", alias="hash")):
+    """Delete a user feed (only if browser_hash matches)."""
+    if not hash:
+        return JSONResponse({"error": "hash parameter is required"}, status_code=400)
+    bh = hash[:64]
+    conn = get_connection()
+    try:
+        row = conn.execute(
+            "SELECT id, browser_hash FROM user_feeds WHERE id = ?", (feed_id,)
+        ).fetchone()
+        if not row:
+            return JSONResponse({"error": "feed not found"}, status_code=404)
+        if row["browser_hash"] != bh:
+            return JSONResponse({"error": "unauthorized"}, status_code=403)
+        conn.execute("DELETE FROM user_feeds WHERE id = ?", (feed_id,))
+        conn.commit()
+        return {"status": "deleted"}
+    finally:
+        conn.close()

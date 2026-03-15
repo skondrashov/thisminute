@@ -1,83 +1,49 @@
-# Librarian Report — 2026-03-10
+# Librarian Report -- 2026-03-14
 
-## Consistency Pass After Docs Consolidation
+## Forum Cleanup (19:00)
 
-### Cross-Reference Audit
+### Archived (9 threads)
+All resolved threads from 18:00-19:00 session moved to `reports/forum_archive.md`:
+- Comprehensive session summary (superseded by ongoing work)
+- Tester verification (751/751 after fix)
+- Meteoalarm test fix (monotonic clock)
+- Backlog fixes #4 and #5 (HTTPS feeds + ACLED cap)
+- Curious world filtering (curiousMode)
+- Skeptic review (curious/backlog/meteoalarm -- all OK)
+- User feeds backend (Phase 4)
+- Skeptic security review (3 SSRF warnings)
+- SSRF security fixes (all 3 warnings resolved)
 
-Checked every .md file for references to deleted files (`AGENT_INSTRUCTIONS.md`, `ROLES.md`). **Result: no dead links found.** The consolidation was clean.
+### Kept Active
+- Skeptic backlog items (7 still open, 7 resolved this session)
+- Librarian cleanup summary (this session)
 
-All cross-references between files are valid:
-- `CLAUDE.md` -> `AGENTS.md` (correct)
-- `AGENTS.md` -> `PROTOCOL.md` (correct)
-- `PROTOCOL.md` -> `AGENTS.md` (correct)
-- All agent files reference `FORUM.md`, `STRATEGY.md`, `REVIEW_LOG.md`, `AGENTS.md` — all exist
-- `AGENTS.md` -> `agents/deployer.md`, `agents/economist.md`, `scripts/deploy.py` — all exist
+### Backlog Thread Updated
+- Items #4, #5, #7, #10-#13 marked RESOLVED
+- Reorganized into "still open" vs "resolved this session"
 
-### AGENTS.md Audit
+## Docs Updated
 
-- Architecture diagram: accurate, matches current codebase
-- Key files list: all 19 files verified to exist on disk
-- DB tables: all 15 tables match `CREATE TABLE` statements in `src/database.py`
-- Pitfalls section: clean, no stale info
-- Quality signals: clean, consistent with `agents/tester.md` health targets
-- Cost model section: correctly delegates to `agents/economist.md`
+### AGENTS.md
+- SOURCE_ENABLED count: 15 -> 16 (user_feeds added)
+- Key design decisions: added curiousMode filtering, user-added RSS feeds
+- Architecture diagram: noted user_feeds pipeline integration
 
-### PROTOCOL.md Audit
+### STRATEGY.md
+- Phase 3: Curious world story-level filtering marked done
+- Phase 4: changed from untouched to STARTED, user feeds backend marked complete
+- Anti-Curation Scorecard: user feeds F -> D
 
-- Startup sequence: correct, step 4 points to `AGENTS.md`
-- Communication rules: clean
-- Forum voting format: consistent with actual forum posts
-- Key guidelines: includes "Don't modify CLAUDE.md" rule
+### Memory Files
+- `memory/builder.md`: Added 16 source types note, 15 DB tables
+- `memory/skeptic.md`: Warnings #1-3 marked RESOLVED, source count 15->16, "What To Check" updated
+- `memory/librarian.md`: Full rewrite with current counts and state
+- `memory/MEMORY.md`: Updated index entries for current counts
 
-### Agent Files Audit
+## Forum Cleanup (06:32 -- earlier this day)
 
-| File | Status | Notes |
-|------|--------|-------|
-| `agents/builder.md` | Clean | No stale references |
-| `agents/designer.md` | Clean | No stale references |
-| `agents/deployer.md` | Clean | Self-contained, no doc references to check |
-| `agents/economist.md` | Clean | Self-contained with pricing data |
-| `agents/librarian.md` | **Fixed** | Had duplicate `AGENTS.md` entry in Key Files; CLAUDE.md check description updated |
-| `agents/orchestrator.md` | Clean | All references valid |
-| `agents/skeptic.md` | Clean | All references valid |
-| `agents/strategist.md` | Clean | All references valid |
-| `agents/tester.md` | Clean | Health targets and monitoring queries intact |
+### Archived (8 threads)
+JMA build, skeptic frontend review, frontend bug fixes, ACLED+Meteoalarm skeptic review, skeptic warning fixes, 6 RSS feeds, strategist analysis, previous session summary.
 
-### FORUM.md Cleanup
-
-All 3 threads were stale (last activity March 3, 7 days ago):
-1. "Latest Status" — builder's round 4 summary. Archived.
-2. "Strategist Round 3 — Anti-Curation Scorecard" — archived. Scorecard lives in `STRATEGY.md`.
-3. "Technical Debt" — posted by "verifier" (a role that doesn't exist). Archived with note that some items may still be relevant.
-
-Archived to `reports/forum_archive.md`. Forum now has one thread documenting this cleanup.
-
-### STRATEGY.md Fix
-
-Cost estimate was stale: said "~$3-5/day" but economist analysis shows ~$14-20/day with GDELT sampling at 7%. Updated to match and added pointer to `agents/economist.md`.
-
-### REVIEW_LOG.md
-
-Last entries are from March 4. Noted as stale but preserved — it's historical data. No edits made.
-
-### Redundancy Check
-
-After consolidation, remaining duplication is minimal and intentional:
-- **Philosophy statement** appears in both `AGENTS.md` and `STRATEGY.md`. This is fine — AGENTS.md is the technical reference, STRATEGY.md is the roadmap. Both need the north star.
-- **Pitfalls** (light/dark mode, flush=True, CRLF, etc.) appear in `AGENTS.md` and are repeated in relevant agent files (`agents/builder.md`, `agents/designer.md`). This is intentional — agents need the pitfalls relevant to their work without reading the full AGENTS.md every time.
-- **Anti-Curation Scorecard** now lives only in `STRATEGY.md` (canonical). Removed from forum via archival.
-- No other problematic duplication found.
-
-### Note on System Context
-
-The Claude system-reminder still loads the OLD full CLAUDE.md content (with agent table, pitfalls, cost model at "$3.37/day", references to `AGENT_INSTRUCTIONS.md` and `ROLES.md`). This is a caching artifact — the on-disk CLAUDE.md is correct (just "See AGENTS.md."). The system context will update on next conversation start. No action needed.
-
-### Changes Made
-
-| File | Change |
-|------|--------|
-| `FORUM.md` | Archived all 3 stale threads, added consolidation summary thread |
-| `reports/forum_archive.md` | Created with archived forum threads |
-| `reports/librarian.md` | Created this report |
-| `agents/librarian.md` | Removed duplicate AGENTS.md entry; updated CLAUDE.md check description |
-| `STRATEGY.md` | Fixed cost estimate from "~$3-5/day" to "~$14-20/day" with economist reference |
+## DRY Audit (earlier this day)
+Full findings posted and resolved. 7 DRY issues all implemented via `source_utils.py` + pipeline SOURCES loop. ~140 net lines removed. Fully resolved.

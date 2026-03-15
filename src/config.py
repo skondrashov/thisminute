@@ -74,12 +74,20 @@ FEEDS = [
     {"url": "https://www.sciencedaily.com/rss/all.xml", "source": "ScienceDaily", "tags": ["science"]},
     {"url": "https://phys.org/rss-feed/", "source": "Phys.org", "tags": ["science"]},
     {"url": "https://www.space.com/feeds/all", "source": "Space.com", "tags": ["science"]},
+    # Preprint servers (added 2026-03-14, all verified returning valid RSS/RDF)
+    {"url": "https://arxiv.org/rss/cs.AI", "source": "arXiv AI", "tags": ["science", "tech"]},
+    {"url": "https://arxiv.org/rss/cs", "source": "arXiv CS", "tags": ["science", "tech"]},
+    {"url": "https://connect.biorxiv.org/biorxiv_xml.php?subject=all", "source": "bioRxiv", "tags": ["science", "health"]},
+    {"url": "https://connect.medrxiv.org/medrxiv_xml.php?subject=all", "source": "medRxiv", "tags": ["science", "health"]},
 
     # === TECHNOLOGY ===
     {"url": "https://feeds.bbci.co.uk/news/technology/rss.xml", "source": "BBC Tech", "tags": ["tech"]},
     {"url": "https://www.theguardian.com/technology/rss", "source": "Guardian Tech", "tags": ["tech"]},
     {"url": "https://feeds.arstechnica.com/arstechnica/index", "source": "Ars Technica", "tags": ["tech"]},
     {"url": "https://www.wired.com/feed/rss", "source": "Wired", "tags": ["tech"]},
+    {"url": "https://hnrss.org/newest?points=100", "source": "Hacker News", "tags": ["tech"]},
+    {"url": "https://techcrunch.com/feed/", "source": "TechCrunch", "tags": ["tech"]},
+    {"url": "https://www.theverge.com/rss/index.xml", "source": "The Verge", "tags": ["tech"]},
 
     # === HEALTH ===
     {"url": "https://feeds.bbci.co.uk/news/health/rss.xml", "source": "BBC Health", "tags": ["health"]},
@@ -88,6 +96,8 @@ FEEDS = [
     {"url": "https://feeds.bbci.co.uk/news/business/rss.xml", "source": "BBC Business", "tags": ["business"]},
     {"url": "https://www.theguardian.com/business/rss", "source": "Guardian Business", "tags": ["business"]},
     {"url": "https://rss.nytimes.com/services/xml/rss/nyt/Business.xml", "source": "NYT Business", "tags": ["business"]},
+    {"url": "https://www.coindesk.com/arc/outboundfeeds/rss/", "source": "CoinDesk", "tags": ["business", "tech"]},
+    {"url": "https://decrypt.co/feed", "source": "Decrypt", "tags": ["business", "tech"]},
 
     # === SPORTS ===
     {"url": "https://feeds.bbci.co.uk/sport/rss.xml", "source": "BBC Sport", "tags": ["sports"]},
@@ -131,8 +141,13 @@ FEEDS = [
     {"url": "https://www.nme.com/feed", "source": "NME", "tags": ["entertainment"]},
     {"url": "https://www.soompi.com/feed", "source": "Soompi", "tags": ["entertainment"]},
     {"url": "https://www.bollywoodhungama.com/feed/", "source": "Bollywood Hungama", "tags": ["entertainment"]},
+    {"url": "https://feeds.ign.com/ign/all", "source": "IGN", "tags": ["entertainment", "tech"]},
     # Dead feeds investigated but not added (2026-03-11):
     # Entertainment Weekly (ew.com/feed/) — 404
+
+    # === CURIOUS / ODDITIES ===
+    {"url": "https://www.atlasobscura.com/feeds/latest", "source": "Atlas Obscura", "tags": ["positive", "entertainment"]},
+    {"url": "https://www.odditycentral.com/feed", "source": "Oddity Central", "tags": ["positive", "entertainment"]},
 
     # === POSITIVE / UPLIFTING ===
     {"url": "https://www.goodnewsnetwork.org/feed/", "source": "Good News Network", "tags": ["positive"]},
@@ -155,12 +170,110 @@ for _feed in FEEDS:
 # At 0.003 (~0.3%), GDELT ingests ~1,700/day (raw volume ~643K/day as of 2026-03).
 GDELT_SAMPLE_RATE = float(os.environ.get("GDELT_SAMPLE_RATE", "0.003"))
 
+# USGS earthquake feeds
+USGS_SIGNIFICANT_URL = "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/significant_hour.geojson"
+USGS_4_5_URL = "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/4.5_day.geojson"
+USGS_MIN_MAGNITUDE = float(os.environ.get("USGS_MIN_MAGNITUDE", "4.5"))
+
+# NOAA weather alerts
+NOAA_ALERTS_URL = "https://api.weather.gov/alerts/active?status=actual&message_type=alert"
+NOAA_MAX_ALERTS = int(os.environ.get("NOAA_MAX_ALERTS", "150"))
+
+# NASA EONET (Earth Observatory Natural Event Tracker)
+EONET_URL = "https://eonet.gsfc.nasa.gov/api/v3/events?status=open&limit=100"
+
+# GDACS (Global Disaster Alert and Coordination System)
+GDACS_GEOJSON_URL = "https://www.gdacs.org/gdacsapi/api/events/geteventlist/MAP"
+GDACS_RSS_URL = "https://www.gdacs.org/xml/rss.xml"
+
+# ReliefWeb (UN OCHA)
+RELIEFWEB_URL = ("https://api.reliefweb.int/v1/reports?appname=thisminute.org"
+                 "&filter[field]=date.created&filter[value][from]=now-1d&limit=50"
+                 "&fields[include][]=title&fields[include][]=url&fields[include][]=body"
+                 "&fields[include][]=country&fields[include][]=primary_country"
+                 "&fields[include][]=disaster&fields[include][]=date"
+                 "&fields[include][]=source")
+
+# WHO Disease Outbreak News
+WHO_DON_URL = "https://www.who.int/feeds/entity/don/en/rss.xml"
+
+# US State Department Travel Advisories
+TRAVEL_ADVISORY_URL = "https://travel.state.gov/content/travel/en/traveladvisories/traveladvisories.xml"
+
+# OpenAQ air quality
+OPENAQ_API_KEY = os.environ.get("OPENAQ_API_KEY", "")
+OPENAQ_URL = "https://api.openaq.org/v2/latest?limit=100&order_by=lastUpdated&sort_order=desc&has_geo=true"
+
+# NASA FIRMS (Fire Information for Resource Management System)
+FIRMS_API_KEY = os.environ.get("FIRMS_API_KEY", "")
+FIRMS_URL = "https://firms.modaps.eosdis.nasa.gov/api/area/csv/{MAP_KEY}/VIIRS_SNPP_NRT/world/1"
+FIRMS_MAX_ROWS = int(os.environ.get("FIRMS_MAX_ROWS", "5000"))
+FIRMS_MAX_BYTES = int(os.environ.get("FIRMS_MAX_BYTES", str(10 * 1024 * 1024)))  # 10 MB
+
+# Launch Library 2 (space launches)
+LAUNCHES_UPCOMING_URL = "https://ll.thespacedevs.com/2.3.0/launches/upcoming/?format=json&limit=25"
+LAUNCHES_PREVIOUS_URL = "https://ll.thespacedevs.com/2.3.0/launches/previous/?format=json&limit=10"
+LAUNCHES_CACHE_SECONDS = int(os.environ.get("LAUNCHES_CACHE_SECONDS", "2700"))  # 45 min
+
+# ACLED (Armed Conflict Location & Event Data)
+ACLED_API_KEY = os.environ.get("ACLED_API_KEY", "")
+ACLED_EMAIL = os.environ.get("ACLED_EMAIL", "")
+ACLED_URL = "https://api.acleddata.com/acled/read"
+ACLED_MAX_EVENTS = int(os.environ.get("ACLED_MAX_EVENTS", "200"))
+
+# Meteoalarm (European severe weather alerts)
+METEOALARM_BASE_URL = "https://feeds.meteoalarm.org/api/v1/warnings/feeds-{country}"
+METEOALARM_CACHE_SECONDS = int(os.environ.get("METEOALARM_CACHE_SECONDS", "900"))  # 15 min
+METEOALARM_MAX_ALERTS = int(os.environ.get("METEOALARM_MAX_ALERTS", "200"))
+METEOALARM_TIMEOUT = int(os.environ.get("METEOALARM_TIMEOUT", "5"))  # per-request timeout (seconds)
+METEOALARM_TOTAL_BUDGET = int(os.environ.get("METEOALARM_TOTAL_BUDGET", "60"))  # total time budget (seconds)
+# High-population European countries to fetch (keeps API calls manageable)
+METEOALARM_COUNTRIES = [
+    "germany", "france", "italy", "spain", "united-kingdom",
+    "poland", "netherlands", "belgium", "austria", "switzerland",
+    "sweden", "norway", "finland", "denmark", "portugal",
+    "czech-republic", "romania", "hungary", "greece", "ireland",
+]
+
+# JMA (Japan Meteorological Agency) weather warnings
+JMA_WARNINGS_URL = "https://www.jma.go.jp/bosai/warning/data/warning/map.json"
+JMA_AREA_URL = "https://www.jma.go.jp/bosai/common/const/area.json"
+JMA_CACHE_SECONDS = int(os.environ.get("JMA_CACHE_SECONDS", "900"))  # 15 min
+JMA_MAX_ALERTS = int(os.environ.get("JMA_MAX_ALERTS", "100"))
+JMA_TIMEOUT = int(os.environ.get("JMA_TIMEOUT", "10"))  # per-request timeout (seconds)
+
+# Data source toggles — set to False to disable ingestion.
+# Can be overridden by environment variables: SOURCE_RSS_ENABLED=false, etc.
+SOURCE_ENABLED = {
+    "rss": os.environ.get("SOURCE_RSS_ENABLED", "true").lower() != "false",
+    "gdelt": os.environ.get("SOURCE_GDELT_ENABLED", "true").lower() != "false",
+    "usgs": os.environ.get("SOURCE_USGS_ENABLED", "true").lower() != "false",
+    "noaa": os.environ.get("SOURCE_NOAA_ENABLED", "true").lower() != "false",
+    "eonet": os.environ.get("SOURCE_EONET_ENABLED", "true").lower() != "false",
+    "gdacs": os.environ.get("SOURCE_GDACS_ENABLED", "true").lower() != "false",
+    "reliefweb": os.environ.get("SOURCE_RELIEFWEB_ENABLED", "true").lower() != "false",
+    "who": os.environ.get("SOURCE_WHO_ENABLED", "true").lower() != "false",
+    "launches": os.environ.get("SOURCE_LAUNCHES_ENABLED", "true").lower() != "false",
+    "openaq": os.environ.get("SOURCE_OPENAQ_ENABLED", "true").lower() != "false",
+    "travel": os.environ.get("SOURCE_TRAVEL_ENABLED", "true").lower() != "false",
+    "firms": os.environ.get("SOURCE_FIRMS_ENABLED", "true").lower() != "false",
+    "meteoalarm": os.environ.get("SOURCE_METEOALARM_ENABLED", "true").lower() != "false",
+    "acled": os.environ.get("SOURCE_ACLED_ENABLED", "true").lower() != "false",
+    "jma": os.environ.get("SOURCE_JMA_ENABLED", "true").lower() != "false",
+    "user_feeds": os.environ.get("SOURCE_USER_FEEDS_ENABLED", "true").lower() != "false",
+}
+
 # Geocoder settings
 NOMINATIM_USER_AGENT = "thisminute-news-map/1.0"
 GEOCODE_MIN_DELAY = 1.0  # seconds between Nominatim requests
 
 # Frontend polling
 FRONTEND_POLL_SECONDS = 60
+
+# User-added RSS feeds
+USER_FEED_MAX = int(os.environ.get("USER_FEED_MAX", "20"))
+USER_FEED_MAX_STORIES = int(os.environ.get("USER_FEED_MAX_STORIES", "50"))
+USER_FEED_TOTAL_MAX_STORIES = int(os.environ.get("USER_FEED_TOTAL_MAX_STORIES", "500"))
 
 # LLM analysis (optional)
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")

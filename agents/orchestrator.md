@@ -108,17 +108,17 @@ Before ending an agent's session, ask it to evaluate **each layer of context** i
 > 4. **Reference docs** (`ref/frontend.md`, `ref/backend.md`) — If you read them, were they accurate and useful? Anything missing or wrong? If you didn't read them, should you have?
 > 5. **PROTOCOL.md** (startup procedure, communication rules) — Was the process clear? Anything confusing or unnecessary?
 > 6. **Memory files** (`memory/{name}.md` and others you read) — Were they current? Did any contain stale or wrong info? What knowledge would have been useful to have pre-loaded?
-> 7. **Forum / messages** — Were existing threads useful context or just noise?
+> 7. **Forum** — Were existing threads useful context or just noise?
 > 8. **Anything else** — Files you had to hunt for that should have been surfaced. Things you learned the hard way that should be documented."
 
 Capture the response and:
 
-1. **Actionable feedback** → send as a message to the **librarian** (`messages/librarian.md`) with the agent name, which context layer the feedback targets, and the specific issue
+1. **Actionable feedback** → post to `FORUM.md` tagged for the **librarian**, with the agent name, which context layer the feedback targets, and the specific issue
 2. **Quick fixes** (e.g., wrong file path, stale architecture note) → fix immediately in the relevant file
 3. **Pattern detection** — if multiple agents flag the same gap (e.g., "I didn't know about X"), that's a signal to add it to `AGENTS.md` or the agent's startup context
 4. **Spawn prompt improvements** — if agents say your prompts lacked context or were too vague, adjust your own approach for next time
 
-The librarian processes these feedback messages during its next cycle: updating docs, memory files, and agent prompts so the next spawn starts with better context.
+The librarian processes this feedback during its next cycle: updating docs, memory files, and agent prompts so the next spawn starts with better context.
 
 This creates a **self-improving context loop**: agents identify gaps → orchestrator captures per-layer feedback → librarian fixes the specific doc → next spawn is better informed.
 
@@ -172,4 +172,3 @@ This creates a **self-improving context loop**: agents identify gaps → orchest
 - `agents/*.md` — Agent instructions
 - `agents/tester.md` — Health targets and monitoring queries
 - `agents/economist.md` — Cost model and optimization levers
-- `messages/orchestrator.md` — Direct messages to you

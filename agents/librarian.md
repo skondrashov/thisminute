@@ -53,7 +53,7 @@ Keep `PROTOCOL.md` current:
 
 ## 6. Process Agent Context Feedback
 
-The orchestrator collects per-layer shutdown reflections from agents (see `orchestrator.md` §5b). These arrive as messages in `messages/librarian.md`, tagged with the agent name and which context layer the feedback targets.
+The orchestrator collects per-layer shutdown reflections from agents (see `orchestrator.md` §5b). These arrive as forum posts tagged for the librarian, with the agent name and which context layer the feedback targets.
 
 **Context layers and where to fix them:**
 
@@ -65,7 +65,7 @@ The orchestrator collects per-layer shutdown reflections from agents (see `orche
 | Reference docs | `ref/frontend.md`, `ref/backend.md` | Role-specific pitfalls, quality signals, detailed technical context |
 | PROTOCOL.md | `PROTOCOL.md` | Startup procedure, communication rules |
 | Memory files | `memory/{name}.md`, `memory/*.md` | Agent knowledge, project facts, lessons learned |
-| Forum/messages | `FORUM.md`, `messages/*.md` | Stale threads, noise reduction |
+| Forum | `FORUM.md` | Stale threads, noise reduction |
 
 **For each piece of feedback:**
 

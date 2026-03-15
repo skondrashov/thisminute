@@ -3,12 +3,26 @@
 import logging
 from datetime import datetime, timezone
 
-from .scraper import scrape_all_feeds
+from .config import SOURCE_ENABLED, USER_FEED_MAX_STORIES, USER_FEED_TOTAL_MAX_STORIES
+from .scraper import scrape_all_feeds, scrape_feed
 from .gdelt import scrape_gdelt
+from .usgs import scrape_usgs
+from .noaa import scrape_noaa
+from .eonet import scrape_eonet
+from .gdacs import scrape_gdacs
+from .reliefweb import scrape_reliefweb
+from .who import scrape_who
+from .launches import scrape_launches
+from .openaq import scrape_openaq
+from .travel_advisories import scrape_travel_advisories
+from .firms import scrape_firms
+from .meteoalarm import scrape_meteoalarm
+from .acled import scrape_acled
+from .jma import scrape_jma
 from .ner import extract_story_location
 from .geocoder import geocode_location
 from .categorizer import tag_concepts, get_primary_category
-from .database import get_connection, init_db, insert_story
+from .database import get_connection, init_db, insert_story, store_extraction
 from .semantic_clusterer import cluster_new_stories
 from .event_analyzer import analyze_events
 from .llm_extractor import enrich_stories
@@ -63,14 +77,81 @@ def run_pipeline() -> dict:
     # Ensure DB is initialized
     init_db()
 
-    # Scrape RSS feeds + GDELT
-    raw_stories = scrape_all_feeds()
-    try:
-        gdelt_stories = scrape_gdelt()
-        raw_stories.extend(gdelt_stories)
-        logger.info("GDELT added %d stories to pipeline", len(gdelt_stories))
-    except Exception as e:
-        logger.error("GDELT scrape failed (non-fatal): %s", e)
+    # Scrape sources (gated by SOURCE_ENABLED config)
+    SOURCES = [
+        ("rss", scrape_all_feeds),
+        ("gdelt", scrape_gdelt),
+        ("usgs", scrape_usgs),
+        ("noaa", scrape_noaa),
+        ("eonet", scrape_eonet),
+        ("gdacs", scrape_gdacs),
+        ("reliefweb", scrape_reliefweb),
+        ("who", scrape_who),
+        ("launches", scrape_launches),
+        ("openaq", scrape_openaq),
+        ("travel", scrape_travel_advisories),
+        ("firms", scrape_firms),
+        ("meteoalarm", scrape_meteoalarm),
+        ("acled", scrape_acled),
+        ("jma", scrape_jma),
+    ]
+
+    raw_stories = []
+    for name, scraper in SOURCES:
+        if not SOURCE_ENABLED.get(name, True):
+            logger.info("%s source disabled, skipping", name)
+            continue
+        try:
+            stories = scraper()
+            raw_stories.extend(stories)
+            logger.info("%s added %d stories", name, len(stories))
+        except Exception as e:
+            logger.error("%s scrape failed (non-fatal): %s", name, e)
+
+    # Scrape active user-added RSS feeds (gated by SOURCE_ENABLED["user_feeds"])
+    user_feed_count = 0
+    if not SOURCE_ENABLED.get("user_feeds", True):
+        logger.info("user_feeds source disabled, skipping")
+    else:
+        try:
+            uf_conn = get_connection()
+            user_feeds = uf_conn.execute(
+                "SELECT id, url, title, feed_tag FROM user_feeds WHERE is_active = 1"
+            ).fetchall()
+            for uf in user_feeds:
+                # Global volume cap: stop scraping once we hit the total limit
+                if user_feed_count >= USER_FEED_TOTAL_MAX_STORIES:
+                    logger.info("User feeds global cap reached (%d stories), stopping", user_feed_count)
+                    break
+                try:
+                    feed_config = {"url": uf["url"], "source": uf["title"] or uf["url"]}
+                    stories = scrape_feed(feed_config)
+                    # Cap stories per user feed
+                    stories = stories[:USER_FEED_MAX_STORIES]
+                    # Also enforce the global cap on what we actually accept
+                    remaining = USER_FEED_TOTAL_MAX_STORIES - user_feed_count
+                    stories = stories[:remaining]
+                    raw_stories.extend(stories)
+                    user_feed_count += len(stories)
+                    # Update last_fetched
+                    uf_conn.execute(
+                        "UPDATE user_feeds SET last_fetched = ?, last_error = NULL WHERE id = ?",
+                        (datetime.now(timezone.utc).isoformat(), uf["id"]))
+                except Exception as e:
+                    logger.error("User feed %s scrape failed (non-fatal): %s", uf["url"], e)
+                    # Record the error
+                    try:
+                        uf_conn.execute(
+                            "UPDATE user_feeds SET last_error = ?, last_fetched = ? WHERE id = ?",
+                            (str(e)[:500], datetime.now(timezone.utc).isoformat(), uf["id"]))
+                    except Exception:
+                        pass
+            uf_conn.commit()
+            uf_conn.close()
+            if user_feed_count > 0:
+                logger.info("User feeds added %d stories from %d feeds", user_feed_count, len(user_feeds))
+        except Exception as e:
+            logger.error("User feed scraping failed (non-fatal): %s", e)
 
     # Process each story
     new_count = 0
@@ -81,6 +162,7 @@ def run_pipeline() -> dict:
     for story in raw_stories:
         try:
             processed = process_story(story)
+            extraction_data = processed.pop("_extraction", None)
             was_new = insert_story(conn, processed)
             if was_new:
                 new_count += 1
@@ -91,7 +173,19 @@ def run_pipeline() -> dict:
                     "SELECT id FROM stories WHERE url = ?", (processed["url"],)
                 ).fetchone()
                 if row:
-                    new_story_ids.append(row["id"])
+                    story_id = row["id"]
+                    new_story_ids.append(story_id)
+                    # If story has pre-built extraction (e.g. USGS), store directly
+                    if extraction_data:
+                        try:
+                            store_extraction(conn, story_id, extraction_data)
+                            conn.execute(
+                                "UPDATE stories SET extraction_status = 'done' WHERE id = ?",
+                                (story_id,),
+                            )
+                            conn.commit()
+                        except Exception as ex:
+                            logger.error("Failed to store pre-built extraction for story %d: %s", story_id, ex)
         except Exception as e:
             logger.error("Error processing story '%s': %s", story.get("title", "?"), e)
             continue

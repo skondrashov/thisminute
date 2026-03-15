@@ -6,18 +6,23 @@ For agent startup protocol, communication rules, and forum voting, see `PROTOCOL
 
 ## Overview
 
-Real-time global news map. Scrapes 84 RSS feeds every 15 minutes, extracts structured data via LLM (Claude Haiku), clusters into events and registry events, identifies long-running situations (Claude Sonnet), and displays everything on an interactive globe.
+Real-time global news map. Ingests 95 RSS feeds + 13 structured data APIs (USGS, NOAA, EONET, GDACS, ReliefWeb, WHO, Launch Library, OpenAQ, Travel Advisories, FIRMS, Meteoalarm, ACLED, JMA) every 15 minutes, extracts structured data via LLM (Claude Haiku), clusters into events and registry events, identifies long-running situations across 5 narrative domains (Claude Sonnet), and displays everything on an interactive globe. 12 world presets (News, Sports, Entertainment, Positive, Science, Tech, Curious, Weather, Crisis, Travel, Geopolitics, Markets).
 
 **Philosophy**: Anti-curation. The user decides what to see, not editors. The map IS the filter. Events = "what is happening", not "here are headlines."
 
 ## Architecture
 
 ```
-RSS Feeds (84) + GDELT (sampled, see config.py GDELT_SAMPLE_RATE)
-    |
-    v
-scraper.py + gdelt.py --> pipeline.py
-    |
+RSS Feeds (95)          Structured data APIs (13):
+    |                   usgs.py, noaa.py, eonet.py, gdacs.py,
+    v                   reliefweb.py, who.py, launches.py,
+scraper.py              openaq.py, travel_advisories.py, firms.py,
+    |                   meteoalarm.py, acled.py, jma.py
+    +--- gdelt.py ---+      |   country_centroids.py (helper)
+                     |      |   source_utils.py (shared helpers)
+                     v      v
+                   pipeline.py  <-- also scrapes user_feeds (user-added RSS)
+                       |
     +--> ner.py --> geocoder.py --> categorizer.py --> database.py
     |
     +--> llm_extractor.py (Haiku: extraction)
@@ -25,7 +30,7 @@ scraper.py + gdelt.py --> pipeline.py
     +--> event_analyzer.py (Haiku: analysis)
     +--> registry_manager.py (event registry)
     |
-    +--> narrative_analyzer.py (Sonnet, every 1-2h: situations)
+    +--> narrative_analyzer.py (Sonnet, every 1-2h: 5 domain passes)
     |
     v
 app.py (FastAPI) --> static/index.html + app.js + style.css (MapLibre GL JS 5.x)
@@ -37,13 +42,13 @@ app.py (FastAPI) --> static/index.html + app.js + style.css (MapLibre GL JS 5.x)
 - **LLM**: Anthropic API (Haiku for extraction/analysis, Sonnet for situations)
 - **Frontend**: Vanilla HTML/JS/CSS, MapLibre GL JS 5.x (no frameworks, esbuild bundler)
 - **Deploy**: GCP e2-micro VM (`/opt/thisminute`), venv, nginx, systemd, Let's Encrypt
-- **Data**: ~3,500 stories/day from 84 RSS feeds and GDELT
+- **Data**: ~4,000+ stories/day from 95 RSS feeds, GDELT, and 13 structured data APIs
 
 ## DB Tables
 
 | Table               | Purpose                                              |
 | ------------------- | ---------------------------------------------------- |
-| `stories`           | Raw scraped stories with NER/geocode data            |
+| `stories`           | Raw scraped stories with NER/geocode data. `source_type`: 'reported' (RSS/GDELT) or 'inferred' (structured APIs) |
 | `story_extractions` | LLM-extracted structured data per story              |
 | `story_actors`      | Actors with roles (perpetrator/victim/authority/etc) |
 | `story_locations`   | Enriched location data from LLM (with roles)         |
@@ -57,6 +62,7 @@ app.py (FastAPI) --> static/index.html + app.js + style.css (MapLibre GL JS 5.x)
 | `geocode_cache`     | Nominatim results cache (including null results)     |
 | `feed_state`        | Per-feed last-scraped timestamps                     |
 | `user_feedback`     | User-submitted feedback (type, target, message, status) |
+| `user_feeds`        | User-added RSS feeds (URL, tag, browser_hash, active, errors) |
 
 ## Key Design Decisions
 
@@ -66,6 +72,13 @@ app.py (FastAPI) --> static/index.html + app.js + style.css (MapLibre GL JS 5.x)
 - **location_type** — terrestrial/space/internet/abstract, routes to feed panels
 - **Graceful degradation** — works without ANTHROPIC_API_KEY using keyword fallbacks
 - **Bright Side system** — LLM scores stories 1-10 for positive framing, rewrites headlines
+- **Inference feed pattern** — Structured data APIs (USGS, NOAA, etc.) pre-build `_extraction` dicts, skipping LLM entirely (zero Haiku cost)
+- **SOURCE_ENABLED toggles** — Config-driven enable/disable per 16 source types (including user_feeds), overridable via env vars
+- **curiousMode filtering** — Frontend filters stories by `human_interest_score >= 6` in the Curious world preset, mirroring the `brightSideMode` pattern
+- **User-added RSS feeds** — Backend API for user-configurable feeds with SSRF protection (DNS pinning, redirect blocking), rate limiting, per-user/global volume caps, and pipeline integration
+- **5 narrative domains** — news, sports, entertainment, positive, curious. Per-domain Sonnet passes with domain-specific prompts
+- **12 world presets** — News, Sports, Entertainment, Positive, Science, Tech, Curious, Weather, Crisis, Travel, Geopolitics, Markets. Composite presets use subset `activeOrigins` arrays.
+- **DRY source adapter pattern** — `source_utils.py` shared helpers (fetch_json, build_extraction, attach_location, dedup_list, strip_html, polygon_centroid)
 
 ## Deploying & Pushing
 

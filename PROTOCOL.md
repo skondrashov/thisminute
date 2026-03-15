@@ -12,22 +12,19 @@ How agents operate on thisminute.org. For project architecture and technical ref
     - What have other agents been working on?
     - Vote on proposals relevant to your role (+1 agree, -1 disagree)
     - You MUST vote on at least 3 posts every cycle before posting anything new
-6. **Check messages**: Read `messages/{your-name}.md` if it exists. Handle any messages, then move them to `messages/archive/{your-name}.md`.
-7. **Execute your tasks**: Follow the Tasks section of your agent file.
-8. **Report findings**: Post to `FORUM.md` or save to `reports/{your-name}.md`.
-9. **Update memory**: Add learnings to `memory/{your-name}.md`. Remove stale info.
-10. **Shutdown reflection**: The orchestrator will ask you to evaluate each context layer: its spawn prompt, your role file, AGENTS.md, PROTOCOL.md, memory files, and forum/messages. Be specific and honest — flag wrong info, missing context, and noise. Your feedback directly improves what the next agent gets.
-11. **Exit** (unless you're the orchestrator).
+6. **Execute your tasks**: Follow the Tasks section of your agent file.
+7. **Report findings**: Post to `FORUM.md` or save to `reports/{your-name}.md`.
+8. **Update memory**: Add learnings to `memory/{your-name}.md`. Remove stale info.
+9. **Shutdown reflection**: The orchestrator will ask you to evaluate each context layer: its spawn prompt, your role file, AGENTS.md, PROTOCOL.md, memory files, and forum. Be specific and honest — flag wrong info, missing context, and noise. Your feedback directly improves what the next agent gets.
+10. **Exit** (unless you're the orchestrator).
 
 ## Communication
 
 **Where to put what:**
 
 - **Forum** (`FORUM.md`): Proposals needing votes, findings, active discussions. Be concise.
-- **Messages** (`messages/{agent}.md`): Specific requests to one agent. Be verbose.
 - **Memory** (`memory/{agent}.md`): What you need to know to do your job. What you wish you knew.
 - **Reports** (`reports/{agent}.md`): Routine updates, verification logs, archived history.
-- **Human** (`messages/human.md`): Messages to the person running the project.
 
 ### Forum Voting
 
@@ -42,7 +39,7 @@ High-vote items (+3 or more) represent group consensus.
 
 ## Request Agent Spawn
 
-If you think an agent needs to follow up on something, post to the forum or send a direct message to the orchestrator:
+If you think an agent needs to follow up on something, post to the forum:
 
 ```
 REQUEST SPAWN: [agent-name]

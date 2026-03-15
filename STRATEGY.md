@@ -9,7 +9,7 @@ thisminute.org shows what's happening in the world right now, plotted on a map. 
 ## Current Priorities
 
 1. ~~**Event clustering improvements**~~ — DONE (v80). Root cause: clusterer only loaded 500 events into memory, missing 29k+ small events. Fixed with DB-indexed exact signature matching + full-database merge pass. Merged 2,011 duplicate events. Multi-story events went from 6% to 8.8%.
-2. **Domain-specific clustering** — Sports/entertainment event_signatures may need domain-aware patterns (match-centric vs person-centric clustering). Clustering already works passably because feed-tag filtering surfaces the right stories, but quality can improve.
+2. ~~**Domain-specific clustering**~~ — DONE (v115). Tournament-centric sports clustering and production-centric entertainment clustering both shipped.
 3. ~~**Narrative cap enforcement**~~ — DONE. Per-domain caps enforced: news=20, sports/entertainment/positive=10 each. Lowest-ranked excess deactivated after each analysis pass.
 
 ### Deprioritized
@@ -20,7 +20,7 @@ thisminute.org shows what's happening in the world right now, plotted on a map. 
 
 ## Completed
 
-- [x] RSS scraping (74 feeds, 8 categories, tagged)
+- [x] RSS scraping (95 feeds, 8 categories, tagged)
 - [x] LLM extraction via Haiku (15 fields, batches of 8)
 - [x] Signature-based event clustering
 - [x] Event registry with map labels
@@ -63,14 +63,16 @@ thisminute should work for ANY interest, not just hard news. The next major effo
 
 ### Phase 3: World-Aware Extraction — COMPLETE
 
-- [x] **World-aware situation synthesis** — Per-domain event queries + domain-specific Sonnet prompts. All 4 domains generating at cap (20 news, 10 sports, 10 entertainment, 10 positive = 50 total). Entertainment uses topic-signal + lowered source threshold. Positive uses relaxed bright_side + source signal.
+- [x] **World-aware situation synthesis** — Per-domain event queries + domain-specific Sonnet prompts. All 5 domains generating at cap (20 news, 10 sports, 10 entertainment, 10 positive, 10 curious = 60 total). Entertainment uses topic-signal + lowered source threshold. Positive uses relaxed bright_side + source signal.
 - [x] Sports clustering (match/tournament, not just event_signature)
 - [x] Entertainment clustering (person/production-centric)
 - [x] "Human interest" scoring for trivial world (human_interest_score extraction + curious domain)
+- [x] Curious world story-level filtering (`curiousMode` with `human_interest_score >= 6`, mirrors `brightSideMode` pattern)
 
-### Phase 4: Deep Customizability
+### Phase 4: Deep Customizability — STARTED
 
-- [ ] User-added RSS feeds (paste URL -> source)
+- [x] User-added RSS feeds backend (POST/GET/DELETE endpoints, SSRF protection with DNS pinning + redirect blocking, feed validation, pipeline integration with global volume cap, `user_feeds` table, `SOURCE_ENABLED["user_feeds"]` kill switch, 85 tests)
+- [ ] User-added RSS feeds frontend UI
 - [ ] Custom topic/concept creation
 - [ ] Shareable world presets via URL
 
@@ -79,6 +81,7 @@ thisminute should work for ANY interest, not just hard news. The next major effo
 - [ ] Usage analytics per world
 - [x] Explicit user feedback — `/api/feedback` endpoint live (v114), `user_feedback` table, feedback agent (`agents/feedback.md`), rate limiting (5/min)
 - [ ] Feedback-driven improvements (suggest feeds, suggest categories)
+- Note: ProMED RSS is dead (all URLs return 404, FeedBurner mirror empty since 2018). WHO DON partially covers disease outbreak space.
 
 ### Ongoing (parallel)
 
@@ -115,7 +118,25 @@ thisminute should work for ANY interest, not just hard news. The next major effo
 - [x] UX: full timestamp tooltips on relative times, map label click selects parent situation
 - [x] Testing: fixed all 63 Playwright tests (root cause: parseInt on comma-formatted numbers)
 - [x] v114: Feedback API (`/api/feedback`), proximity hover polish, mobile reticle, feed zoom scaling, crosshair cursor, WAL ownership fix, server-side rate limiting
+- [x] Structured data sources: USGS earthquakes, NOAA weather alerts, EONET natural events, GDACS disasters, ReliefWeb humanitarian reports, WHO disease outbreaks, Launch Library space launches, OpenAQ air quality, US Travel Advisories, NASA FIRMS fire detection, Meteoalarm (European weather), ACLED (conflict data), JMA weather warnings (Japan) -- 15 sources total
+- [x] SOURCE_ENABLED config toggles (env-var overridable per source)
+- [x] Inference feed pattern (pre-built `_extraction` dicts, zero LLM cost for structured sources)
+- [x] DRY refactor: `source_utils.py` shared helpers, data-driven pipeline SOURCES loop
+- [x] FIRMS/NOAA volume caps: `FIRMS_MAX_BYTES` (10 MB) + `FIRMS_MAX_ROWS` (5000), `NOAA_MAX_ALERTS` (150) severity-sorted
+- [x] Launch Library cache optimization: TTL increased from 30 to 45 min, reducing rate limit utilization from 53% to ~35%
+- [x] World presets: News, Sports, Entertainment, Positive, Science, Tech, Curious, Weather, Crisis, Travel, Geopolitics, Markets (12 total)
+- [x] 5th narrative domain: curious (human_interest_score-based)
+- [x] Domain-specific clustering: tournament-centric sports, production-centric entertainment
+- [x] country_centroids.py helper for structured source geocoding
 - [ ] Space/internet tile scaling at globe zoom
+
+### Strategist Roadmap -- Remaining Items (not implemented)
+
+- [x] **JMA** (Japan Meteorological Agency) -- Japanese weather alerts. `src/jma.py` (310 lines, 66 tests). Fetches active warnings from JMA bosai API, aggregated at class10s regional level, 47 prefecture centroids. Added to Weather, Crisis, Travel presets. 15th data source adapter (2026-03-14).
+- [x] **arXiv/bioRxiv/medRxiv RSS** -- Research preprint feeds added to FEEDS list (2026-03-14). arXiv AI, arXiv CS, bioRxiv, medRxiv. Also added IGN and Oddity Central.
+- **ProMED** -- Disease alert RSS feed is dead (all URLs return 404, FeedBurner mirror empty since 2018). WHO DON partially covers this space. Would need a dedicated HTML scraper.
+- **Global Forest Watch** -- Deforestation alert API. Not yet implemented.
+- **SEC EDGAR** -- Financial filings API. Not yet implemented.
 
 ## Situation Architecture Decisions (2026-03-11)
 
@@ -194,8 +215,8 @@ Steps 1-3 are backend-only (no cache version bump). Step 4-5 need a version bump
 | World presets (saveable filter configs) | A+                                                          |
 | Shareable filters                       | A                                                           |
 | Custom worlds (user-created)            | A                                                           |
-| World-aware situations                  | B+ (all 4 domains generating situations, quality improving) |
-| User-configurable feeds                 | F                                                           |
+| World-aware situations                  | A- (all 5 domains generating situations, domain-specific clustering shipped) |
+| User-configurable feeds                 | D (backend complete, no frontend UI yet)                    |
 | Custom concepts                         | F                                                           |
 
-**Overall: A-** (World-aware situations now live for all 4 domains. Main gaps: user-configurable feeds and custom concepts.)
+**Overall: A-** (World-aware situations live for all 5 domains with domain-specific clustering. User feeds backend complete, awaiting frontend. Main gap: custom concepts.)

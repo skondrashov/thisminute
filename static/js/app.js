@@ -10,8 +10,9 @@
     excludedConcepts: /* @__PURE__ */ new Set(),
     activeSources: /* @__PURE__ */ new Set(),
     excludedSources: /* @__PURE__ */ new Set(),
-    activeOrigins: /* @__PURE__ */ new Set(["rss", "gdelt"]),
+    activeOrigins: /* @__PURE__ */ new Set(["rss", "gdelt", "usgs", "noaa", "eonet", "gdacs", "reliefweb", "who", "launches", "openaq", "travel", "firms", "meteoalarm", "acled", "jma"]),
     brightSideMode: false,
+    curiousMode: false,
     filterDrawerOpen: false,
     globeManualOverride: null,
     currentProjection: "globe",
@@ -202,6 +203,7 @@
   var EVENTS_INTERVAL = 12e4;
   var NARRATIVES_INTERVAL = 3e5;
   var BRIGHT_SIDE_MIN_SCORE = 4;
+  var CURIOUS_MIN_SCORE = 6;
   var _VISITED_KEY = "thisminute-visited";
   var _VISITED_MAX = 500;
   var TOPIC_DOMAIN_RULES = [
@@ -225,7 +227,7 @@
         excludedConcepts: [],
         activeSources: [],
         excludedSources: [],
-        activeOrigins: ["rss", "gdelt"],
+        activeOrigins: ["rss", "gdelt", "usgs", "noaa", "eonet", "gdacs", "reliefweb", "who", "launches", "openaq", "travel", "firms", "meteoalarm", "acled", "jma"],
         brightSideMode: false,
         searchText: "",
         timeHours: "",
@@ -241,7 +243,7 @@
         excludedConcepts: [],
         activeSources: [],
         excludedSources: [],
-        activeOrigins: ["rss", "gdelt"],
+        activeOrigins: ["rss", "gdelt", "usgs", "noaa", "eonet", "gdacs", "reliefweb", "who", "launches", "openaq", "travel", "firms", "meteoalarm", "acled", "jma"],
         brightSideMode: false,
         searchText: "",
         timeHours: "",
@@ -258,7 +260,7 @@
         excludedConcepts: [],
         activeSources: [],
         excludedSources: [],
-        activeOrigins: ["rss", "gdelt"],
+        activeOrigins: ["rss", "gdelt", "usgs", "noaa", "eonet", "gdacs", "reliefweb", "who", "launches", "openaq", "travel", "firms", "meteoalarm", "acled", "jma"],
         brightSideMode: false,
         searchText: "",
         timeHours: "",
@@ -275,15 +277,147 @@
         excludedConcepts: [],
         activeSources: [],
         excludedSources: [],
-        activeOrigins: ["rss", "gdelt"],
+        activeOrigins: ["rss", "gdelt", "usgs", "noaa", "eonet", "gdacs", "reliefweb", "who", "launches", "openaq", "travel", "firms", "meteoalarm", "acled", "jma"],
         brightSideMode: true,
         searchText: "",
         timeHours: "",
         hideOpinion: false
       }
+    },
+    science: {
+      label: "Science",
+      color: "#00b4d8",
+      builtIn: true,
+      config: {
+        activeConcepts: [],
+        excludedConcepts: [],
+        activeSources: [],
+        excludedSources: [],
+        activeOrigins: ["rss", "gdelt", "usgs", "noaa", "eonet", "gdacs", "reliefweb", "who", "launches", "openaq", "travel", "firms", "meteoalarm", "acled", "jma"],
+        brightSideMode: false,
+        searchText: "",
+        timeHours: "",
+        hideOpinion: false
+      },
+      feedTags: ["science"]
+    },
+    tech: {
+      label: "Tech",
+      color: "#e63946",
+      builtIn: true,
+      config: {
+        activeConcepts: [],
+        excludedConcepts: [],
+        activeSources: [],
+        excludedSources: [],
+        activeOrigins: ["rss", "gdelt", "usgs", "noaa", "eonet", "gdacs", "reliefweb", "who", "launches", "openaq", "travel", "firms", "meteoalarm", "acled", "jma"],
+        brightSideMode: false,
+        searchText: "",
+        timeHours: "",
+        hideOpinion: false
+      },
+      feedTags: ["tech"]
+    },
+    curious: {
+      label: "Curious",
+      color: "#ff6f61",
+      builtIn: true,
+      config: {
+        activeConcepts: [],
+        excludedConcepts: [],
+        activeSources: [],
+        excludedSources: [],
+        activeOrigins: ["rss", "gdelt", "usgs", "noaa", "eonet", "gdacs", "reliefweb", "who", "launches", "openaq", "travel", "firms", "meteoalarm", "acled", "jma"],
+        brightSideMode: false,
+        curiousMode: true,
+        searchText: "",
+        timeHours: "",
+        hideOpinion: false
+      }
+    },
+    weather: {
+      label: "Weather",
+      color: "#0ea5e9",
+      builtIn: true,
+      config: {
+        activeConcepts: [],
+        excludedConcepts: [],
+        activeSources: [],
+        excludedSources: [],
+        activeOrigins: ["rss", "noaa", "eonet", "usgs", "gdacs", "firms", "meteoalarm", "jma"],
+        brightSideMode: false,
+        searchText: "",
+        timeHours: "",
+        hideOpinion: false
+      }
+    },
+    crisis: {
+      label: "Crisis",
+      color: "#dc2626",
+      builtIn: true,
+      config: {
+        activeConcepts: [],
+        excludedConcepts: [],
+        activeSources: [],
+        excludedSources: [],
+        activeOrigins: ["rss", "usgs", "noaa", "eonet", "gdacs", "reliefweb", "who", "travel", "firms", "meteoalarm", "acled", "jma"],
+        brightSideMode: false,
+        searchText: "",
+        timeHours: "",
+        hideOpinion: false
+      }
+    },
+    travel: {
+      label: "Travel",
+      color: "#8b5cf6",
+      builtIn: true,
+      config: {
+        activeConcepts: [],
+        excludedConcepts: [],
+        activeSources: [],
+        excludedSources: [],
+        activeOrigins: ["rss", "travel", "noaa", "gdacs", "who", "meteoalarm", "acled", "jma"],
+        brightSideMode: false,
+        searchText: "",
+        timeHours: "",
+        hideOpinion: false
+      }
+    },
+    geopolitics: {
+      label: "Geopolitics",
+      color: "#6b7280",
+      builtIn: true,
+      config: {
+        activeConcepts: [],
+        excludedConcepts: [],
+        activeSources: [],
+        excludedSources: [],
+        activeOrigins: ["rss", "gdelt", "acled", "travel"],
+        brightSideMode: false,
+        searchText: "",
+        timeHours: "",
+        hideOpinion: false
+      }
+    },
+    markets: {
+      label: "Markets",
+      color: "#16a34a",
+      builtIn: true,
+      config: {
+        activeConcepts: [],
+        excludedConcepts: [],
+        activeSources: [],
+        excludedSources: [],
+        activeOrigins: ["rss", "gdelt"],
+        brightSideMode: false,
+        searchText: "",
+        timeHours: "",
+        hideOpinion: false
+      },
+      feedTags: ["business"]
     }
   };
-  var WORLD_ICONS = { all: "\u25C9", news: "\u{1F4F0}", sports: "\u26BD", entertainment: "\u{1F3AC}", positive: "\u2728" };
+  var WORLD_ICONS = { all: "\u25C9", news: "\u{1F4F0}", sports: "\u26BD", entertainment: "\u{1F3AC}", positive: "\u2728", science: "\u{1F52C}", tech: "\u{1F4BB}", curious: "\u{1F9E9}", weather: "\u26C5", crisis: "\u{1F6A8}", travel: "\u2708\uFE0F", geopolitics: "\u{1F310}", markets: "\u{1F4C8}" };
   var NAME_EMOJI_MAP = [
     [/war|conflict|military|defense/i, "\u2694\uFE0F"],
     [/tech|ai|cyber|software|data/i, "\u{1F4BB}"],
@@ -321,11 +455,12 @@
     news: "news",
     sports: "sports",
     entertainment: "entertainment",
-    positive: "positive"
+    positive: "positive",
+    curious: "curious"
   };
   var _DOMAIN_HIGHLIGHT_COLORS = {
-    dark: { news: "#58a6ff", sports: "#3fb950", entertainment: "#bc8cff", positive: "#f5a623" },
-    light: { news: "#0969da", sports: "#1a7f37", entertainment: "#8250df", positive: "#bf8700" }
+    dark: { news: "#58a6ff", sports: "#3fb950", entertainment: "#bc8cff", positive: "#f5a623", curious: "#ff6f61" },
+    light: { news: "#0969da", sports: "#1a7f37", entertainment: "#8250df", positive: "#bf8700", curious: "#c9302c" }
   };
 
   // src/js/utils.js
@@ -660,7 +795,7 @@
       nameEl.textContent = world ? world.label : activeBtn.textContent;
     }
     if (dotEl && activeBtn) {
-      const colors = { news: "#1f6feb", sports: "#2ea043", entertainment: "#a371f7", positive: "#f0883e" };
+      const colors = { news: "#1f6feb", sports: "#2ea043", entertainment: "#a371f7", positive: "#f0883e", science: "#00b4d8", tech: "#e63946", curious: "#ff6f61", weather: "#0ea5e9", crisis: "#dc2626", travel: "#8b5cf6" };
       const worldId = activeBtn.dataset.world || "news";
       dotEl.style.background = colors[worldId] || "#1f6feb";
     }
@@ -1304,8 +1439,8 @@
     const timeHours = parseInt(document.getElementById("filter-time").value) || 0;
     const hideOpinion = document.getElementById("filter-opinion")?.checked || false;
     const now = Date.now();
-    const originFiltering = state.activeOrigins.size < 2;
-    const hasFilters = state.activeConcepts.size > 0 || state.excludedConcepts.size > 0 || state.activeSources.size > 0 || state.excludedSources.size > 0 || originFiltering || state.brightSideMode || searchText || timeHours || hideOpinion;
+    const originFiltering = state.activeOrigins.size < 15;
+    const hasFilters = state.activeConcepts.size > 0 || state.excludedConcepts.size > 0 || state.activeSources.size > 0 || state.excludedSources.size > 0 || originFiltering || state.brightSideMode || state.curiousMode || searchText || timeHours || hideOpinion;
     const storyIds = hasFilters ? /* @__PURE__ */ new Set() : null;
     const features = [];
     const topicCounts = {};
@@ -1338,6 +1473,10 @@
         if (state.brightSideMode) {
           const score = p.bright_side_score;
           if (!score || parseInt(score) < BRIGHT_SIDE_MIN_SCORE) continue;
+        }
+        if (state.curiousMode) {
+          const hiScore = p.human_interest_score;
+          if (!hiScore || parseInt(hiScore) < CURIOUS_MIN_SCORE) continue;
         }
         if (state.excludedConcepts.size > 0) {
           if (concepts.length === 0) continue;
@@ -1374,7 +1513,7 @@
       if (locType === "internet" || concepts.includes("cyber") || concepts.includes("internet") || concepts.includes("AI")) feedCounts.internet++;
     }
     const clouds = storyIds ? { type: "FeatureCollection", features: state.cloudData.features.filter((f) => storyIds.has(f.properties.story_id)) } : state.cloudData;
-    const contentFiltering = state.activeConcepts.size > 0 || state.excludedConcepts.size > 0 || state.activeSources.size > 0 || state.excludedSources.size > 0 || originFiltering || state.brightSideMode || searchText;
+    const contentFiltering = state.activeConcepts.size > 0 || state.excludedConcepts.size > 0 || state.activeSources.size > 0 || state.excludedSources.size > 0 || originFiltering || state.brightSideMode || state.curiousMode || searchText;
     const events = contentFiltering && storyIds ? state.eventsData.filter((ev) => ev.story_ids && ev.story_ids.some((id) => storyIds.has(id))) : [...state.eventsData];
     if (state.eventSortMode === "new") {
       events.sort((a, b) => new Date(b.last_updated || 0).getTime() - new Date(a.last_updated || 0).getTime());
@@ -2424,7 +2563,7 @@
   }
   function updateFilterDrawerToggle() {
     const btn = document.getElementById("filter-drawer-toggle");
-    const originFilterCount = state.activeOrigins.size < 2 ? 1 : 0;
+    const originFilterCount = state.activeOrigins.size < 15 ? 1 : 0;
     const activeCount = state.activeConcepts.size + state.excludedConcepts.size + originFilterCount;
     btn.classList.toggle("has-active", activeCount > 0);
     btn.textContent = activeCount > 0 ? `Refine (${activeCount})` : "Refine";
@@ -2475,7 +2614,7 @@
       excludedConcepts: [],
       activeSources: [],
       excludedSources: [],
-      activeOrigins: ["rss", "gdelt"],
+      activeOrigins: ["rss", "gdelt", "usgs", "noaa", "eonet", "gdacs", "reliefweb", "who", "launches", "openaq", "travel", "firms", "meteoalarm", "acled", "jma"],
       brightSideMode: false,
       searchText: "",
       timeHours: "",
@@ -2566,6 +2705,7 @@
     const parts = [];
     if (feedTags?.length) parts.push(feedTags.join(", ") + " feeds");
     if (config?.brightSideMode) parts.push("bright side");
+    if (config?.curiousMode) parts.push("curious");
     if (config?.activeSources?.length) parts.push(config.activeSources.length + " sources");
     if (config?.excludedSources?.length) parts.push(config.excludedSources.length + " excluded");
     if (config?.activeConcepts?.length) parts.push(config.activeConcepts.length + " topics");
@@ -2582,6 +2722,7 @@
       excludedSources: [...state.excludedSources],
       activeOrigins: [...state.activeOrigins],
       brightSideMode: state.brightSideMode,
+      curiousMode: state.curiousMode,
       searchText: document.getElementById("search-box").value.trim(),
       timeHours: document.getElementById("filter-time").value,
       hideOpinion: document.getElementById("filter-opinion")?.checked || false
@@ -2593,6 +2734,7 @@
     state.activeSources.clear();
     state.excludedSources.clear();
     state.brightSideMode = false;
+    state.curiousMode = false;
     state.activeNarrativeId = null;
     if (keywords && keywords.length > 0) {
       const matched = _matchingConcepts(keywords);
@@ -2606,8 +2748,9 @@
     }
     (config.activeSources || []).forEach((s) => state.activeSources.add(s));
     (config.excludedSources || []).forEach((s) => state.excludedSources.add(s));
-    state.activeOrigins = new Set(config.activeOrigins || ["rss", "gdelt"]);
+    state.activeOrigins = new Set(config.activeOrigins || ["rss", "gdelt", "usgs", "noaa", "eonet", "gdacs", "reliefweb", "who", "launches", "openaq", "travel", "firms", "meteoalarm", "acled", "jma"]);
     state.brightSideMode = !!config.brightSideMode;
+    state.curiousMode = !!config.curiousMode;
     document.querySelectorAll(".origin-btn").forEach((btn) => {
       btn.classList.toggle("active", state.activeOrigins.has(btn.dataset.origin));
     });
@@ -2700,10 +2843,11 @@
     if (config.excludedConcepts?.length) params.set("ex", config.excludedConcepts.join(","));
     if (config.activeSources?.length) params.set("src", config.activeSources.join(","));
     if (config.excludedSources?.length) params.set("xsrc", config.excludedSources.join(","));
-    if (config.activeOrigins?.length && (config.activeOrigins.length < 2 || !config.activeOrigins.includes("rss") || !config.activeOrigins.includes("gdelt"))) {
+    if (config.activeOrigins?.length && (config.activeOrigins.length < 15 || !config.activeOrigins.includes("rss") || !config.activeOrigins.includes("gdelt") || !config.activeOrigins.includes("usgs") || !config.activeOrigins.includes("noaa") || !config.activeOrigins.includes("eonet") || !config.activeOrigins.includes("gdacs") || !config.activeOrigins.includes("reliefweb") || !config.activeOrigins.includes("who") || !config.activeOrigins.includes("launches") || !config.activeOrigins.includes("openaq") || !config.activeOrigins.includes("travel") || !config.activeOrigins.includes("firms") || !config.activeOrigins.includes("meteoalarm") || !config.activeOrigins.includes("acled") || !config.activeOrigins.includes("jma"))) {
       params.set("origin", config.activeOrigins.join(","));
     }
     if (config.brightSideMode) params.set("bs", "1");
+    if (config.curiousMode) params.set("cur", "1");
     if (config.searchText) params.set("q", config.searchText);
     if (config.timeHours) params.set("t", config.timeHours);
     if (config.hideOpinion) params.set("op", "0");
@@ -4173,7 +4317,7 @@
     }
     const label = bar.querySelector(".world-overview-label");
     if (label) {
-      const worldColors = { news: "#58a6ff", sports: "#3fb950", entertainment: "#bc8cff", positive: "#f5a623" };
+      const worldColors = { news: "#58a6ff", sports: "#3fb950", entertainment: "#bc8cff", positive: "#f5a623", science: "#00b4d8", tech: "#e63946", curious: "#ff6f61", weather: "#0ea5e9", crisis: "#dc2626", travel: "#8b5cf6" };
       label.style.color = worldColors[worldId] || "#58a6ff";
     }
     bar.classList.add("visible");
@@ -4208,8 +4352,9 @@
       }
     }
     if (state.excludedSources.size > 0) params.set("xsrc", [...state.excludedSources].join(","));
-    if (state.activeOrigins.size < 2) params.set("origin", [...state.activeOrigins].join(","));
+    if (state.activeOrigins.size < 15) params.set("origin", [...state.activeOrigins].join(","));
     if (state.brightSideMode) params.set("bs", "1");
+    if (state.curiousMode) params.set("cur", "1");
     if (state.activeNarrativeId) params.set("sit", state.activeNarrativeId);
     if (state.currentView && state.currentView !== "narratives") params.set("view", state.currentView);
     const search = document.getElementById("search-box").value.trim();
@@ -4320,6 +4465,10 @@
     }
     if (params.has("bs")) {
       state.brightSideMode = true;
+      if (params.has("world")) state.worldModified = true;
+    }
+    if (params.has("cur")) {
+      state.curiousMode = true;
       if (params.has("world")) state.worldModified = true;
     }
     if (params.has("q")) {

@@ -24,8 +24,7 @@ Read before starting work (per PROTOCOL.md step 4):
 
 1. Read `FORUM.md` for high-priority items and spawn requests
 2. Read `STRATEGY.md` for current roadmap priorities
-3. Read `messages/builder.md` for direct tasks from orchestrator
-4. Read `REVIEW_LOG.md` for recent issues that need fixing
+3. Read `REVIEW_LOG.md` for recent issues that need fixing
 
 ## 2. Implement Changes
 

@@ -360,6 +360,28 @@ def init_db(db_path: Optional[Path] = None) -> None:
         conn.commit()
     except sqlite3.OperationalError:
         pass
+    # Migrate: add source_type column to stories (reported vs inferred)
+    try:
+        conn.execute("ALTER TABLE stories ADD COLUMN source_type TEXT DEFAULT 'reported'")
+    except sqlite3.OperationalError:
+        pass
+    # Migrate: add user_feeds table for user-added RSS feeds
+    conn.executescript("""
+        CREATE TABLE IF NOT EXISTS user_feeds (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            url TEXT NOT NULL,
+            title TEXT,
+            feed_tag TEXT DEFAULT 'news',
+            browser_hash TEXT NOT NULL,
+            is_active INTEGER DEFAULT 1,
+            last_fetched TEXT,
+            last_error TEXT,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_user_feeds_url_hash ON user_feeds(url, browser_hash);
+        CREATE INDEX IF NOT EXISTS idx_user_feeds_active ON user_feeds(is_active);
+        CREATE INDEX IF NOT EXISTS idx_user_feeds_browser ON user_feeds(browser_hash);
+    """)
     conn.close()
 
 
@@ -369,8 +391,8 @@ def insert_story(conn: sqlite3.Connection, story: dict) -> bool:
         cursor = conn.execute(
             """INSERT OR IGNORE INTO stories
                (title, url, summary, source, location_name, lat, lon,
-                published_at, scraped_at, category, concepts, ner_entities, geocode_confidence, origin, image_url)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                published_at, scraped_at, category, concepts, ner_entities, geocode_confidence, origin, image_url, source_type)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 story["title"],
                 story["url"],
@@ -387,6 +409,7 @@ def insert_story(conn: sqlite3.Connection, story: dict) -> bool:
                 story.get("geocode_confidence"),
                 story.get("origin", "rss"),
                 story.get("image_url"),
+                story.get("source_type", "reported"),
             ),
         )
         conn.commit()
@@ -443,17 +466,26 @@ def get_stories(
     if extra_clauses:
         where += " AND " + " AND ".join(extra_clauses)
 
-    # Balance RSS and GDELT origins ~50/50
+    # Balance RSS and GDELT origins ~50/50, plus all USGS stories (tiny volume)
     half = limit // 2
-    cols = "id, title, url, summary, source, location_name, lat, lon, published_at, scraped_at, category, concepts, origin, image_url"
+    cols = "id, title, url, summary, source, location_name, lat, lon, published_at, scraped_at, category, concepts, origin, image_url, source_type"
     rss_query = f"SELECT {cols} FROM stories WHERE {where} AND origin = 'rss' ORDER BY scraped_at DESC LIMIT ?"
     gdelt_query = f"SELECT {cols} FROM stories WHERE {where} AND origin = 'gdelt' ORDER BY scraped_at DESC LIMIT ?"
+    usgs_query = f"SELECT {cols} FROM stories WHERE {where} AND origin = 'usgs' ORDER BY scraped_at DESC LIMIT ?"
 
     rss_params = params + [half]
     gdelt_params = params + [half]
 
     rss_rows = conn.execute(rss_query, rss_params).fetchall()
     gdelt_rows = conn.execute(gdelt_query, gdelt_params).fetchall()
+    # USGS volume is tiny (~5-15/day), fetch all recent ones
+    usgs_rows = conn.execute(usgs_query, params + [50]).fetchall()
+
+    # Fetch all other origins (noaa, eonet, gdacs, reliefweb, who, launches,
+    # openaq, travel, firms, meteoalarm, acled, jma, etc.) -- typically low
+    # volume so no special balancing is needed.
+    inferred_query = f"SELECT {cols} FROM stories WHERE {where} AND origin NOT IN ('rss', 'gdelt', 'usgs') ORDER BY scraped_at DESC LIMIT ?"
+    inferred_rows = conn.execute(inferred_query, params + [limit]).fetchall()
 
     # If one origin has fewer, give remaining slots to the other
     rss_count = len(rss_rows)
@@ -472,7 +504,7 @@ def get_stories(
         ).fetchall()
 
     # Merge, dedup by title (keep first = most recent), sort by scraped_at
-    all_rows = [dict(r) for r in rss_rows] + [dict(r) for r in gdelt_rows]
+    all_rows = [dict(r) for r in rss_rows] + [dict(r) for r in gdelt_rows] + [dict(r) for r in usgs_rows] + [dict(r) for r in inferred_rows]
     all_rows.sort(key=lambda s: s.get("scraped_at", ""), reverse=True)
 
     seen_titles = set()

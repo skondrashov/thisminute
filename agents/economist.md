@@ -100,14 +100,16 @@ To support multi-provider models, the extraction code in `llm_extractor.py` woul
 | ------------------------ | -------------- | --------------- | --------------- | --------- | --------------------------------- |
 | **Story extraction**     | Haiku 4.5      | ~new_stories/8  | ~7k in, ~2k out | ~$0.014   | **Dominant**                      |
 | **Backfill extraction**  | Haiku 4.5      | ~256/8 = 32 max | ~7k in, ~2k out | ~$0.014   | ~$0.45/run when backfilling       |
-| **Event analysis**       | Haiku 4.5      | ~7-10/run       | ~5k in, ~2k out | ~$0.015   | ~$1.50/day typical                |
-| **Registry maintenance** | Haiku 4.5      | 1-3             | ~4k in, ~1k out | ~$0.009   | ~$2.50/day                        |
-| **Narrative analysis**   | **Sonnet 4.6** | 4 per 2 hours   | ~8k in, ~4k out | ~$0.08    | ~$3.84/day (4 domains × 12 cycles)|
-| **World overview**       | Haiku 4.5      | 1 per 2 hours   | ~3k in, ~1k out | ~$0.006   | ~$0.07/day                        |
+| **Event analysis**       | Haiku 4.5      | ~7-10/run       | ~5k in, ~2k out | ~$0.015   | ~$1.55/day typical                |
+| **Registry maintenance** | Haiku 4.5      | 1-3             | ~4k in, ~1k out | ~$0.009   | ~$2.85/day                        |
+| **Narrative analysis**   | **Sonnet 4.6** | 5 per 2 hours   | ~8k in, ~4k out | ~$0.08    | ~$4.80/day (5 domains × 12 cycles)|
+| **World overview**       | Haiku 4.5      | 1 per 2 hours   | ~3k in, ~1k out | ~$0.006   | ~$0.04/day                        |
 
 ### The Big Cost Driver: Story Volume
 
 LLM extraction cost scales **linearly** with story count. The extraction system prompt (~3-4k tokens) is sent with every batch of 8 stories.
+
+Only RSS and GDELT stories go through LLM extraction. The 10 structured data sources (USGS, NOAA, EONET, GDACS, ReliefWeb, WHO, Launch Library, OpenAQ, Travel Advisories, FIRMS) all pre-build their `_extraction` dicts and skip LLM entirely. This is verified in `pipeline.py` lines 127-137.
 
 **Before GDELT sampling (default):**
 
@@ -121,27 +123,32 @@ LLM extraction cost scales **linearly** with story count. The extraction system 
 - Actual GDELT at 7% was ~45,000 stories/day — far above budget
 - This rate was replaced by 0.003 on 2026-03-10
 
-**With GDELT sampling at 0.3% (`GDELT_SAMPLE_RATE=0.003`) — CURRENT (verified 2026-03-13):**
+**With GDELT sampling at 0.3% (`GDELT_SAMPLE_RATE=0.003`) — CURRENT (verified 2026-03-14):**
 
 - GDELT: ~200-300 stories/day (after dedup, much lower than theoretical 1,930)
-- RSS: ~2,400 stories/day (84 feeds)
-- Total: ~2,700 stories/day
+- RSS: ~2,520 stories/day (89 feeds — 6 new: HN, TechCrunch, The Verge, Atlas Obscura, CoinDesk, Decrypt)
+- Structured data sources: ~270-590 stories/day (skip LLM, zero extraction cost)
+- Total stories: ~2,990-3,200/day
+- Stories through LLM extraction: ~2,720-2,820/day
 - **Actual daily cost breakdown:**
 
 | Component | Daily Cost |
 |-----------|-----------|
-| Story extraction (Haiku) | $4.26 |
-| Event analysis (Haiku) | $1.50 |
-| Narrative analysis (Sonnet, 4 domains) | $3.84 |
-| Registry maintenance (Haiku) | $2.50 |
+| Story extraction (Haiku, RSS+GDELT only) | $4.77 |
+| Event analysis (Haiku) | $1.55 |
+| Narrative analysis (Sonnet, 5 domains) | $4.80 |
+| Registry maintenance (Haiku) | $2.85 |
 | World overview (Haiku) | $0.04 |
 | Prompt caching savings | -$1.22 |
-| **Total** | **~$10.92/day (~$328/month)** |
+| **Total** | **~$12.79/day (~$384/month)** |
+
+Previous verified cost (2026-03-13): $10.92/day. Increase: +$1.87/day (+17%).
+Sources of increase: 6 new RSS feeds (+$0.51), curious domain 5th Sonnet pass (+$0.96), indirect event/registry growth (+$0.40).
 
 **With GDELT disabled (`GDELT_SAMPLE_RATE=0.0`):**
 
-- RSS only: ~2,400 stories/day
-- Total: ~$10/day (GDELT savings minimal since it's already under-contributing)
+- RSS only: ~2,520 stories/day
+- Total: ~$12.50/day (GDELT savings minimal since it's already under-contributing)
 
 ## Configuration
 
@@ -162,6 +169,8 @@ Override via environment variable: `GDELT_SAMPLE_RATE=0.15`
 2. **`MAX_LLM_CALLS_PER_CYCLE`** in `event_analyzer.py` (currently 15) — caps event analysis per run
 3. **Backfill limit** in `llm_extractor.py` (currently 256) — caps pending story extraction per run
 4. **Narrative interval** in `scheduler.py` (currently 2 hours) — Sonnet call frequency
+5. **`SOURCE_ENABLED`** in `config.py` — disable any of the 12 sources individually
+6. **`LAUNCHES_CACHE_SECONDS`** in `config.py` (currently 1800) — recommend increasing to 2700 to reduce rate limit pressure
 
 ### Prompt caching (implemented 2026-03-11)
 
@@ -205,17 +214,36 @@ Actual spend: https://console.anthropic.com/settings/billing
 | Production (budget)   | `GDELT_SAMPLE_RATE=0.003` (~$5/day extraction) **← current**   |
 | Production (moderate) | `GDELT_SAMPLE_RATE=0.01` (~$10/day extraction)                 |
 | Production (full)     | `GDELT_SAMPLE_RATE=1.0` (not recommended without model switch) |
-| Credit emergency      | `GDELT_SAMPLE_RATE=0.0` + reduce `MAX_LLM_CALLS_PER_CYCLE`     |
+| Credit emergency      | `GDELT_SAMPLE_RATE=0.0` + reduce `MAX_LLM_CALLS_PER_CYCLE` + disable high-volume sources via `SOURCE_ENABLED` |
 | Backfill running      | Temporarily reduce to `0.0` to give backfill all the budget    |
 | Cost still too high   | Switch extraction model to Gemini Flash Lite or DeepSeek       |
+| Volume spike (storms) | Set `SOURCE_NOAA_ENABLED=false` or add `NOAA_MAX_ALERTS` cap   |
+
+## Data Source Volume & Cost Summary (updated 2026-03-14)
+
+| Source | Type | Volume/day | LLM Cost | API Cost | Notes |
+|--------|------|-----------|----------|----------|-------|
+| RSS (89 feeds) | LLM-extracted | ~2,520 | ~$4.77/day | Free | 6 new feeds add ~120 stories/day |
+| GDELT (0.3%) | LLM-extracted | ~200-300 | included above | Free | |
+| USGS Earthquakes | Pre-built | ~5-15 | $0 | Free | M4.5+ filter |
+| NOAA Weather | Pre-built | ~50-200 | $0 | Free | US only, may spike in storms |
+| NASA EONET | Pre-built | ~20-50 | $0 | Free | limit=100 |
+| GDACS | Pre-built | ~10-30 | $0 | Free | GeoJSON + RSS fallback |
+| ReliefWeb | Pre-built | ~10-30 | $0 | Free | limit=50 |
+| WHO DON | Pre-built | ~2-5 | $0 | Free | Very low volume |
+| Launch Library | Pre-built | ~5-10 | $0 | Free (15/hr) | Cache 30min, 53% rate limit use |
+| OpenAQ | Pre-built | ~20-50 | $0 | Free (key opt.) | Needs OPENAQ_API_KEY |
+| Travel Advisories | Pre-built | ~50-100 | $0 | Free | Level 2+ only |
+| NASA FIRMS | Pre-built | ~20-100 | $0 | Free (key req.) | Needs FIRMS_API_KEY |
 
 ## Key Files
 
-- `src/config.py` — `GDELT_SAMPLE_RATE` setting
+- `src/config.py` — `GDELT_SAMPLE_RATE`, `SOURCE_ENABLED` toggles, API keys
 - `src/gdelt.py` — sampling implementation in `scrape_gdelt()`
 - `src/llm_extractor.py` — story extraction (Haiku), batch size, pending limit
 - `src/event_analyzer.py` — event analysis (Haiku), max calls per cycle
-- `src/narrative_analyzer.py` — narrative analysis (Sonnet), runs every 2 hours
+- `src/narrative_analyzer.py` — narrative analysis (Sonnet), 5 domains, runs every 2 hours
 - `src/registry_manager.py` — registry maintenance (Haiku)
 - `src/llm_utils.py` — model constants (`HAIKU_MODEL`, `SONNET_MODEL`)
-- `src/scheduler.py` — pipeline intervals (15 min pipeline, 2 hour narratives)
+- `src/source_utils.py` — shared helpers for data source adapters (build_extraction, fetch_json, etc.)
+- `src/scheduler.py` — pipeline intervals (15 min pipeline, 2 hour narratives, 5 domains)

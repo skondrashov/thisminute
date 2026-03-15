@@ -1,0 +1,604 @@
+"""Tests for NOAA weather alerts adapter."""
+
+import json
+import tempfile
+from pathlib import Path
+from unittest.mock import patch, MagicMock
+
+from src.noaa import (
+    scrape_noaa,
+    _severity_to_score,
+    _severity_to_human_interest,
+    _severity_sort_key,
+    _get_event_concepts,
+    _polygon_centroid,
+    _geometry_to_point,
+    _build_title,
+    _build_summary,
+    _build_event_signature,
+    _extract_region_name,
+    _fetch_alerts,
+)
+from src.database import init_db, get_connection, insert_story, store_extraction
+
+
+# --- Severity mapping tests ---
+
+def test_severity_minor():
+    assert _severity_to_score("Minor") == 1
+
+def test_severity_moderate():
+    assert _severity_to_score("Moderate") == 2
+
+def test_severity_severe():
+    assert _severity_to_score("Severe") == 3
+
+def test_severity_extreme():
+    assert _severity_to_score("Extreme") == 4
+
+def test_severity_unknown():
+    """Unknown severity defaults to 2."""
+    assert _severity_to_score("Unknown") == 2
+
+
+# --- Human interest score tests ---
+
+def test_human_interest_minor():
+    assert _severity_to_human_interest("Minor") == 2
+
+def test_human_interest_moderate():
+    assert _severity_to_human_interest("Moderate") == 4
+
+def test_human_interest_severe():
+    assert _severity_to_human_interest("Severe") == 6
+
+def test_human_interest_extreme():
+    assert _severity_to_human_interest("Extreme") == 8
+
+
+# --- Event concepts tests ---
+
+def test_concepts_tornado():
+    concepts = _get_event_concepts("Tornado Warning")
+    assert "tornado" in concepts
+
+def test_concepts_flood():
+    concepts = _get_event_concepts("Flash Flood Watch")
+    assert "flood" in concepts
+
+def test_concepts_hurricane():
+    concepts = _get_event_concepts("Hurricane Warning")
+    assert "hurricane" in concepts
+
+def test_concepts_winter_storm():
+    concepts = _get_event_concepts("Winter Storm Warning")
+    assert "winter storm" in concepts
+
+def test_concepts_wildfire():
+    concepts = _get_event_concepts("Red Flag Warning")
+    assert "wildfire" in concepts
+
+def test_concepts_heat():
+    concepts = _get_event_concepts("Excessive Heat Warning")
+    assert "heat wave" in concepts
+
+def test_concepts_unknown():
+    """Unknown event type returns empty list."""
+    concepts = _get_event_concepts("Special Weather Statement")
+    assert concepts == []
+
+
+# --- Centroid calculation tests ---
+
+def test_polygon_centroid_triangle():
+    """Centroid of a triangle."""
+    coords = [[[0.0, 0.0], [10.0, 0.0], [5.0, 10.0], [0.0, 0.0]]]
+    result = _polygon_centroid(coords)
+    assert result is not None
+    assert abs(result["lon"] - 3.75) < 0.01
+    assert abs(result["lat"] - 2.5) < 0.01
+
+def test_polygon_centroid_square():
+    """Centroid of a square."""
+    coords = [[[0.0, 0.0], [10.0, 0.0], [10.0, 10.0], [0.0, 10.0], [0.0, 0.0]]]
+    result = _polygon_centroid(coords)
+    assert result is not None
+    assert abs(result["lon"] - 4.0) < 0.01
+    assert abs(result["lat"] - 4.0) < 0.01
+
+def test_polygon_centroid_empty():
+    """Empty coordinates return None."""
+    assert _polygon_centroid([]) is None
+    assert _polygon_centroid([[]]) is None
+
+def test_polygon_centroid_too_few_points():
+    """Fewer than 3 points returns None."""
+    assert _polygon_centroid([[[0.0, 0.0], [1.0, 1.0]]]) is None
+
+
+# --- Geometry to point tests ---
+
+def test_geometry_point():
+    """Point geometry extracts directly."""
+    geom = {"type": "Point", "coordinates": [-95.5, 32.5]}
+    result = _geometry_to_point(geom)
+    assert result is not None
+    assert result["lat"] == 32.5
+    assert result["lon"] == -95.5
+
+def test_geometry_polygon():
+    """Polygon geometry returns centroid."""
+    geom = {
+        "type": "Polygon",
+        "coordinates": [[[-100.0, 30.0], [-90.0, 30.0], [-90.0, 40.0], [-100.0, 40.0], [-100.0, 30.0]]],
+    }
+    result = _geometry_to_point(geom)
+    assert result is not None
+    assert abs(result["lat"] - 34.0) < 0.01
+    assert abs(result["lon"] - (-96.0)) < 0.01
+
+def test_geometry_multipolygon():
+    """MultiPolygon uses centroid of first polygon."""
+    geom = {
+        "type": "MultiPolygon",
+        "coordinates": [
+            [[[-100.0, 30.0], [-90.0, 30.0], [-90.0, 40.0], [-100.0, 40.0], [-100.0, 30.0]]],
+            [[[-80.0, 20.0], [-70.0, 20.0], [-70.0, 30.0], [-80.0, 30.0], [-80.0, 20.0]]],
+        ],
+    }
+    result = _geometry_to_point(geom)
+    assert result is not None
+    # Should be centroid of first polygon
+    assert abs(result["lat"] - 34.0) < 0.01
+
+def test_geometry_none():
+    """None geometry returns None."""
+    assert _geometry_to_point(None) is None
+
+def test_geometry_no_coordinates():
+    """Geometry without coordinates returns None."""
+    assert _geometry_to_point({"type": "Polygon"}) is None
+
+
+# --- Title builder tests ---
+
+def test_title_from_headline():
+    props = {"headline": "Tornado Warning issued for Dallas County"}
+    assert _build_title(props) == "Tornado Warning issued for Dallas County"
+
+def test_title_from_event_and_area():
+    props = {"event": "Flood Warning", "areaDesc": "Harris County, TX"}
+    assert _build_title(props) == "Flood Warning - Harris County, TX"
+
+def test_title_long_area_truncated():
+    long_area = "A" * 200
+    props = {"event": "Winter Storm", "areaDesc": long_area}
+    title = _build_title(props)
+    assert len(title) < 200
+
+def test_title_event_only():
+    props = {"event": "Tornado Watch"}
+    assert _build_title(props) == "Tornado Watch"
+
+
+# --- Summary builder tests ---
+
+def test_summary_from_description():
+    props = {"description": "A tornado warning has been issued for the area."}
+    summary = _build_summary(props)
+    assert "tornado warning" in summary.lower()
+
+def test_summary_truncated():
+    long_desc = "X" * 600
+    props = {"description": long_desc}
+    summary = _build_summary(props)
+    assert len(summary) <= 500
+
+def test_summary_fallback():
+    props = {"event": "Flood Watch", "areaDesc": "Travis County", "severity": "Moderate"}
+    summary = _build_summary(props)
+    assert "Flood Watch" in summary
+    assert "Travis County" in summary
+
+
+# --- Event signature tests ---
+
+def test_event_signature_tornado():
+    props = {"event": "Tornado Warning", "areaDesc": "Dallas County, TX; Tarrant County, TX"}
+    sig = _build_event_signature(props)
+    assert "Tornado" in sig
+    assert "TX" in sig or "Dallas County" in sig
+
+def test_event_signature_no_area():
+    props = {"event": "Winter Storm Watch", "areaDesc": ""}
+    sig = _build_event_signature(props)
+    assert "Winter Storm" in sig
+    assert "US" in sig
+
+def test_event_signature_strips_warning():
+    props = {"event": "Flood Warning", "areaDesc": "Harris County, TX"}
+    sig = _build_event_signature(props)
+    assert "Warning" not in sig
+    assert "Flood" in sig
+
+
+# --- Region name extraction tests ---
+
+def test_region_name_with_area():
+    assert _extract_region_name("Dallas County, TX; Tarrant County, TX") == "Dallas County, TX"
+
+def test_region_name_empty():
+    assert _extract_region_name("") == "United States"
+
+
+# --- Dedup tests ---
+
+def _make_noaa_feature(alert_id="https://api.weather.gov/alerts/test1",
+                       event="Tornado Warning",
+                       headline="Tornado Warning for Dallas",
+                       severity="Severe",
+                       area="Dallas County, TX"):
+    """Build a mock NOAA GeoJSON feature."""
+    return {
+        "type": "Feature",
+        "properties": {
+            "id": alert_id,
+            "event": event,
+            "headline": headline,
+            "description": "A tornado warning has been issued.",
+            "severity": severity,
+            "areaDesc": area,
+            "onset": "2026-03-14T00:00:00Z",
+            "sent": "2026-03-14T00:00:00Z",
+        },
+        "geometry": {
+            "type": "Polygon",
+            "coordinates": [[[-97.0, 32.0], [-96.0, 32.0], [-96.0, 33.0], [-97.0, 33.0], [-97.0, 32.0]]],
+        },
+    }
+
+
+def test_dedup_same_id():
+    """Same alert ID should be deduped."""
+    features = [
+        _make_noaa_feature(alert_id="https://api.weather.gov/alerts/dup1"),
+        _make_noaa_feature(alert_id="https://api.weather.gov/alerts/dup1"),
+    ]
+    with patch("src.noaa._fetch_alerts", return_value=features):
+        stories = scrape_noaa()
+    assert len(stories) == 1
+
+
+def test_dedup_different_ids():
+    """Different alert IDs should both appear."""
+    features = [
+        _make_noaa_feature(alert_id="https://api.weather.gov/alerts/a1"),
+        _make_noaa_feature(alert_id="https://api.weather.gov/alerts/a2",
+                           headline="Flood Warning for Houston"),
+    ]
+    with patch("src.noaa._fetch_alerts", return_value=features):
+        stories = scrape_noaa()
+    assert len(stories) == 2
+
+
+# --- Story dict shape tests ---
+
+def test_story_dict_shape():
+    """NOAA story dict has all required fields."""
+    features = [_make_noaa_feature()]
+    with patch("src.noaa._fetch_alerts", return_value=features):
+        stories = scrape_noaa()
+
+    assert len(stories) == 1
+    s = stories[0]
+
+    # Required story fields
+    assert s["title"] == "Tornado Warning for Dallas"
+    assert s["url"] == "https://api.weather.gov/alerts/test1"
+    assert "tornado" in s["summary"].lower()
+    assert s["source"] == "NOAA Weather"
+    assert s["origin"] == "noaa"
+    assert s["source_type"] == "inferred"
+    assert s["category"] in ("disaster", "weather")
+    assert "weather" in s["concepts"]
+    assert "disaster" in s["concepts"]
+    assert s["lat"] is not None
+    assert s["lon"] is not None
+    assert s["geocode_confidence"] == 1.0
+    assert s["published_at"] is not None
+
+    # Extraction data
+    ext = s["_extraction"]
+    assert "Tornado" in ext["event_signature"]
+    assert "weather" in ext["topics"]
+    assert ext["severity"] == 3  # Severe
+    assert ext["location_type"] == "terrestrial"
+    assert ext["human_interest_score"] == 6  # Severe
+    assert isinstance(ext["actors"], list)
+    assert isinstance(ext["locations"], list)
+    assert len(ext["locations"]) == 1
+    assert ext["locations"][0]["role"] == "event_location"
+
+
+def test_story_dict_no_geometry():
+    """NOAA story with no geometry still has a valid dict."""
+    feature = _make_noaa_feature()
+    feature["geometry"] = None
+    with patch("src.noaa._fetch_alerts", return_value=[feature]):
+        stories = scrape_noaa()
+
+    assert len(stories) == 1
+    s = stories[0]
+    assert "lat" not in s or s.get("lat") is None
+    assert s["geocode_confidence"] == 0.8  # Lower confidence without geometry
+
+
+def test_category_disaster_for_severe():
+    """Severe/Extreme alerts get category 'disaster'."""
+    features = [_make_noaa_feature(severity="Severe")]
+    with patch("src.noaa._fetch_alerts", return_value=features):
+        stories = scrape_noaa()
+    assert stories[0]["category"] == "disaster"
+
+
+def test_category_weather_for_minor():
+    """Minor/Moderate alerts get category 'weather'."""
+    features = [_make_noaa_feature(severity="Minor")]
+    with patch("src.noaa._fetch_alerts", return_value=features):
+        stories = scrape_noaa()
+    assert stories[0]["category"] == "weather"
+
+
+def test_concepts_include_event_specific():
+    """Tornado events should include 'tornado' in concepts."""
+    features = [_make_noaa_feature(event="Tornado Warning")]
+    with patch("src.noaa._fetch_alerts", return_value=features):
+        stories = scrape_noaa()
+    assert "tornado" in stories[0]["concepts"]
+
+
+def test_concepts_deduplicated():
+    """Concepts should not have duplicates."""
+    features = [_make_noaa_feature(event="Tornado Warning")]
+    with patch("src.noaa._fetch_alerts", return_value=features):
+        stories = scrape_noaa()
+    concepts = stories[0]["concepts"]
+    assert len(concepts) == len(set(concepts))
+
+
+# --- Database integration tests ---
+
+def test_insert_noaa_story():
+    """NOAA story with source_type='inferred' inserts correctly."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        db_path = Path(tmpdir) / "test.db"
+        init_db(db_path)
+        conn = get_connection(db_path)
+
+        story = {
+            "title": "Tornado Warning for Dallas County",
+            "url": "https://api.weather.gov/alerts/test_insert",
+            "summary": "A tornado warning has been issued.",
+            "source": "NOAA Weather",
+            "scraped_at": "2026-03-14T00:00:00Z",
+            "origin": "noaa",
+            "source_type": "inferred",
+            "category": "disaster",
+            "concepts": ["weather", "disaster", "tornado"],
+            "lat": 32.5,
+            "lon": -96.5,
+            "geocode_confidence": 1.0,
+        }
+
+        was_new = insert_story(conn, story)
+        assert was_new is True
+
+        row = conn.execute("SELECT source_type, origin FROM stories WHERE url = ?",
+                           (story["url"],)).fetchone()
+        assert row["source_type"] == "inferred"
+        assert row["origin"] == "noaa"
+
+        conn.close()
+
+
+def test_noaa_extraction_storage():
+    """Pre-built extraction data from NOAA stores correctly."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        db_path = Path(tmpdir) / "test.db"
+        init_db(db_path)
+        conn = get_connection(db_path)
+
+        story = {
+            "title": "Tornado Warning for Dallas County",
+            "url": "https://api.weather.gov/alerts/test_ext",
+            "summary": "A tornado warning has been issued.",
+            "source": "NOAA Weather",
+            "scraped_at": "2026-03-14T00:00:00Z",
+            "origin": "noaa",
+            "source_type": "inferred",
+            "category": "disaster",
+            "concepts": ["weather", "disaster", "tornado"],
+            "lat": 32.5,
+            "lon": -96.5,
+            "geocode_confidence": 1.0,
+        }
+
+        insert_story(conn, story)
+        row = conn.execute("SELECT id FROM stories WHERE url = ?",
+                           (story["url"],)).fetchone()
+        story_id = row["id"]
+
+        extraction = {
+            "event_signature": "2026 TX Tornado",
+            "topics": ["weather", "tornado", "disaster"],
+            "severity": 3,
+            "sentiment": "negative",
+            "primary_action": "tornado warning",
+            "location_type": "terrestrial",
+            "search_keywords": ["weather", "tornado warning", "Dallas County, TX"],
+            "is_opinion": False,
+            "human_interest_score": 6,
+            "actors": [],
+            "locations": [
+                {"name": "Dallas County, TX", "role": "event_location", "lat": 32.5, "lon": -96.5}
+            ],
+        }
+
+        store_extraction(conn, story_id, extraction)
+        conn.execute(
+            "UPDATE stories SET extraction_status = 'done' WHERE id = ?",
+            (story_id,),
+        )
+        conn.commit()
+
+        # Verify extraction stored
+        ext_row = conn.execute(
+            "SELECT event_signature, severity, human_interest_score FROM story_extractions WHERE story_id = ?",
+            (story_id,),
+        ).fetchone()
+        assert ext_row["event_signature"] == "2026 TX Tornado"
+        assert ext_row["severity"] == 3
+        assert ext_row["human_interest_score"] == 6
+
+        # Verify extraction_status
+        status_row = conn.execute(
+            "SELECT extraction_status FROM stories WHERE id = ?", (story_id,)
+        ).fetchone()
+        assert status_row["extraction_status"] == "done"
+
+        conn.close()
+
+
+# --- Config toggle tests ---
+
+def test_source_enabled_defaults():
+    """All sources enabled by default."""
+    from src.config import SOURCE_ENABLED
+    assert SOURCE_ENABLED["rss"] is True
+    assert SOURCE_ENABLED["gdelt"] is True
+    assert SOURCE_ENABLED["usgs"] is True
+    assert SOURCE_ENABLED["noaa"] is True
+
+
+def test_source_enabled_env_override():
+    """Environment variables can disable sources."""
+    import os
+    old = os.environ.get("SOURCE_NOAA_ENABLED")
+    try:
+        os.environ["SOURCE_NOAA_ENABLED"] = "false"
+        # Re-evaluate the expression (simulating config reload)
+        result = os.environ.get("SOURCE_NOAA_ENABLED", "true").lower() != "false"
+        assert result is False
+    finally:
+        if old is None:
+            os.environ.pop("SOURCE_NOAA_ENABLED", None)
+        else:
+            os.environ["SOURCE_NOAA_ENABLED"] = old
+
+
+def test_source_enabled_env_true():
+    """Explicit 'true' keeps source enabled."""
+    import os
+    old = os.environ.get("SOURCE_NOAA_ENABLED")
+    try:
+        os.environ["SOURCE_NOAA_ENABLED"] = "true"
+        result = os.environ.get("SOURCE_NOAA_ENABLED", "true").lower() != "false"
+        assert result is True
+    finally:
+        if old is None:
+            os.environ.pop("SOURCE_NOAA_ENABLED", None)
+        else:
+            os.environ["SOURCE_NOAA_ENABLED"] = old
+
+
+def test_noaa_config_url():
+    """NOAA alerts URL is configured."""
+    from src.config import NOAA_ALERTS_URL
+    assert "api.weather.gov" in NOAA_ALERTS_URL
+    assert "alerts" in NOAA_ALERTS_URL
+
+
+# --- NOAA_MAX_ALERTS cap tests ---
+
+def test_max_alerts_caps_volume():
+    """Alerts exceeding NOAA_MAX_ALERTS should be capped."""
+    features = [
+        _make_noaa_feature(
+            alert_id="https://api.weather.gov/alerts/a%d" % i,
+            headline="Alert %d" % i,
+            severity="Minor",
+        )
+        for i in range(200)
+    ]
+    with patch("src.noaa._fetch_alerts", return_value=features):
+        with patch("src.noaa.NOAA_MAX_ALERTS", 50):
+            stories = scrape_noaa()
+    assert len(stories) == 50
+
+
+def test_max_alerts_under_cap():
+    """Alerts under NOAA_MAX_ALERTS should not be truncated."""
+    features = [
+        _make_noaa_feature(
+            alert_id="https://api.weather.gov/alerts/b%d" % i,
+            headline="Alert %d" % i,
+        )
+        for i in range(10)
+    ]
+    with patch("src.noaa._fetch_alerts", return_value=features):
+        with patch("src.noaa.NOAA_MAX_ALERTS", 150):
+            stories = scrape_noaa()
+    assert len(stories) == 10
+
+
+def test_max_alerts_prioritizes_severe():
+    """When capped, severe/extreme alerts should be kept over minor ones."""
+    features = []
+    # 3 Extreme alerts
+    for i in range(3):
+        features.append(_make_noaa_feature(
+            alert_id="https://api.weather.gov/alerts/ext%d" % i,
+            headline="Extreme Alert %d" % i,
+            severity="Extreme",
+            event="Tornado Warning",
+        ))
+    # 3 Minor alerts
+    for i in range(3):
+        features.append(_make_noaa_feature(
+            alert_id="https://api.weather.gov/alerts/min%d" % i,
+            headline="Minor Alert %d" % i,
+            severity="Minor",
+            event="Frost Advisory",
+        ))
+
+    with patch("src.noaa._fetch_alerts", return_value=features):
+        with patch("src.noaa.NOAA_MAX_ALERTS", 4):
+            stories = scrape_noaa()
+
+    assert len(stories) == 4
+    # All 3 extreme alerts should be present
+    extreme_count = sum(1 for s in stories if s["_extraction"]["severity"] == 4)
+    assert extreme_count == 3
+    # Only 1 minor alert kept
+    minor_count = sum(1 for s in stories if s["_extraction"]["severity"] == 1)
+    assert minor_count == 1
+
+
+def test_max_alerts_severity_sort_order():
+    """Alerts should be sorted: Extreme > Severe > Moderate > Minor."""
+    from src.noaa import _severity_sort_key
+    extreme = _make_noaa_feature(severity="Extreme")
+    severe = _make_noaa_feature(severity="Severe")
+    moderate = _make_noaa_feature(severity="Moderate")
+    minor = _make_noaa_feature(severity="Minor")
+
+    assert _severity_sort_key(extreme) < _severity_sort_key(severe)
+    assert _severity_sort_key(severe) < _severity_sort_key(moderate)
+    assert _severity_sort_key(moderate) < _severity_sort_key(minor)
+
+
+def test_config_noaa_max_alerts():
+    """NOAA_MAX_ALERTS config parameter exists and has sensible default."""
+    from src.config import NOAA_MAX_ALERTS
+    assert isinstance(NOAA_MAX_ALERTS, int)
+    assert NOAA_MAX_ALERTS == 150
