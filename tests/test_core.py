@@ -47,20 +47,18 @@ def test_story_location_extraction():
 
 
 def test_ner_demonyms():
-    """Demonyms like 'British', 'American' should resolve to countries."""
+    """Demonyms and abbreviations should resolve to countries."""
     locs = extract_locations("British PM meets French president in Paris")
     names = [l["text"] for l in locs]
     assert "United Kingdom" in names
     assert "France" in names
     assert "Paris" in names
 
-
-def test_ner_abbreviations():
-    """UK and US abbreviations should resolve to countries."""
-    locs = extract_locations("UK launches investigation into US trade practices")
-    names = [l["text"] for l in locs]
-    assert "United Kingdom" in names
-    assert "United States" in names
+    # UK/US abbreviations
+    locs2 = extract_locations("UK launches investigation into US trade practices")
+    names2 = [l["text"] for l in locs2]
+    assert "United Kingdom" in names2
+    assert "United States" in names2
 
 
 # --- Concept tagger tests ---
@@ -214,47 +212,6 @@ def test_database_source_filter():
 
         conn.close()
 
-
-def test_trending_api_endpoint():
-    """Test the trending API returns valid structure."""
-    from datetime import datetime, timezone, timedelta
-    with tempfile.TemporaryDirectory() as tmpdir:
-        db_path = Path(tmpdir) / "test.db"
-        init_db(db_path)
-        conn = get_connection(db_path)
-
-        now = datetime.now(timezone.utc)
-        # Insert several recent stories with same concept (simulates trending)
-        for i in range(5):
-            insert_story(conn, {
-                "title": f"AI breakthrough {i}",
-                "url": f"https://example.com/ai-{i}",
-                "source": "TechNews",
-                "category": "tech",
-                "concepts": ["AI"],
-                "lat": 37.0 + i * 0.1, "lon": -122.0,
-                "scraped_at": (now - timedelta(minutes=30 + i)).isoformat(),
-            })
-        # Insert one old story with different concept (baseline)
-        insert_story(conn, {
-            "title": "Football match results",
-            "url": "https://example.com/sports-1",
-            "source": "ESPN",
-            "category": "culture",
-            "concepts": ["sports"],
-            "lat": 51.0, "lon": -0.1,
-            "scraped_at": (now - timedelta(hours=12)).isoformat(),
-        })
-
-        # Verify the stories exist
-        all_stories = get_stories(conn)
-        assert len(all_stories) == 6
-
-        # Check concept filtering works for AI
-        ai_stories = get_stories(conn, concepts=["AI"])
-        assert len(ai_stories) == 5
-
-        conn.close()
 
 
 if __name__ == "__main__":

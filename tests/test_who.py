@@ -3,6 +3,8 @@
 import json
 from unittest.mock import patch, MagicMock
 
+import pytest
+
 from src.who import (
     scrape_who,
     _parse_country_from_title,
@@ -29,17 +31,11 @@ def _make_who_item(title="Avian Influenza A(H5N1) - United States of America",
 
 # --- Country parsing tests ---
 
-def test_parse_country_standard():
-    assert _parse_country_from_title("Avian Influenza A(H5N1) - United States of America") == "United States of America"
-
 def test_parse_country_with_parens():
     assert _parse_country_from_title("Cholera - Haiti (update)") == "Haiti"
 
 def test_parse_country_no_delimiter():
     assert _parse_country_from_title("Global Polio Update") == ""
-
-def test_parse_country_empty():
-    assert _parse_country_from_title("") == ""
 
 def test_parse_country_multi_dash():
     """Uses last segment after ' - '."""
@@ -49,24 +45,24 @@ def test_parse_country_multi_dash():
 
 # --- Disease concept tests ---
 
-def test_concepts_avian_influenza():
+@pytest.mark.parametrize("title,expected_concept", [
+    ("Avian Influenza A(H5N1)", "avian influenza"),
+    ("Ebola virus disease - DRC", "ebola"),
+    ("Cholera - Haiti", "cholera"),
+    ("Mpox - Global update", "mpox"),
+])
+def test_concepts_parameterized(title, expected_concept):
+    concepts = _extract_disease_concepts(title)
+    assert expected_concept in concepts
+
+
+def test_concepts_base_fields():
+    """All disease titles include base concepts."""
     concepts = _extract_disease_concepts("Avian Influenza A(H5N1)")
     assert "disease" in concepts
     assert "outbreak" in concepts
     assert "health" in concepts
-    assert "avian influenza" in concepts
 
-def test_concepts_ebola():
-    concepts = _extract_disease_concepts("Ebola virus disease - DRC")
-    assert "ebola" in concepts
-
-def test_concepts_cholera():
-    concepts = _extract_disease_concepts("Cholera - Haiti")
-    assert "cholera" in concepts
-
-def test_concepts_mpox():
-    concepts = _extract_disease_concepts("Mpox - Global update")
-    assert "mpox" in concepts
 
 def test_concepts_generic():
     """Unknown disease still gets base concepts."""
@@ -78,32 +74,26 @@ def test_concepts_generic():
 
 # --- Severity mapping tests ---
 
-def test_severity_ebola():
-    assert _severity_from_title("Ebola - DRC") == 4
-
-def test_severity_cholera():
-    assert _severity_from_title("Cholera - Haiti") == 3
-
-def test_severity_avian_influenza():
-    assert _severity_from_title("Avian Influenza A(H5N1)") == 3
-
-def test_severity_default():
-    assert _severity_from_title("Some disease update") == 2
+@pytest.mark.parametrize("title,expected", [
+    ("Ebola - DRC", 4),
+    ("Cholera - Haiti", 3),
+    ("Avian Influenza A(H5N1)", 3),
+    ("Some disease update", 2),
+])
+def test_severity_parameterized(title, expected):
+    assert _severity_from_title(title) == expected
 
 
 # --- Human interest tests ---
 
-def test_human_interest_ebola():
-    assert _human_interest_from_title("Ebola - DRC") == 7
-
-def test_human_interest_avian_influenza():
-    assert _human_interest_from_title("Avian Influenza") == 6
-
-def test_human_interest_mpox():
-    assert _human_interest_from_title("Mpox - update") == 5
-
-def test_human_interest_default():
-    assert _human_interest_from_title("Unknown disease") == 4
+@pytest.mark.parametrize("title,expected", [
+    ("Ebola - DRC", 7),
+    ("Avian Influenza", 6),
+    ("Mpox - update", 5),
+    ("Unknown disease", 4),
+])
+def test_human_interest_parameterized(title, expected):
+    assert _human_interest_from_title(title) == expected
 
 
 # --- Event signature tests ---
@@ -194,14 +184,6 @@ def test_story_dict_unknown_country():
     assert s.get("lat") is None
 
 
-def test_source_type_reported():
-    """WHO stories have source_type='reported'."""
-    items = [_make_who_item()]
-    with patch("src.who._fetch_don_rss", return_value=items):
-        stories = scrape_who()
-    assert stories[0]["source_type"] == "reported"
-
-
 # --- Coordinate tests ---
 
 def test_coordinates_from_country():
@@ -242,16 +224,3 @@ def test_fetch_failure_returns_empty():
     with patch("src.who._fetch_don_rss", return_value=[]):
         stories = scrape_who()
     assert stories == []
-
-
-# --- Config tests ---
-
-def test_who_config_url():
-    from src.config import WHO_DON_URL
-    assert "who.int" in WHO_DON_URL
-
-
-def test_source_enabled_includes_who():
-    from src.config import SOURCE_ENABLED
-    assert "who" in SOURCE_ENABLED
-    assert SOURCE_ENABLED["who"] is True

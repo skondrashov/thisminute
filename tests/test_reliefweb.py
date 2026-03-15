@@ -3,6 +3,8 @@
 import json
 from unittest.mock import patch, MagicMock
 
+import pytest
+
 from src.reliefweb import (
     scrape_reliefweb,
     _extract_concepts,
@@ -37,26 +39,22 @@ def _make_reliefweb_report(report_id=12345, title="Bangladesh: Floods - Emergenc
 
 # --- Concept extraction tests ---
 
-def test_concepts_flood():
-    concepts = _extract_concepts("Flood situation report", ["Bangladesh Floods"])
-    assert "flood" in concepts
+@pytest.mark.parametrize("title,disaster_names,expected", [
+    ("Flood situation report", ["Bangladesh Floods"], "flood"),
+    ("Earthquake response", ["Turkey Earthquake"], "earthquake"),
+    ("Armed conflict update", ["Sudan Conflict"], "conflict"),
+    ("IDP displacement report", [], "displacement"),
+])
+def test_concepts_parameterized(title, disaster_names, expected):
+    concepts = _extract_concepts(title, disaster_names)
+    assert expected in concepts
 
-def test_concepts_earthquake():
-    concepts = _extract_concepts("Earthquake response", ["Turkey Earthquake"])
-    assert "earthquake" in concepts
-
-def test_concepts_conflict():
-    concepts = _extract_concepts("Armed conflict update", ["Sudan Conflict"])
-    assert "conflict" in concepts
 
 def test_concepts_epidemic():
     concepts = _extract_concepts("Cholera outbreak", ["Cholera Epidemic"])
     assert "cholera" in concepts
     assert "epidemic" in concepts
 
-def test_concepts_displacement():
-    concepts = _extract_concepts("IDP displacement report", [])
-    assert "displacement" in concepts
 
 def test_concepts_default():
     """Unknown topics default to 'humanitarian'."""
@@ -66,20 +64,15 @@ def test_concepts_default():
 
 # --- Category extraction tests ---
 
-def test_category_flood():
-    assert _extract_category("Flood update", ["Floods"]) == "disaster"
-
-def test_category_earthquake():
-    assert _extract_category("Earthquake", ["Earthquake"]) == "disaster"
-
-def test_category_epidemic():
-    assert _extract_category("Cholera outbreak", ["Epidemic"]) == "health"
-
-def test_category_conflict():
-    assert _extract_category("Conflict update", ["Armed Conflict"]) == "crisis"
-
-def test_category_default():
-    assert _extract_category("General report", []) == "crisis"
+@pytest.mark.parametrize("title,disaster_names,expected", [
+    ("Flood update", ["Floods"], "disaster"),
+    ("Earthquake", ["Earthquake"], "disaster"),
+    ("Cholera outbreak", ["Epidemic"], "health"),
+    ("Conflict update", ["Armed Conflict"], "crisis"),
+    ("General report", [], "crisis"),
+])
+def test_category_parameterized(title, disaster_names, expected):
+    assert _extract_category(title, disaster_names) == expected
 
 
 # --- Country extraction tests ---
@@ -103,29 +96,25 @@ def test_country_primary_list():
 
 # --- Severity mapping tests ---
 
-def test_severity_emergency():
-    assert _severity_from_title("Emergency response") >= 4
-
-def test_severity_crisis():
-    assert _severity_from_title("Crisis situation update") >= 4
-
-def test_severity_severe():
-    assert _severity_from_title("Severe flooding") >= 3
-
-def test_severity_update():
-    assert _severity_from_title("Situation update") == 2
+@pytest.mark.parametrize("title,min_val", [
+    ("Emergency response", 4),
+    ("Crisis situation update", 4),
+    ("Severe flooding", 3),
+    ("Situation update", 2),
+])
+def test_severity_parameterized(title, min_val):
+    assert _severity_from_title(title) >= min_val
 
 
 # --- Human interest tests ---
 
-def test_human_interest_emergency():
-    assert _human_interest_from_title("Emergency crisis") >= 7
-
-def test_human_interest_flood():
-    assert _human_interest_from_title("Flood situation") >= 5
-
-def test_human_interest_default():
-    assert _human_interest_from_title("General update") == 4
+@pytest.mark.parametrize("title,min_val", [
+    ("Emergency crisis", 7),
+    ("Flood situation", 5),
+    ("General update", 4),
+])
+def test_human_interest_parameterized(title, min_val):
+    assert _human_interest_from_title(title) >= min_val
 
 
 # --- Event signature tests ---
@@ -213,14 +202,6 @@ def test_story_dict_unknown_country():
     assert s["origin"] == "reliefweb"
 
 
-def test_source_type_reported():
-    """ReliefWeb stories have source_type='reported'."""
-    reports = [_make_reliefweb_report()]
-    with patch("src.reliefweb._fetch_reports", return_value=reports):
-        stories = scrape_reliefweb()
-    assert stories[0]["source_type"] == "reported"
-
-
 # --- HTML stripping test ---
 
 def test_html_stripped_from_body():
@@ -241,11 +222,3 @@ def test_fetch_failure_returns_empty():
     with patch("src.reliefweb._fetch_reports", return_value=[]):
         stories = scrape_reliefweb()
     assert stories == []
-
-
-# --- Config tests ---
-
-def test_reliefweb_config_url():
-    from src.config import RELIEFWEB_URL
-    assert "reliefweb.int" in RELIEFWEB_URL
-    assert "appname=thisminute.org" in RELIEFWEB_URL

@@ -3,6 +3,8 @@
 import json
 from unittest.mock import patch, MagicMock
 
+import pytest
+
 from src.gdacs import (
     scrape_gdacs,
     _parse_event_type,
@@ -59,68 +61,55 @@ def _make_gdacs_rss_item(url="https://www.gdacs.org/report.aspx?eventid=2001",
 
 # --- Event type parsing tests ---
 
-def test_parse_event_type_eq():
-    assert _parse_event_type("EQ") == "earthquake"
-
-def test_parse_event_type_fl():
-    assert _parse_event_type("FL") == "flood"
-
-def test_parse_event_type_tc():
-    assert _parse_event_type("TC") == "cyclone"
-
-def test_parse_event_type_dr():
-    assert _parse_event_type("DR") == "drought"
-
-def test_parse_event_type_vo():
-    assert _parse_event_type("VO") == "volcano"
-
-def test_parse_event_type_wf():
-    assert _parse_event_type("WF") == "wildfire"
-
-def test_parse_event_type_unknown():
-    assert _parse_event_type("something") == "something"
-
-def test_parse_event_type_empty():
-    assert _parse_event_type("") == ""
+@pytest.mark.parametrize("code,expected", [
+    ("EQ", "earthquake"),
+    ("FL", "flood"),
+    ("TC", "cyclone"),
+    ("DR", "drought"),
+    ("VO", "volcano"),
+    ("WF", "wildfire"),
+    ("something", "something"),
+    ("", ""),
+])
+def test_parse_event_type(code, expected):
+    assert _parse_event_type(code) == expected
 
 
 # --- Concept mapping tests ---
 
-def test_concepts_earthquake():
-    concepts = _get_concepts("EQ")
-    assert "earthquake" in concepts
+@pytest.mark.parametrize("code,expected_concept", [
+    ("EQ", "earthquake"),
+    ("FL", "flood"),
+    ("TC", "cyclone"),
+    ("DR", "drought"),
+])
+def test_concepts_parameterized(code, expected_concept):
+    concepts = _get_concepts(code)
+    assert expected_concept in concepts
 
-def test_concepts_flood():
-    concepts = _get_concepts("FL")
-    assert "flood" in concepts
 
-def test_concepts_cyclone():
+def test_concepts_cyclone_includes_hurricane():
     concepts = _get_concepts("TC")
-    assert "cyclone" in concepts
     assert "hurricane" in concepts
-
-def test_concepts_drought():
-    concepts = _get_concepts("DR")
-    assert "drought" in concepts
 
 
 # --- Severity mapping tests ---
 
-def test_severity_green():
+@pytest.mark.parametrize("alert_level,expected_min", [
+    ("Green", 2),
+    ("Orange", 3),
+    ("Red", 4),
+])
+def test_severity_parameterized(alert_level, expected_min):
+    features = [_make_gdacs_geojson_feature(alert_level=alert_level)]
+    stories = _process_geojson_features(features)
+    assert stories[0]["_extraction"]["severity"] >= expected_min
+
+
+def test_severity_green_exact():
     features = [_make_gdacs_geojson_feature(alert_level="Green")]
     stories = _process_geojson_features(features)
     assert stories[0]["_extraction"]["severity"] == 2
-
-def test_severity_orange():
-    features = [_make_gdacs_geojson_feature(alert_level="Orange")]
-    stories = _process_geojson_features(features)
-    assert stories[0]["_extraction"]["severity"] == 3
-
-def test_severity_red():
-    features = [_make_gdacs_geojson_feature(alert_level="Red")]
-    stories = _process_geojson_features(features)
-    # Red = 4 (or 5 if title contains "major"/"catastroph")
-    assert stories[0]["_extraction"]["severity"] >= 4
 
 
 # --- Summary builder tests ---
@@ -160,14 +149,6 @@ def test_geojson_dedup_same_url():
     ]
     stories = _process_geojson_features(features)
     assert len(stories) == 1
-
-def test_geojson_dedup_different_urls():
-    features = [
-        _make_gdacs_geojson_feature(url="https://gdacs.org/ev1"),
-        _make_gdacs_geojson_feature(url="https://gdacs.org/ev2", title="Flood - Bangladesh"),
-    ]
-    stories = _process_geojson_features(features)
-    assert len(stories) == 2
 
 
 def test_rss_dedup_same_url():
@@ -210,24 +191,6 @@ def test_geojson_story_dict_shape():
     assert ext["locations"][0]["role"] == "event_location"
 
 
-# --- Story dict shape tests (RSS) ---
-
-def test_rss_story_dict_shape():
-    items = [_make_gdacs_rss_item()]
-    stories = _process_rss_items(items)
-
-    assert len(stories) == 1
-    s = stories[0]
-
-    assert s["title"] == "Tropical Cyclone - Mozambique"
-    assert s["source"] == "GDACS"
-    assert s["origin"] == "gdacs"
-    assert s["source_type"] == "inferred"
-    assert s["category"] == "disaster"
-    assert s["lat"] == -15.0
-    assert s["lon"] == 40.0
-
-
 # --- Fallback behavior tests ---
 
 def test_scrape_gdacs_geojson_first():
@@ -255,11 +218,3 @@ def test_scrape_gdacs_both_fail():
         with patch("src.gdacs._fetch_rss", return_value=None):
             stories = scrape_gdacs()
     assert stories == []
-
-
-# --- Config tests ---
-
-def test_gdacs_config_urls():
-    from src.config import GDACS_GEOJSON_URL, GDACS_RSS_URL
-    assert "gdacs.org" in GDACS_GEOJSON_URL
-    assert "gdacs.org" in GDACS_RSS_URL

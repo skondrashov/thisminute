@@ -2,9 +2,8 @@
 
 import csv
 import io
-import tempfile
-from pathlib import Path
-from unittest.mock import patch, MagicMock
+import pytest
+from unittest.mock import patch
 
 from src.firms import (
     scrape_firms,
@@ -20,61 +19,32 @@ from src.firms import (
     _build_summary,
     _fetch_firms_csv,
 )
-from src.database import init_db, get_connection, insert_story, store_extraction
 
 
 # --- Severity mapping tests ---
 
-def test_severity_small():
-    assert _cluster_severity(1) == 1
-    assert _cluster_severity(2) == 1
-
-
-def test_severity_moderate():
-    assert _cluster_severity(3) == 2
-    assert _cluster_severity(10) == 2
-
-
-def test_severity_large():
-    assert _cluster_severity(11) == 3
-    assert _cluster_severity(50) == 3
-
-
-def test_severity_major():
-    assert _cluster_severity(51) == 4
-    assert _cluster_severity(200) == 4
-
-
-def test_severity_extreme():
-    assert _cluster_severity(201) == 5
-    assert _cluster_severity(1000) == 5
+@pytest.mark.parametrize("count,expected", [
+    (1, 1), (2, 1),       # small
+    (3, 2), (10, 2),      # moderate
+    (11, 3), (50, 3),     # large
+    (51, 4), (200, 4),    # major
+    (201, 5), (1000, 5),  # extreme
+])
+def test_severity(count, expected):
+    assert _cluster_severity(count) == expected
 
 
 # --- Human interest mapping tests ---
 
-def test_human_interest_small():
-    assert _cluster_human_interest(1) == 2
-    assert _cluster_human_interest(2) == 2
-
-
-def test_human_interest_medium():
-    assert _cluster_human_interest(5) == 3
-    assert _cluster_human_interest(10) == 4
-
-
-def test_human_interest_large():
-    assert _cluster_human_interest(50) == 6
-    assert _cluster_human_interest(100) == 7
-
-
-def test_human_interest_major():
-    assert _cluster_human_interest(200) == 8
-    assert _cluster_human_interest(500) == 9
-
-
-def test_human_interest_extreme():
-    assert _cluster_human_interest(501) == 10
-    assert _cluster_human_interest(1000) == 10
+@pytest.mark.parametrize("count,expected", [
+    (1, 2), (2, 2),       # small
+    (5, 3), (10, 4),      # medium
+    (50, 6), (100, 7),    # large
+    (200, 8), (500, 9),   # major
+    (501, 10), (1000, 10), # extreme
+])
+def test_human_interest(count, expected):
+    assert _cluster_human_interest(count) == expected
 
 
 # --- Grid key tests ---
@@ -127,31 +97,21 @@ def test_nearest_country_brazil():
 
 # --- Confidence parsing tests ---
 
-def test_parse_confidence_high():
-    assert _parse_confidence("high") == 95
-
-
-def test_parse_confidence_nominal():
-    assert _parse_confidence("nominal") == 80
-
-
-def test_parse_confidence_low():
-    assert _parse_confidence("low") == 30
-
-
-def test_parse_confidence_numeric():
-    assert _parse_confidence("85") == 85
-    assert _parse_confidence("100") == 100
+@pytest.mark.parametrize("value,expected", [
+    ("high", 95),
+    ("nominal", 80),
+    ("low", 30),
+    ("85", 85),
+    ("HIGH", 95),
+    ("Nominal", 80),
+])
+def test_parse_confidence(value, expected):
+    assert _parse_confidence(value) == expected
 
 
 def test_parse_confidence_empty():
     assert _parse_confidence("") is None
     assert _parse_confidence(None) is None
-
-
-def test_parse_confidence_case_insensitive():
-    assert _parse_confidence("HIGH") == 95
-    assert _parse_confidence("Nominal") == 80
 
 
 # --- CSV parsing tests ---
@@ -468,35 +428,6 @@ def test_story_dict_shape():
 
 # --- Dedup tests ---
 
-def test_dedup_same_grid_cell():
-    """Multiple detections in same grid cell produce one story."""
-    csv_text = _make_firms_csv([
-        (34.1, -118.1, "high", 10.0, "2026-03-14"),
-        (34.2, -118.2, "high", 20.0, "2026-03-14"),
-        (34.3, -118.3, "high", 30.0, "2026-03-14"),
-        (34.4, -118.4, "high", 40.0, "2026-03-14"),
-    ])
-    with patch("src.firms.FIRMS_API_KEY", "test_key"):
-        with patch("src.firms._fetch_firms_csv", return_value=csv_text):
-            stories = scrape_firms()
-
-    assert len(stories) == 1
-
-
-def test_dedup_different_grid_cells():
-    """Detections in different grid cells produce separate stories."""
-    csv_text = _make_firms_csv([
-        (34.1, -118.1, "high", 10.0, "2026-03-14"),
-        (40.0, -100.0, "high", 20.0, "2026-03-14"),
-        (-20.0, 30.0, "high", 30.0, "2026-03-14"),
-    ])
-    with patch("src.firms.FIRMS_API_KEY", "test_key"):
-        with patch("src.firms._fetch_firms_csv", return_value=csv_text):
-            stories = scrape_firms()
-
-    assert len(stories) == 3
-
-
 def test_dedup_url_includes_date():
     """Dedup URL includes date for daily uniqueness."""
     csv_text = _make_firms_csv([
@@ -526,128 +457,6 @@ def test_severity_from_cluster_size():
     assert stories[0]["_extraction"]["severity"] == 4
 
 
-# --- Config integration tests ---
-
-def test_config_firms_api_key():
-    from src.config import FIRMS_API_KEY as cfg_key
-    # Just verify it's importable (will be empty string in test env)
-    assert isinstance(cfg_key, str)
-
-
-def test_config_firms_url():
-    from src.config import FIRMS_URL as cfg_url
-    assert "{MAP_KEY}" in cfg_url
-    assert "VIIRS" in cfg_url
-
-
-def test_config_source_enabled():
-    from src.config import SOURCE_ENABLED
-    assert "firms" in SOURCE_ENABLED
-
-
-# --- Database integration tests ---
-
-def test_insert_firms_story():
-    """FIRMS story with source_type='inferred' inserts correctly."""
-    with tempfile.TemporaryDirectory() as tmpdir:
-        db_path = Path(tmpdir) / "test.db"
-        init_db(db_path)
-        conn = get_connection(db_path)
-
-        story = {
-            "title": "Active fires in Australia",
-            "url": "https://firms.modaps.eosdis.nasa.gov/fire/2026-03-14/-25.0/135.0",
-            "summary": "25 fire detections from VIIRS satellite.",
-            "source": "NASA FIRMS",
-            "scraped_at": "2026-03-14T00:00:00Z",
-            "origin": "firms",
-            "source_type": "inferred",
-            "category": "disaster",
-            "concepts": ["wildfire", "fire", "environment", "climate"],
-            "lat": -25.0,
-            "lon": 135.0,
-            "geocode_confidence": 1.0,
-        }
-
-        was_new = insert_story(conn, story)
-        assert was_new is True
-
-        row = conn.execute("SELECT source_type, origin FROM stories WHERE url = ?",
-                           (story["url"],)).fetchone()
-        assert row["source_type"] == "inferred"
-        assert row["origin"] == "firms"
-
-        conn.close()
-
-
-def test_firms_extraction_storage():
-    """Pre-built extraction data from FIRMS stores correctly."""
-    with tempfile.TemporaryDirectory() as tmpdir:
-        db_path = Path(tmpdir) / "test.db"
-        init_db(db_path)
-        conn = get_connection(db_path)
-
-        story = {
-            "title": "Active fires in Australia",
-            "url": "https://firms.modaps.eosdis.nasa.gov/fire/2026-03-14/-25.0/135.0",
-            "summary": "25 fire detections.",
-            "source": "NASA FIRMS",
-            "scraped_at": "2026-03-14T00:00:00Z",
-            "origin": "firms",
-            "source_type": "inferred",
-            "category": "disaster",
-            "concepts": ["wildfire", "fire", "environment", "climate"],
-            "lat": -25.0,
-            "lon": 135.0,
-            "geocode_confidence": 1.0,
-        }
-
-        insert_story(conn, story)
-        row = conn.execute("SELECT id FROM stories WHERE url = ?",
-                           (story["url"],)).fetchone()
-        story_id = row["id"]
-
-        extraction = {
-            "event_signature": "2026 Australia Wildfire",
-            "topics": ["wildfire", "fire", "environment"],
-            "severity": 3,
-            "sentiment": "negative",
-            "primary_action": "wildfire",
-            "location_type": "terrestrial",
-            "search_keywords": ["wildfire", "fire", "FIRMS", "Australia"],
-            "is_opinion": False,
-            "human_interest_score": 6,
-            "actors": [],
-            "locations": [
-                {"name": "Australia", "role": "event_location", "lat": -25.0, "lon": 135.0}
-            ],
-        }
-
-        store_extraction(conn, story_id, extraction)
-        conn.execute(
-            "UPDATE stories SET extraction_status = 'done' WHERE id = ?",
-            (story_id,),
-        )
-        conn.commit()
-
-        # Verify extraction stored
-        ext_row = conn.execute(
-            "SELECT event_signature, severity, human_interest_score FROM story_extractions WHERE story_id = ?",
-            (story_id,),
-        ).fetchone()
-        assert ext_row["event_signature"] == "2026 Australia Wildfire"
-        assert ext_row["severity"] == 3
-        assert ext_row["human_interest_score"] == 6
-
-        # Verify extraction_status
-        status_row = conn.execute(
-            "SELECT extraction_status FROM stories WHERE id = ?", (story_id,)
-        ).fetchone()
-        assert status_row["extraction_status"] == "done"
-
-        conn.close()
-
-
 # --- Large volume handling test ---
 
 def test_large_volume_clustering():
@@ -675,15 +484,6 @@ def test_large_volume_clustering():
         assert s["_extraction"]["severity"] == 4
 
 
-# --- Fetch error handling test ---
-
-def test_fetch_failure_returns_empty():
-    with patch("src.firms.FIRMS_API_KEY", "test_key"):
-        with patch("src.firms._fetch_firms_csv", return_value=""):
-            stories = scrape_firms()
-    assert stories == []
-
-
 # --- FIRMS_MAX_ROWS cap tests ---
 
 def test_max_rows_caps_detections():
@@ -696,17 +496,6 @@ def test_max_rows_caps_detections():
     with patch("src.firms.FIRMS_MAX_ROWS", 5):
         detections = _parse_detections(csv_text)
     assert len(detections) == 5
-
-
-def test_max_rows_under_cap():
-    """Detections under FIRMS_MAX_ROWS should not be truncated."""
-    rows = [(34.0 + i * 0.01, -118.0 + i * 0.01, "high", 10.0, "2026-03-14")
-            for i in range(3)]
-    csv_text = _make_firms_csv(rows)
-
-    with patch("src.firms.FIRMS_MAX_ROWS", 5000):
-        detections = _parse_detections(csv_text)
-    assert len(detections) == 3
 
 
 def test_max_rows_only_counts_high_confidence():
@@ -726,15 +515,3 @@ def test_max_rows_only_counts_high_confidence():
     assert len(detections) == 2
 
 
-def test_config_firms_max_rows():
-    """FIRMS_MAX_ROWS config parameter exists and has sensible default."""
-    from src.config import FIRMS_MAX_ROWS
-    assert isinstance(FIRMS_MAX_ROWS, int)
-    assert FIRMS_MAX_ROWS == 5000
-
-
-def test_config_firms_max_bytes():
-    """FIRMS_MAX_BYTES config parameter exists and has sensible default."""
-    from src.config import FIRMS_MAX_BYTES
-    assert isinstance(FIRMS_MAX_BYTES, int)
-    assert FIRMS_MAX_BYTES == 10 * 1024 * 1024

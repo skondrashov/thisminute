@@ -59,17 +59,21 @@ scheduler = PipelineScheduler()
 # ---------------------------------------------------------------------------
 
 def _check_rate_limit(store: dict, key: str, max_calls: int = 5,
-                      window_seconds: float = 60.0) -> bool:
+                      window_seconds: float = 60.0,
+                      record: bool = True) -> bool:
     """Return True if the rate limit is exceeded for *key*.
 
     *store* is a ``dict[str, list[float]]`` that persists between calls.
+    When *record* is False the call is checked but not recorded — useful
+    for multi-tier checks that want to verify all tiers before committing.
     """
     now = _time.time()
     window = store.setdefault(key, [])
     window[:] = [t for t in window if now - t < window_seconds]
     if len(window) >= max_calls:
         return True
-    window.append(now)
+    if record:
+        window.append(now)
     # Periodic sweep: prune keys whose timestamps have all expired to
     # prevent unbounded memory growth from one-time callers.
     if len(store) > 500:
@@ -78,6 +82,95 @@ def _check_rate_limit(store: dict, key: str, max_calls: int = 5,
         for k in stale:
             store.pop(k, None)
     return False
+
+
+def _record_rate_limit(store: dict, key: str) -> None:
+    """Record a successful request for *key* (append current timestamp)."""
+    store.setdefault(key, []).append(_time.time())
+
+
+def _get_client_ip(request: Request) -> str:
+    """Extract client IP from request, respecting X-Forwarded-For behind nginx."""
+    forwarded = request.headers.get("x-forwarded-for")
+    if forwarded:
+        # Take the first (leftmost) IP — this is the original client IP
+        # when behind a trusted reverse proxy (nginx).
+        return forwarded.split(",")[0].strip()
+    return request.client.host if request.client else "unknown"
+
+
+def _check_write_rate(request: Request, store: dict, browser_hash: str,
+                      max_per_key: int = 5, max_per_ip: int = 20,
+                      window_seconds: float = 60.0) -> bool:
+    """Two-tier rate limit: per-browser_hash AND per-IP.
+
+    Returns True if EITHER limit is exceeded. The per-IP limit is a
+    fallback that prevents bypass via browser_hash rotation. The per-IP
+    limit is intentionally more generous (20/min default) since multiple
+    legitimate users may share an IP (NAT, corporate proxy).
+
+    Both tiers are checked *before* recording, so a request rejected by
+    the IP tier does not consume per-hash budget (and vice-versa).
+    """
+    bh_key = f"bh:{browser_hash}"
+    ip = _get_client_ip(request)
+    ip_key = f"ip:{ip}"
+    # Check both tiers WITHOUT recording first
+    if _check_rate_limit(store, bh_key, max_calls=max_per_key,
+                         window_seconds=window_seconds, record=False):
+        return True
+    if _check_rate_limit(store, ip_key, max_calls=max_per_ip,
+                         window_seconds=window_seconds, record=False):
+        return True
+    # Both passed — now record for both tiers
+    _record_rate_limit(store, bh_key)
+    _record_rate_limit(store, ip_key)
+    return False
+
+
+# ---------------------------------------------------------------------------
+# Global write budgets — cap total rows in user-writable tables to prevent
+# DB bloat from sustained abuse.  Checked on every write; cached briefly.
+# ---------------------------------------------------------------------------
+_GLOBAL_FEEDBACK_MAX = 10_000   # total feedback rows across all users
+_GLOBAL_USER_FEEDS_MAX = 5_000  # total user_feeds rows across all users
+
+_budget_cache: dict[str, tuple[float, int]] = {}  # table -> (expires, count)
+
+_BUDGET_TABLES = frozenset({"user_feedback", "user_feeds"})
+
+_BUDGET_WINDOW_DAYS = {
+    "user_feedback": 90,   # only count last 90 days of feedback toward budget
+    "user_feeds": 0,       # all rows count (users actively manage feeds)
+}
+
+def _check_global_budget(conn, table: str, limit: int) -> bool:
+    """Return True if the global row count for *table* exceeds *limit*.
+
+    Caches the count for 30 seconds to avoid repeated COUNT(*) on every write.
+    Only whitelisted table names are allowed (prevents SQL injection via the
+    f-string even though current callers always pass constants).
+
+    For tables with a budget window (e.g. user_feedback), only rows from the
+    last N days count toward the budget.  Older rows stay for admin review
+    but don't permanently block new submissions.
+    """
+    if table not in _BUDGET_TABLES:
+        return True  # unknown table -> deny writes as a safety default
+    now = _time.time()
+    cached = _budget_cache.get(table)
+    if cached and now < cached[0]:
+        return cached[1] >= limit
+    window_days = _BUDGET_WINDOW_DAYS.get(table, 0)
+    if window_days > 0:
+        count = conn.execute(
+            f"SELECT COUNT(*) FROM {table} WHERE created_at > datetime('now', ?)",
+            (f"-{window_days} days",),
+        ).fetchone()[0]
+    else:
+        count = conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
+    _budget_cache[table] = (now + 30, count)
+    return count >= limit
 
 
 @asynccontextmanager
@@ -90,6 +183,59 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="thisminute", lifespan=lifespan)
+
+# ---------------------------------------------------------------------------
+# Request body size limit middleware — reject POST/PUT/PATCH bodies > 64 KB.
+# Prevents memory exhaustion from oversized payloads. Static files and GET
+# requests are unaffected.
+# ---------------------------------------------------------------------------
+_MAX_BODY_BYTES = 64 * 1024  # 64 KB — generous for JSON API payloads
+
+@app.middleware("http")
+async def limit_request_body(request: Request, call_next):
+    if request.method in ("POST", "PUT", "PATCH", "DELETE"):
+        content_length = request.headers.get("content-length")
+        if content_length:
+            try:
+                if int(content_length) > _MAX_BODY_BYTES:
+                    return JSONResponse(
+                        {"error": "request body too large"},
+                        status_code=413,
+                    )
+            except ValueError:
+                return JSONResponse(
+                    {"error": "invalid content-length"},
+                    status_code=400,
+                )
+        else:
+            # No Content-Length header (chunked transfer encoding).
+            # Read the body incrementally and reject if it exceeds the limit.
+            body = b""
+            async for chunk in request.stream():
+                body += chunk
+                if len(body) > _MAX_BODY_BYTES:
+                    return JSONResponse(
+                        {"error": "request body too large"},
+                        status_code=413,
+                    )
+            # Stash the read body so downstream handlers can access it.
+            # FastAPI's Request.body() will use _body if set.
+            request._body = body
+    return await call_next(request)
+
+
+# ---------------------------------------------------------------------------
+# Security response headers — applied to every response.
+# ---------------------------------------------------------------------------
+@app.middleware("http")
+async def add_security_headers(request: Request, call_next):
+    response = await call_next(request)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
+    return response
+
 
 # Mount static files
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
@@ -176,11 +322,25 @@ async def api_diagnostics():
     }
 
 
-_stories_cache = {"data": None, "expires": 0}  # in-memory cache for default stories query
-_stories_quick_cache = {"data": None, "expires": 0}  # in-memory cache for 300-story quick request
-_narratives_cache = {"data": None, "expires": 0}  # in-memory cache for default narratives query
-_events_cache = {"data": None, "expires": 0}  # in-memory cache for default events query
-_clouds_cache = {"data": None, "expires": 0}  # in-memory cache for default clouds query
+class _TTLCache:
+    """Simple in-memory TTL cache for endpoint responses."""
+    __slots__ = ("data", "expires")
+    def __init__(self):
+        self.data = None
+        self.expires = 0.0
+    def get(self):
+        if self.data is not None and _time.time() < self.expires:
+            return self.data
+        return None
+    def set(self, data, ttl: float):
+        self.data = data
+        self.expires = _time.time() + ttl
+
+_stories_cache = _TTLCache()
+_stories_quick_cache = _TTLCache()
+_narratives_cache = _TTLCache()
+_events_cache = _TTLCache()
+_clouds_cache = _TTLCache()
 
 
 @app.get("/api/stories")
@@ -197,17 +357,9 @@ async def api_stories(
     # Serve cached response for the default (no-filter) query
     is_default = not since and not source and not category and not concepts and not exclude and not search and limit == 2000
     is_quick = not since and not source and not category and not concepts and not exclude and not search and limit == 300
-    now = _time.time()
-    if is_default and _stories_cache["data"] and now < _stories_cache["expires"]:
-        return JSONResponse(
-            content=_stories_cache["data"],
-            headers={"Cache-Control": "public, max-age=15"},
-        )
-    if is_quick and _stories_quick_cache["data"] and now < _stories_quick_cache["expires"]:
-        return JSONResponse(
-            content=_stories_quick_cache["data"],
-            headers={"Cache-Control": "public, max-age=15"},
-        )
+    cached = (is_default and _stories_cache.get()) or (is_quick and _stories_quick_cache.get())
+    if cached:
+        return JSONResponse(content=cached, headers={"Cache-Control": "public, max-age=15"})
 
     concept_list = [c.strip() for c in concepts.split(",")] if concepts else None
     exclude_list = [c.strip() for c in exclude.split(",")] if exclude else None
@@ -307,11 +459,9 @@ async def api_stories(
 
     result = {"type": "FeatureCollection", "features": features}
     if is_default:
-        _stories_cache["data"] = result
-        _stories_cache["expires"] = now + 30  # 30s cache
+        _stories_cache.set(result, 30)
     elif is_quick:
-        _stories_quick_cache["data"] = result
-        _stories_quick_cache["expires"] = now + 30
+        _stories_quick_cache.set(result, 30)
     return JSONResponse(
         content=result,
         headers={"Cache-Control": "public, max-age=15"},
@@ -359,12 +509,9 @@ async def api_stories_clouds(
     reflecting location specificity (city=tight, country=wide).
     """
     is_default = not since and not source and not category and not concepts and not exclude and not search and limit == 500
-    now = _time.time()
-    if is_default and _clouds_cache["data"] and now < _clouds_cache["expires"]:
-        return JSONResponse(
-            content=_clouds_cache["data"],
-            headers={"Cache-Control": "public, max-age=30"},
-        )
+    cached = is_default and _clouds_cache.get()
+    if cached:
+        return JSONResponse(content=cached, headers={"Cache-Control": "public, max-age=30"})
 
     concept_list = [c.strip() for c in concepts.split(",")] if concepts else None
     exclude_list = [c.strip() for c in exclude.split(",")] if exclude else None
@@ -460,25 +607,21 @@ async def api_stories_clouds(
     conn.close()
     response_data = {"type": "FeatureCollection", "features": features}
     if is_default:
-        _clouds_cache["data"] = response_data
-        _clouds_cache["expires"] = now + 30  # 30s cache
+        _clouds_cache.set(response_data, 30)
     return JSONResponse(
         content=response_data,
         headers={"Cache-Control": "public, max-age=30"},
     )
 
 
-_sources_cache = {"data": None, "expires": 0}
+_sources_cache = _TTLCache()
 
 @app.get("/api/sources")
 async def api_sources():
     """Return list of source names with counts (cached in memory for 30 min)."""
-    now = _time.time()
-    if _sources_cache["data"] and now < _sources_cache["expires"]:
-        return JSONResponse(
-            content=_sources_cache["data"],
-            headers={"Cache-Control": "public, max-age=1800"},
-        )
+    cached = _sources_cache.get()
+    if cached:
+        return JSONResponse(content=cached, headers={"Cache-Control": "public, max-age=1800"})
 
     conn = get_connection()
     rows = conn.execute(
@@ -491,8 +634,7 @@ async def api_sources():
     conn.close()
 
     result = {"sources": sources, "counts": counts}
-    _sources_cache["data"] = result
-    _sources_cache["expires"] = now + 1800  # 30 min
+    _sources_cache.set(result, 1800)
     return JSONResponse(
         content=result,
         headers={"Cache-Control": "public, max-age=1800"},
@@ -532,17 +674,14 @@ async def api_categories():
     )
 
 
-_concepts_cache = {"data": None, "expires": 0}
+_concepts_cache = _TTLCache()
 
 @app.get("/api/concepts")
 async def api_concepts():
     """Return all known concepts grouped by domain."""
-    now = _time.time()
-    if _concepts_cache["data"] and now < _concepts_cache["expires"]:
-        return JSONResponse(
-            content=_concepts_cache["data"],
-            headers={"Cache-Control": "public, max-age=1800"},
-        )
+    cached = _concepts_cache.get()
+    if cached:
+        return JSONResponse(content=cached, headers={"Cache-Control": "public, max-age=1800"})
 
     # Count concepts using json_each() in SQL (avoids loading all stories into Python)
     conn = get_connection()
@@ -570,8 +709,7 @@ async def api_concepts():
             "concepts": concepts,
         }
 
-    _concepts_cache["data"] = result
-    _concepts_cache["expires"] = now + 1800  # 30 min
+    _concepts_cache.set(result, 1800)
     return JSONResponse(
         content=result,
         headers={"Cache-Control": "public, max-age=1800"},  # 30 min
@@ -637,37 +775,51 @@ def _topic_color(topic: str) -> str:
     return f"#{int(r*255):02x}{int(g*255):02x}{int(b*255):02x}"
 
 
+_trending_cache = _TTLCache()
+
 @app.get("/api/trending")
 async def api_trending():
     """Detect trending concepts by comparing recent vs baseline frequency.
 
     Compares concept frequency in last 3h vs last 24h.
-    Returns concepts sorted by spike ratio.
     """
+    cached = _trending_cache.get()
+    if cached:
+        return JSONResponse(content=cached, headers={"Cache-Control": "public, max-age=300"})
     conn = get_connection()
     now = datetime.now(timezone.utc)
     recent_cutoff = (now - timedelta(hours=3)).isoformat()
     baseline_cutoff = (now - timedelta(hours=24)).isoformat()
 
-    recent_rows = conn.execute(
-        "SELECT concepts FROM stories WHERE scraped_at > ?", (recent_cutoff,)
+    # Use json_each() to count concepts in SQL (avoids loading all rows into Python)
+    recent_total = conn.execute(
+        "SELECT COUNT(*) FROM stories WHERE scraped_at > ?", (recent_cutoff,)
+    ).fetchone()[0] or 1
+    baseline_total = conn.execute(
+        "SELECT COUNT(*) FROM stories WHERE scraped_at > ? AND scraped_at <= ?",
+        (baseline_cutoff, recent_cutoff),
+    ).fetchone()[0] or 1
+
+    recent_concept_rows = conn.execute(
+        """SELECT jc.value AS concept, COUNT(*) AS cnt
+           FROM stories s, json_each(s.concepts) jc
+           WHERE s.scraped_at > ?
+             AND s.concepts IS NOT NULL AND s.concepts != '[]'
+           GROUP BY jc.value""",
+        (recent_cutoff,),
     ).fetchall()
-    baseline_rows = conn.execute(
-        "SELECT concepts FROM stories WHERE scraped_at > ? AND scraped_at <= ?",
+    baseline_concept_rows = conn.execute(
+        """SELECT jc.value AS concept, COUNT(*) AS cnt
+           FROM stories s, json_each(s.concepts) jc
+           WHERE s.scraped_at > ? AND s.scraped_at <= ?
+             AND s.concepts IS NOT NULL AND s.concepts != '[]'
+           GROUP BY jc.value""",
         (baseline_cutoff, recent_cutoff),
     ).fetchall()
     conn.close()
 
-    def count_concepts(rows):
-        counts = {}
-        total = len(rows)
-        for row in rows:
-            for c in _json(row["concepts"] or "[]", []):
-                counts[c] = counts.get(c, 0) + 1
-        return counts, max(total, 1)
-
-    recent_counts, recent_total = count_concepts(recent_rows)
-    baseline_counts, baseline_total = count_concepts(baseline_rows)
+    recent_counts = {r["concept"]: r["cnt"] for r in recent_concept_rows}
+    baseline_counts = {r["concept"]: r["cnt"] for r in baseline_concept_rows}
 
     # Merge near-duplicate concept names (e.g. "china-economy" and "chinese-economy")
     def _normalize_concept(name):
@@ -717,7 +869,12 @@ async def api_trending():
             })
 
     trending.sort(key=lambda x: x["spike"], reverse=True)
-    return {"trending": trending[:15], "recent_stories": recent_total}
+    result = {"trending": trending[:15], "recent_stories": recent_total}
+    _trending_cache.set(result, 300)
+    return JSONResponse(
+        content=result,
+        headers={"Cache-Control": "public, max-age=300"},
+    )
 
 
 @app.get("/api/stats")
@@ -904,12 +1061,9 @@ async def api_events(
 ):
     """Return active events with sample stories and keywords."""
     is_default = (status is None and limit == 20 and min_stories == 2)
-    now = _time.time()
-    if is_default and _events_cache["data"] and now < _events_cache["expires"]:
-        return JSONResponse(
-            content=_events_cache["data"],
-            headers={"Cache-Control": "public, max-age=60"},
-        )
+    cached = is_default and _events_cache.get()
+    if cached:
+        return JSONResponse(content=cached, headers={"Cache-Control": "public, max-age=60"})
     conn = get_connection()
     events = get_all_events(conn, status=status, limit=limit, min_stories=min_stories)
 
@@ -993,8 +1147,7 @@ async def api_events(
     conn.close()
     response_data = {"events": result}
     if is_default:
-        _events_cache["data"] = response_data
-        _events_cache["expires"] = now + 60  # 1 min cache
+        _events_cache.set(response_data, 60)
     return JSONResponse(
         content=response_data,
         headers={"Cache-Control": "public, max-age=60"},
@@ -1195,12 +1348,9 @@ async def api_narratives(
 ):
     """Return active narratives with linked event counts."""
     is_default = (limit == 60)
-    now = _time.time()
-    if is_default and _narratives_cache["data"] and now < _narratives_cache["expires"]:
-        return JSONResponse(
-            content=_narratives_cache["data"],
-            headers={"Cache-Control": "public, max-age=120"},
-        )
+    cached = is_default and _narratives_cache.get()
+    if cached:
+        return JSONResponse(content=cached, headers={"Cache-Control": "public, max-age=120"})
     conn = get_connection()
     narratives = get_active_narratives(conn, limit=limit)
 
@@ -1297,8 +1447,7 @@ async def api_narratives(
     conn.close()
     response_data = {"narratives": result}
     if is_default:
-        _narratives_cache["data"] = response_data
-        _narratives_cache["expires"] = now + 120  # 2 min cache
+        _narratives_cache.set(response_data, 120)
     return JSONResponse(
         content=response_data,
         headers={"Cache-Control": "public, max-age=120"},
@@ -1341,7 +1490,8 @@ async def api_narrative_detail(narrative_id: int):
             f"""SELECT DISTINCT s.* FROM stories s
                 JOIN event_stories es ON s.id = es.story_id
                 WHERE es.event_id IN ({ph})
-                ORDER BY s.scraped_at DESC""",
+                ORDER BY s.scraped_at DESC
+                LIMIT 200""",
             event_ids,
         ).fetchall()
         for r in rows:
@@ -1393,17 +1543,14 @@ async def api_narrative_detail(narrative_id: int):
 
 # ==================== TOPICS & ACTORS ====================
 
-_topics_cache = {"data": None, "expires": 0}
+_topics_cache = _TTLCache()
 
 @app.get("/api/topics")
 async def api_topics():
     """Return emergent topics from LLM extraction with counts."""
-    now = _time.time()
-    if _topics_cache["data"] and now < _topics_cache["expires"]:
-        return JSONResponse(
-            content=_topics_cache["data"],
-            headers={"Cache-Control": "public, max-age=1800"},
-        )
+    cached = _topics_cache.get()
+    if cached:
+        return JSONResponse(content=cached, headers={"Cache-Control": "public, max-age=1800"})
 
     conn = get_connection()
     try:
@@ -1433,8 +1580,7 @@ async def api_topics():
         result = [{"name": name, "count": count} for name, count in sorted_topics[:100]]
     conn.close()
     response_data = {"topics": result}
-    _topics_cache["data"] = response_data
-    _topics_cache["expires"] = now + 1800  # 30 min
+    _topics_cache.set(response_data, 1800)
     return JSONResponse(
         content=response_data,
         headers={"Cache-Control": "public, max-age=1800"},  # 30 min
@@ -1495,7 +1641,7 @@ class FeedbackPayload(BaseModel):
     browser_hash: str = ""
 
 
-# In-memory rate limiter for feedback: max 5 per minute per browser_hash
+# In-memory rate limiter for feedback+delete: per-hash AND per-IP
 _feedback_rate: dict[str, list[float]] = {}
 
 @app.post("/api/feedback")
@@ -1503,20 +1649,37 @@ async def submit_feedback(payload: FeedbackPayload, request: Request):
     valid_types = {"doesnt_belong", "should_merge", "wrong_category", "general"}
     if payload.feedback_type not in valid_types:
         return JSONResponse({"error": "invalid type"}, status_code=400)
-    # Rate limit: 5 per minute per browser_hash (or IP if no hash)
-    key = payload.browser_hash[:64] or (request.client.host if request.client else "unknown")
-    if _check_rate_limit(_feedback_rate, key):
+    # Cap field lengths to prevent payload abuse
+    if len(payload.browser_hash) > 64:
+        return JSONResponse({"error": "browser_hash too long"}, status_code=400)
+    if payload.target_title and len(payload.target_title) > 500:
+        return JSONResponse({"error": "target_title too long"}, status_code=400)
+    if len(payload.message) > 1000:
+        return JSONResponse({"error": "message too long (max 1000 chars)"}, status_code=400)
+    # Cap context JSON depth/size: serialize and check size
+    try:
+        context_str = json.dumps(payload.context)
+        if len(context_str) > 4096:
+            return JSONResponse({"error": "context too large"}, status_code=400)
+    except (TypeError, ValueError):
+        context_str = "{}"
+    # Two-tier rate limit: per-hash (5/min) + per-IP fallback (20/min)
+    bh = payload.browser_hash[:64] or "anon"
+    if _check_write_rate(request, _feedback_rate, bh):
         return JSONResponse({"error": "rate limited"}, status_code=429)
     conn = get_connection()
     try:
+        # Global budget: cap total feedback rows
+        if _check_global_budget(conn, "user_feedback", _GLOBAL_FEEDBACK_MAX):
+            return JSONResponse({"error": "feedback capacity reached"}, status_code=503)
         conn.execute(
             """INSERT INTO user_feedback
                (feedback_type, target_type, target_id, target_title,
                 message, context_json, browser_hash, status, created_at)
                VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', ?)""",
             (payload.feedback_type, payload.target_type, payload.target_id,
-             payload.target_title, payload.message[:1000],
-             json.dumps(payload.context), payload.browser_hash[:64],
+             (payload.target_title or "")[:500], payload.message[:1000],
+             context_str, payload.browser_hash[:64],
              datetime.now(timezone.utc).isoformat()))
         conn.commit()
     finally:
@@ -1640,8 +1803,8 @@ def add_user_feed(payload: UserFeedPayload, request: Request):
         return JSONResponse({"error": "browser_hash is required"}, status_code=400)
     bh = payload.browser_hash[:64]
 
-    # Rate limit: 5 per minute per browser_hash
-    if _check_rate_limit(_user_feed_rate, bh):
+    # Two-tier rate limit: per-hash (5/min) + per-IP fallback (20/min)
+    if _check_write_rate(request, _user_feed_rate, bh):
         return JSONResponse({"error": "rate limited"}, status_code=429)
 
     # Validate URL format and security (also resolves hostname to pin the IP)
@@ -1654,9 +1817,13 @@ def add_user_feed(payload: UserFeedPayload, request: Request):
     if feed_tag not in _VALID_FEED_TAGS:
         return JSONResponse({"error": "invalid feed_tag, must be one of: " + ", ".join(sorted(_VALID_FEED_TAGS))}, status_code=400)
 
-    # Check max feeds per user
+    # Check max feeds per user and global budget
     conn = get_connection()
     try:
+        # Global budget: cap total user_feeds rows across all users
+        if _check_global_budget(conn, "user_feeds", _GLOBAL_USER_FEEDS_MAX):
+            return JSONResponse({"error": "feed capacity reached"}, status_code=503)
+
         count = conn.execute(
             "SELECT COUNT(*) FROM user_feeds WHERE browser_hash = ?", (bh,)
         ).fetchone()[0]
@@ -1690,19 +1857,32 @@ def add_user_feed(payload: UserFeedPayload, request: Request):
         )
         fetch_headers["Host"] = parsed_url.netloc
 
+    _FEED_MAX_BYTES = 2 * 1024 * 1024  # 2 MB — generous for RSS/Atom XML
     try:
         resp = _requests_lib.get(fetch_url, timeout=10, headers=fetch_headers,
-                                 allow_redirects=False)
-        # Reject redirects -- attacker could 302 to internal targets
-        if 300 <= resp.status_code < 400:
-            return JSONResponse({"error": "Feed URL redirects are not allowed"}, status_code=400)
-        resp.raise_for_status()
+                                 allow_redirects=False, stream=True)
+        with resp:
+            # Reject redirects -- attacker could 302 to internal targets
+            if 300 <= resp.status_code < 400:
+                return JSONResponse({"error": "Feed URL redirects are not allowed"}, status_code=400)
+            resp.raise_for_status()
+            # Read response body with size limit to prevent memory exhaustion
+            chunks = []
+            bytes_read = 0
+            for chunk in resp.iter_content(chunk_size=8192):
+                bytes_read += len(chunk)
+                if bytes_read > _FEED_MAX_BYTES:
+                    return JSONResponse({"error": "feed response too large"}, status_code=400)
+                chunks.append(chunk)
+            feed_body = b"".join(chunks)
+            enc = resp.encoding if isinstance(resp.encoding, str) else "utf-8"
+            feed_text = feed_body.decode(enc or "utf-8", errors="replace")
     except _requests_lib.Timeout:
         return JSONResponse({"error": "feed URL timed out (10s limit)"}, status_code=400)
-    except _requests_lib.RequestException as e:
-        return JSONResponse({"error": "could not fetch URL: %s" % str(e)[:200]}, status_code=400)
+    except _requests_lib.RequestException:
+        return JSONResponse({"error": "could not fetch URL"}, status_code=400)
 
-    is_feed, feed_title = _check_feed_content(resp.text[:50000])
+    is_feed, feed_title = _check_feed_content(feed_text[:50000])
     if not is_feed:
         return JSONResponse({"error": "URL does not appear to be an RSS or Atom feed"}, status_code=400)
 
@@ -1731,18 +1911,26 @@ def add_user_feed(payload: UserFeedPayload, request: Request):
             "is_active": bool(row["is_active"]),
             "created_at": row["created_at"],
         }
-    except Exception as e:
-        return JSONResponse({"error": "failed to save feed: %s" % str(e)[:200]}, status_code=500)
+    except Exception:
+        logging.getLogger("app").exception("failed to save user feed")
+        return JSONResponse({"error": "failed to save feed"}, status_code=500)
     finally:
         conn.close()
 
 
+_list_feeds_rate: dict[str, list[float]] = {}
+
 @app.get("/api/user-feeds")
-def list_user_feeds(hash: str = Query("", alias="hash")):
+def list_user_feeds(hash: str = Query("", alias="hash"),
+                    request: Request = None):
     """List feeds for a user by browser_hash."""
     if not hash:
         return JSONResponse({"error": "hash parameter is required"}, status_code=400)
     bh = hash[:64]
+    # Rate limit reads to prevent hash enumeration: 30/min per IP
+    ip = _get_client_ip(request) if request else "unknown"
+    if _check_rate_limit(_list_feeds_rate, f"ip:{ip}", max_calls=30):
+        return JSONResponse({"error": "rate limited"}, status_code=429)
     conn = get_connection()
     try:
         rows = conn.execute(
@@ -1766,12 +1954,20 @@ def list_user_feeds(hash: str = Query("", alias="hash")):
         conn.close()
 
 
+# Rate limiter for DELETE: shares store with user_feed writes
+_delete_feed_rate: dict[str, list[float]] = {}
+
 @app.delete("/api/user-feeds/{feed_id}")
-def delete_user_feed(feed_id: int, hash: str = Query("", alias="hash")):
+def delete_user_feed(feed_id: int, hash: str = Query("", alias="hash"),
+                     request: Request = None):
     """Delete a user feed (only if browser_hash matches)."""
     if not hash:
         return JSONResponse({"error": "hash parameter is required"}, status_code=400)
     bh = hash[:64]
+    # Rate limit DELETEs: 10/min per hash, 30/min per IP
+    if _check_write_rate(request, _delete_feed_rate, bh,
+                         max_per_key=10, max_per_ip=30):
+        return JSONResponse({"error": "rate limited"}, status_code=429)
     conn = get_connection()
     try:
         row = conn.execute(

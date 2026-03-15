@@ -8,6 +8,8 @@ import json
 import tempfile
 from pathlib import Path
 
+import pytest
+
 from src.semantic_clusterer import (
     _extract_entertainment_key,
     _signature_similarity,
@@ -19,73 +21,43 @@ from src.database import init_db, get_connection
 
 # --- Entertainment key extraction tests ---
 
-def test_entertainment_key_oscars():
-    assert _extract_entertainment_key("2026 Academy Awards") is not None
-    key = _extract_entertainment_key("2026 Academy Awards")
-    assert "academy award" in key
-    key2 = _extract_entertainment_key("2026 Oscars")
-    assert key2 is not None
-    assert "oscar" in key2
-
-
-def test_entertainment_key_grammys():
-    key = _extract_entertainment_key("2026 Grammy Awards")
+@pytest.mark.parametrize("title,expected_fragment", [
+    ("2026 Academy Awards", "academy award"),
+    ("2026 Oscars", "oscar"),
+    ("2026 Grammy Awards", "grammy"),
+    ("2026 Emmy Awards", "emmy"),
+    ("2026 Golden Globes", "golden globe"),
+    ("2026 BAFTA Awards", "bafta"),
+    ("2026 Tony Awards", "tony"),
+])
+def test_award_show_keys(title, expected_fragment):
+    key = _extract_entertainment_key(title)
     assert key is not None
-    assert "grammy" in key
+    assert expected_fragment in key
 
 
-def test_entertainment_key_emmys():
-    key = _extract_entertainment_key("2026 Emmy Awards")
+@pytest.mark.parametrize("title,expected_fragment", [
+    ("2026 Cannes Film Festival", "cannes"),
+    ("2026 Sundance Film Festival", "sundance"),
+    ("2026 Venice Film Festival", "venice"),
+    ("2026 Toronto International Festival", "toronto"),
+    ("2026 SXSW Festival", "sxsw"),
+])
+def test_festival_keys(title, expected_fragment):
+    key = _extract_entertainment_key(title)
     assert key is not None
-    assert "emmy" in key
+    assert expected_fragment in key
 
 
-def test_entertainment_key_golden_globes():
-    key = _extract_entertainment_key("2026 Golden Globes")
+@pytest.mark.parametrize("title,expected_fragment", [
+    ("BTS Military Service Comeback", "bts"),
+    ("BLACKPINK 2026 Comeback", "blackpink"),
+    ("Bollywood Box Office Release", "bollywood"),
+])
+def test_kpop_bollywood_keys(title, expected_fragment):
+    key = _extract_entertainment_key(title)
     assert key is not None
-    assert "golden globe" in key
-
-
-def test_entertainment_key_bafta():
-    key = _extract_entertainment_key("2026 BAFTA Awards")
-    assert key is not None
-    assert "bafta" in key
-
-
-def test_entertainment_key_tonys():
-    key = _extract_entertainment_key("2026 Tony Awards")
-    assert key is not None
-    assert "tony" in key
-
-
-def test_entertainment_key_cannes():
-    key = _extract_entertainment_key("2026 Cannes Film Festival")
-    assert key is not None
-    assert "cannes" in key
-
-
-def test_entertainment_key_sundance():
-    key = _extract_entertainment_key("2026 Sundance Film Festival")
-    assert key is not None
-    assert "sundance" in key
-
-
-def test_entertainment_key_venice():
-    key = _extract_entertainment_key("2026 Venice Film Festival")
-    assert key is not None
-    assert "venice" in key
-
-
-def test_entertainment_key_tiff():
-    key = _extract_entertainment_key("2026 Toronto International Festival")
-    assert key is not None
-    assert "toronto" in key
-
-
-def test_entertainment_key_sxsw():
-    key = _extract_entertainment_key("2026 SXSW Festival")
-    assert key is not None
-    assert "sxsw" in key
+    assert expected_fragment in key
 
 
 def test_entertainment_key_spider_man():
@@ -122,24 +94,6 @@ def test_entertainment_key_music_tour():
     key = _extract_entertainment_key("Taylor Swift Eras Tour")
     assert key is not None
     assert "tour" in key
-
-
-def test_entertainment_key_bts():
-    key = _extract_entertainment_key("BTS Military Service Comeback")
-    assert key is not None
-    assert "bts" in key
-
-
-def test_entertainment_key_blackpink():
-    key = _extract_entertainment_key("BLACKPINK 2026 Comeback")
-    assert key is not None
-    assert "blackpink" in key
-
-
-def test_entertainment_key_bollywood():
-    key = _extract_entertainment_key("Bollywood Box Office Release")
-    assert key is not None
-    assert "bollywood" in key
 
 
 def test_entertainment_key_none_for_news():
@@ -390,14 +344,10 @@ def test_the_bear_with_context():
     assert key2 is not None
 
 
-def test_star_wars_no_false_positive():
-    """'star wars' without franchise context should NOT match."""
+def test_star_wars_false_positive_and_context():
+    """'star wars' without franchise context should NOT match; with context should match."""
     assert _extract_entertainment_key("Star Wars is discussed in Congress") is None
     assert _extract_entertainment_key("Star Wars in Budget Debate") is None
-
-
-def test_star_wars_with_context():
-    """'star wars' WITH franchise context should match."""
     key = _extract_entertainment_key("Star Wars New Trilogy")
     assert key is not None
     assert "star wars" in key
@@ -405,13 +355,9 @@ def test_star_wars_with_context():
     assert key2 is not None
 
 
-def test_harry_potter_no_false_positive():
-    """'harry potter' without franchise context should NOT match."""
+def test_harry_potter_false_positive_and_context():
+    """'harry potter' without franchise context should NOT match; with context should match."""
     assert _extract_entertainment_key("Harry Potter is discussed in school board") is None
-
-
-def test_harry_potter_with_context():
-    """'harry potter' WITH franchise context should match."""
     key = _extract_entertainment_key("Harry Potter HBO Series")
     assert key is not None
     assert "harry potter" in key
@@ -421,11 +367,10 @@ def test_harry_potter_with_context():
 
 # --- Tests for domain-gated boost (Warning 3 from skeptic review) ---
 
-def test_boost_only_applies_to_domain_events():
-    """Verify that entertainment/sports boosts only apply to confirmed domain events."""
+def test_domain_boost_behavior():
+    """Entertainment/sports boosts only apply to confirmed domain events, not to bare news."""
     from src.semantic_clusterer import _best_event_match
 
-    # Create mock events and signatures
     events = [
         {"id": 1, "story_count": 5},  # news event
         {"id": 2, "story_count": 5},  # entertainment event
@@ -435,7 +380,7 @@ def test_boost_only_applies_to_domain_events():
         2: ["2026 Academy Awards Nominations"],
     }
 
-    # Without domain gating (empty sets), no boost should apply
+    # Without domain gating, no boost
     _, score_no_boost = _best_event_match(
         "2026 Academy Awards Ceremony",
         events,
@@ -444,74 +389,47 @@ def test_boost_only_applies_to_domain_events():
         entertainment_event_ids=set(),
     )
 
-    # With event 2 marked as entertainment, boost should apply to it
-    _, score_with_boost = _best_event_match(
+    # With event 2 as entertainment, boost applies; with event 1 as sports, sports boost applies
+    _, score_ent_boost = _best_event_match(
         "2026 Academy Awards Ceremony",
         events,
         event_sigs,
         sports_event_ids=set(),
         entertainment_event_ids={2},
     )
+    assert score_ent_boost >= score_no_boost
 
-    # The boosted score should be >= the non-boosted score
-    # (it may match event 2 with boost instead of event 1 without)
-    assert score_with_boost >= score_no_boost
-
-
-def test_sports_boost_not_applied_to_news_event():
-    """Sports boost should NOT apply when target event is not sports."""
-    from src.semantic_clusterer import _best_event_match
-
-    events = [
-        {"id": 1, "story_count": 5},  # news event with sports-sounding sig
-    ]
-    event_sigs = {
-        1: ["2026 Premier League Regulations"],
-    }
-
-    # With empty sports set, no boost even though sigs share tournament key
+    # Sports boost: Premier League event only boosted when marked as sports
+    sport_events = [{"id": 1, "story_count": 5}]
+    sport_sigs = {1: ["2026 Premier League Regulations"]}
     _, score_no_sports = _best_event_match(
         "2026 Premier League Transfers",
-        events,
-        event_sigs,
+        sport_events,
+        sport_sigs,
         sports_event_ids=set(),
         entertainment_event_ids=set(),
     )
-
-    # With event 1 marked as sports, boost should apply
     _, score_with_sports = _best_event_match(
         "2026 Premier League Transfers",
-        events,
-        event_sigs,
+        sport_events,
+        sport_sigs,
         sports_event_ids={1},
         entertainment_event_ids=set(),
     )
-
     assert score_with_sports >= score_no_sports
 
 
 if __name__ == "__main__":
     tests = [
-        test_entertainment_key_oscars,
-        test_entertainment_key_grammys,
-        test_entertainment_key_emmys,
-        test_entertainment_key_golden_globes,
-        test_entertainment_key_bafta,
-        test_entertainment_key_tonys,
-        test_entertainment_key_cannes,
-        test_entertainment_key_sundance,
-        test_entertainment_key_venice,
-        test_entertainment_key_tiff,
-        test_entertainment_key_sxsw,
+        test_award_show_keys,
+        test_festival_keys,
+        test_kpop_bollywood_keys,
         test_entertainment_key_spider_man,
         test_entertainment_key_marvel,
         test_entertainment_key_star_wars,
         test_entertainment_key_game_of_thrones,
         test_entertainment_key_stranger_things,
         test_entertainment_key_music_tour,
-        test_entertainment_key_bts,
-        test_entertainment_key_blackpink,
-        test_entertainment_key_bollywood,
         test_entertainment_key_none_for_news,
         test_entertainment_key_none_for_sports,
         test_entertainment_key_none_for_empty,
@@ -533,12 +451,9 @@ if __name__ == "__main__":
         test_wednesday_with_context,
         test_the_bear_no_false_positive,
         test_the_bear_with_context,
-        test_star_wars_no_false_positive,
-        test_star_wars_with_context,
-        test_harry_potter_no_false_positive,
-        test_harry_potter_with_context,
-        test_boost_only_applies_to_domain_events,
-        test_sports_boost_not_applied_to_news_event,
+        test_star_wars_false_positive_and_context,
+        test_harry_potter_false_positive_and_context,
+        test_domain_boost_behavior,
     ]
     passed = 0
     failed = 0

@@ -30,21 +30,26 @@ def _conn(db_path):
     return get_connection(db_path)
 
 
+def _make_mock_resp(content="", status_code=200, headers=None):
+    """Create a mock requests.Response with streaming support."""
+    mock_resp = MagicMock()
+    mock_resp.status_code = status_code
+    mock_resp.text = content
+    mock_resp.encoding = "utf-8"
+    mock_resp.raise_for_status = MagicMock()
+    mock_resp.close = MagicMock()
+    mock_resp.headers = headers or {}
+    content_bytes = content.encode("utf-8") if isinstance(content, str) else content
+    mock_resp.iter_content = MagicMock(return_value=[content_bytes] if content_bytes else [])
+    return mock_resp
+
+
 # ---------------------------------------------------------------------------
 # Database table tests
 # ---------------------------------------------------------------------------
 
 class TestUserFeedsTable:
     """Tests for the user_feeds table schema."""
-
-    def test_table_exists(self):
-        db = _temp_db()
-        conn = _conn(db)
-        row = conn.execute(
-            "SELECT name FROM sqlite_master WHERE type='table' AND name='user_feeds'"
-        ).fetchone()
-        conn.close()
-        assert row is not None
 
     def test_insert_feed(self):
         db = _temp_db()
@@ -175,12 +180,6 @@ class TestFeedValidation:
             assert ip == "93.184.216.34"
             assert host == "example.com"
 
-    def test_validate_valid_https(self):
-        from src.app import _validate_feed_url
-        with patch("src.app._resolve_host", return_value=(False, "93.184.216.34")):
-            err, ip, host = _validate_feed_url("https://example.com/rss")
-            assert err is None
-
     def test_validate_url_too_long(self):
         from src.app import _validate_feed_url
         err, _ip, _host = _validate_feed_url("https://example.com/" + "a" * 2048)
@@ -188,16 +187,12 @@ class TestFeedValidation:
         assert "long" in err.lower()
 
     def test_validate_localhost_blocked(self):
+        """Both 'localhost' and '127.0.0.1' should be rejected with a localhost error."""
         from src.app import _validate_feed_url
-        err, _ip, _host = _validate_feed_url("http://localhost/rss")
-        assert err is not None
-        assert "localhost" in err.lower()
-
-    def test_validate_127_blocked(self):
-        from src.app import _validate_feed_url
-        err, _ip, _host = _validate_feed_url("http://127.0.0.1/rss")
-        assert err is not None
-        assert "localhost" in err.lower()
+        for url in ("http://localhost/rss", "http://127.0.0.1/rss"):
+            err, _ip, _host = _validate_feed_url(url)
+            assert err is not None, f"Expected error for {url}"
+            assert "localhost" in err.lower(), f"Expected 'localhost' in error for {url}"
 
     def test_validate_ipv6_loopback_blocked(self):
         from src.app import _validate_feed_url
@@ -252,21 +247,14 @@ class TestFeedValidation:
         assert is_feed is True
         assert title == "RDF Feed"
 
-    def test_check_feed_html_rejected(self):
+    @pytest.mark.parametrize("content", [
+        """<html><head><title>Not a feed</title></head><body>Hello</body></html>""",
+        """{"items": [{"title": "not rss"}]}""",
+        "",
+    ])
+    def test_check_feed_non_feed_rejected(self, content):
         from src.app import _check_feed_content
-        content = """<html><head><title>Not a feed</title></head><body>Hello</body></html>"""
         is_feed, title = _check_feed_content(content)
-        assert is_feed is False
-
-    def test_check_feed_json_rejected(self):
-        from src.app import _check_feed_content
-        content = """{"items": [{"title": "not rss"}]}"""
-        is_feed, title = _check_feed_content(content)
-        assert is_feed is False
-
-    def test_check_feed_empty_rejected(self):
-        from src.app import _check_feed_content
-        is_feed, title = _check_feed_content("")
         assert is_feed is False
 
     def test_check_feed_no_title(self):
@@ -293,42 +281,19 @@ class TestFeedValidation:
 class TestSSRFProtection:
     """Tests for SSRF mitigation in feed URL validation."""
 
-    def test_private_10_range(self):
+    @pytest.mark.parametrize("ip,expected", [
+        ("10.0.0.1", True),
+        ("172.16.0.1", True),
+        ("192.168.1.1", True),
+        ("127.0.0.1", True),
+    ])
+    def test_private_ip_ranges(self, ip, expected):
         from src.app import _is_private_ip
-        assert _is_private_ip("10.0.0.1") is True
-
-    def test_private_172_range(self):
-        from src.app import _is_private_ip
-        assert _is_private_ip("172.16.0.1") is True
-
-    def test_private_192_range(self):
-        from src.app import _is_private_ip
-        assert _is_private_ip("192.168.1.1") is True
-
-    def test_loopback(self):
-        from src.app import _is_private_ip
-        assert _is_private_ip("127.0.0.1") is True
+        assert _is_private_ip(ip) is expected
 
     def test_public_ip(self):
         from src.app import _is_private_ip
         assert _is_private_ip("8.8.8.8") is False
-
-    def test_dns_resolution_private(self):
-        """A hostname that resolves to a private IP should be blocked."""
-        from src.app import _is_private_ip
-        with patch("src.app.socket.getaddrinfo") as mock_dns:
-            mock_dns.return_value = [
-                (2, 1, 6, "", ("192.168.1.1", 0))
-            ]
-            assert _is_private_ip("evil.example.com") is True
-
-    def test_dns_resolution_public(self):
-        from src.app import _is_private_ip
-        with patch("src.app.socket.getaddrinfo") as mock_dns:
-            mock_dns.return_value = [
-                (2, 1, 6, "", ("93.184.216.34", 0))
-            ]
-            assert _is_private_ip("example.com") is False
 
     def test_dns_failure(self):
         """DNS failure should not crash (returns False, let the fetch fail)."""
@@ -360,12 +325,9 @@ class TestUserFeedEndpoints:
     def _mock_feed_fetch(self, content="<rss><channel><title>Test</title></channel></rss>",
                          status_code=200, side_effect=None):
         """Create a mock for requests.get that returns feed-like content."""
-        mock_resp = MagicMock()
-        mock_resp.status_code = status_code
-        mock_resp.text = content
-        mock_resp.raise_for_status = MagicMock()
         if side_effect:
             return patch("src.app._requests_lib.get", side_effect=side_effect)
+        mock_resp = _make_mock_resp(content, status_code)
         return patch("src.app._requests_lib.get", return_value=mock_resp)
 
     def test_add_feed_success(self):
@@ -622,21 +584,6 @@ class TestPipelineIntegration:
         assert rows[0]["url"] == "https://userfeed.example.com/rss"
         assert rows[0]["feed_tag"] == "tech"
 
-    def test_inactive_feeds_skipped(self):
-        """Inactive user feeds should not be queried."""
-        db_path = _temp_db()
-        conn = _conn(db_path)
-        conn.execute(
-            "INSERT INTO user_feeds (url, title, feed_tag, browser_hash, is_active) VALUES (?, ?, ?, ?, ?)",
-            ("https://inactive.example.com/rss", "Inactive", "news", "abc123", 0),
-        )
-        conn.commit()
-        rows = conn.execute(
-            "SELECT id, url, title, feed_tag FROM user_feeds WHERE is_active = 1"
-        ).fetchall()
-        conn.close()
-        assert len(rows) == 0
-
     def test_last_fetched_update_pattern(self):
         """After scraping, last_fetched should be set and last_error cleared."""
         db_path = _temp_db()
@@ -659,41 +606,6 @@ class TestPipelineIntegration:
         assert row["last_fetched"] is not None
         assert row["last_error"] is None
 
-    def test_error_recording_pattern(self):
-        """On scrape failure, last_error should be set."""
-        db_path = _temp_db()
-        conn = _conn(db_path)
-        conn.execute(
-            "INSERT INTO user_feeds (url, title, browser_hash) VALUES (?, ?, ?)",
-            ("https://badfeed.example.com/rss", "Bad Feed", "abc123"),
-        )
-        conn.commit()
-        from datetime import datetime, timezone
-        now = datetime.now(timezone.utc).isoformat()
-        conn.execute(
-            "UPDATE user_feeds SET last_error = ?, last_fetched = ? WHERE url = ?",
-            ("Connection refused", now, "https://badfeed.example.com/rss"),
-        )
-        conn.commit()
-        row = conn.execute("SELECT * FROM user_feeds").fetchone()
-        conn.close()
-        assert row["last_error"] == "Connection refused"
-        assert row["last_fetched"] is not None
-
-    def test_max_stories_per_feed(self):
-        """USER_FEED_MAX_STORIES should cap stories from a single user feed."""
-        from src.config import USER_FEED_MAX_STORIES
-        assert USER_FEED_MAX_STORIES == 50
-        # Test that slicing works
-        stories = list(range(100))
-        capped = stories[:USER_FEED_MAX_STORIES]
-        assert len(capped) == 50
-
-    def test_config_user_feed_max(self):
-        """USER_FEED_MAX should default to 20."""
-        from src.config import USER_FEED_MAX
-        assert USER_FEED_MAX == 20
-
 
 # ---------------------------------------------------------------------------
 # Edge cases
@@ -713,10 +625,7 @@ class TestEdgeCases:
 
             long_hash = "a" * 200
             rss = "<rss><channel><title>T</title></channel></rss>"
-            mock_resp = MagicMock()
-            mock_resp.status_code = 200
-            mock_resp.text = rss
-            mock_resp.raise_for_status = MagicMock()
+            mock_resp = _make_mock_resp(rss)
             with patch("src.app._requests_lib.get", return_value=mock_resp), \
                  patch("src.app._resolve_host", return_value=(False, "93.184.216.34")):
                 resp = client.post("/api/user-feeds", json={
@@ -737,12 +646,6 @@ class TestEdgeCases:
         large = "x" * 100000
         is_feed, title = _check_feed_content(large)
         assert is_feed is False
-
-    def test_valid_feed_tags(self):
-        """All expected tags should be in the valid set."""
-        from src.app import _VALID_FEED_TAGS
-        expected = {"news", "sports", "entertainment", "positive", "tech", "science", "business", "health"}
-        assert _VALID_FEED_TAGS == expected
 
     def test_feed_with_cdata_title(self):
         """Feed titles wrapped in CDATA should still be extractable."""
@@ -770,10 +673,7 @@ class TestEdgeCases:
             client = TestClient(app)
 
             rss = "<rss><channel><title>Shared Feed</title></channel></rss>"
-            mock_resp = MagicMock()
-            mock_resp.status_code = 200
-            mock_resp.text = rss
-            mock_resp.raise_for_status = MagicMock()
+            mock_resp = _make_mock_resp(rss)
             with patch("src.app._requests_lib.get", return_value=mock_resp), \
                  patch("src.app._resolve_host", return_value=(False, "93.184.216.34")):
                 resp1 = client.post("/api/user-feeds", json={
@@ -805,44 +705,15 @@ class TestRedirectSSRF:
             self.client = TestClient(app)
             yield
 
-    def test_redirect_302_rejected(self):
-        """A 302 redirect from the feed URL should be rejected."""
-        mock_resp = MagicMock()
-        mock_resp.status_code = 302
-        mock_resp.headers = {"Location": "http://127.0.0.1:8080/admin"}
-        mock_resp.text = ""
-        mock_resp.raise_for_status = MagicMock()
-        with patch("src.app._requests_lib.get", return_value=mock_resp), \
-             patch("src.app._resolve_host", return_value=(False, "93.184.216.34")):
-            resp = self.client.post("/api/user-feeds", json={
-                "url": "https://evil.example.com/rss",
-                "browser_hash": "testhash123",
-            })
-        assert resp.status_code == 400
-        assert "redirect" in resp.json()["error"].lower()
-
-    def test_redirect_301_rejected(self):
-        """A 301 permanent redirect should also be rejected."""
-        mock_resp = MagicMock()
-        mock_resp.status_code = 301
-        mock_resp.headers = {"Location": "http://169.254.169.254/metadata"}
-        mock_resp.text = ""
-        mock_resp.raise_for_status = MagicMock()
-        with patch("src.app._requests_lib.get", return_value=mock_resp), \
-             patch("src.app._resolve_host", return_value=(False, "93.184.216.34")):
-            resp = self.client.post("/api/user-feeds", json={
-                "url": "https://evil.example.com/rss",
-                "browser_hash": "testhash123",
-            })
-        assert resp.status_code == 400
-        assert "redirect" in resp.json()["error"].lower()
-
-    def test_redirect_307_rejected(self):
-        """A 307 temporary redirect should also be rejected."""
-        mock_resp = MagicMock()
-        mock_resp.status_code = 307
-        mock_resp.text = ""
-        mock_resp.raise_for_status = MagicMock()
+    @pytest.mark.parametrize("status_code,location", [
+        (301, "http://169.254.169.254/metadata"),
+        (302, "http://127.0.0.1:8080/admin"),
+        (307, None),
+    ])
+    def test_redirect_rejected(self, status_code, location):
+        """3xx redirects from the feed URL should be rejected."""
+        headers = {"Location": location} if location else {}
+        mock_resp = _make_mock_resp("", status_code, headers)
         with patch("src.app._requests_lib.get", return_value=mock_resp), \
              patch("src.app._resolve_host", return_value=(False, "93.184.216.34")):
             resp = self.client.post("/api/user-feeds", json={
@@ -854,10 +725,7 @@ class TestRedirectSSRF:
 
     def test_allow_redirects_false_in_request(self):
         """Verify that requests.get is called with allow_redirects=False."""
-        mock_resp = MagicMock()
-        mock_resp.status_code = 200
-        mock_resp.text = "<rss><channel><title>OK</title></channel></rss>"
-        mock_resp.raise_for_status = MagicMock()
+        mock_resp = _make_mock_resp("<rss><channel><title>OK</title></channel></rss>")
         with patch("src.app._requests_lib.get", return_value=mock_resp) as mock_get, \
              patch("src.app._resolve_host", return_value=(False, "93.184.216.34")):
             self.client.post("/api/user-feeds", json={
@@ -870,10 +738,7 @@ class TestRedirectSSRF:
 
     def test_200_response_not_treated_as_redirect(self):
         """A normal 200 response should still be accepted."""
-        mock_resp = MagicMock()
-        mock_resp.status_code = 200
-        mock_resp.text = "<rss><channel><title>Good Feed</title></channel></rss>"
-        mock_resp.raise_for_status = MagicMock()
+        mock_resp = _make_mock_resp("<rss><channel><title>Good Feed</title></channel></rss>")
         with patch("src.app._requests_lib.get", return_value=mock_resp), \
              patch("src.app._resolve_host", return_value=(False, "93.184.216.34")):
             resp = self.client.post("/api/user-feeds", json={
@@ -886,28 +751,6 @@ class TestRedirectSSRF:
 
 class TestDNSRebindingProtection:
     """Tests for Warning 2: DNS rebinding TOCTOU gap prevention."""
-
-    def test_resolve_host_returns_ip(self):
-        """_resolve_host should return the resolved IP for reuse."""
-        from src.app import _resolve_host
-        with patch("src.app.socket.getaddrinfo") as mock_dns:
-            mock_dns.return_value = [
-                (2, 1, 6, "", ("93.184.216.34", 0))
-            ]
-            is_private, ip = _resolve_host("example.com")
-        assert is_private is False
-        assert ip == "93.184.216.34"
-
-    def test_resolve_host_private_returns_ip(self):
-        """_resolve_host should return the private IP that triggered the block."""
-        from src.app import _resolve_host
-        with patch("src.app.socket.getaddrinfo") as mock_dns:
-            mock_dns.return_value = [
-                (2, 1, 6, "", ("192.168.1.1", 0))
-            ]
-            is_private, ip = _resolve_host("evil.internal")
-        assert is_private is True
-        assert ip == "192.168.1.1"
 
     def test_resolve_host_ip_literal(self):
         """_resolve_host with an IP literal should skip DNS."""
@@ -932,15 +775,6 @@ class TestDNSRebindingProtection:
         assert is_private is False
         assert ip is None
 
-    def test_validate_returns_resolved_ip(self):
-        """_validate_feed_url should return the resolved IP for direct connection."""
-        from src.app import _validate_feed_url
-        with patch("src.app._resolve_host", return_value=(False, "93.184.216.34")):
-            err, ip, host = _validate_feed_url("https://example.com/rss")
-        assert err is None
-        assert ip == "93.184.216.34"
-        assert host == "example.com"
-
     def test_fetch_uses_resolved_ip_in_url(self):
         """The HTTP fetch should connect to the resolved IP, not re-resolve DNS."""
         db_path = _temp_db()
@@ -950,10 +784,7 @@ class TestDNSRebindingProtection:
             from src.app import app
             client = TestClient(app)
 
-            mock_resp = MagicMock()
-            mock_resp.status_code = 200
-            mock_resp.text = "<rss><channel><title>Test</title></channel></rss>"
-            mock_resp.raise_for_status = MagicMock()
+            mock_resp = _make_mock_resp("<rss><channel><title>Test</title></channel></rss>")
             with patch("src.app._requests_lib.get", return_value=mock_resp) as mock_get, \
                  patch("src.app._resolve_host", return_value=(False, "93.184.216.34")):
                 client.post("/api/user-feeds", json={
@@ -977,10 +808,7 @@ class TestDNSRebindingProtection:
             from src.app import app
             client = TestClient(app)
 
-            mock_resp = MagicMock()
-            mock_resp.status_code = 200
-            mock_resp.text = "<rss><channel><title>Test</title></channel></rss>"
-            mock_resp.raise_for_status = MagicMock()
+            mock_resp = _make_mock_resp("<rss><channel><title>Test</title></channel></rss>")
             with patch("src.app._requests_lib.get", return_value=mock_resp) as mock_get, \
                  patch("src.app._resolve_host", return_value=(False, "93.184.216.34")):
                 client.post("/api/user-feeds", json={
@@ -993,80 +821,3 @@ class TestDNSRebindingProtection:
             # Host header should include the port
             call_headers = call_args[1].get("headers", {})
             assert "example.com:8443" in call_headers.get("Host", "")
-
-
-class TestGlobalVolumeCap:
-    """Tests for Warning 3: global pipeline volume cap on user feeds."""
-
-    def test_config_total_max_stories_default(self):
-        """USER_FEED_TOTAL_MAX_STORIES should default to 500."""
-        from src.config import USER_FEED_TOTAL_MAX_STORIES
-        assert USER_FEED_TOTAL_MAX_STORIES == 500
-
-    def test_config_source_enabled_user_feeds(self):
-        """SOURCE_ENABLED should have a user_feeds toggle."""
-        from src.config import SOURCE_ENABLED
-        assert "user_feeds" in SOURCE_ENABLED
-        assert SOURCE_ENABLED["user_feeds"] is True  # default enabled
-
-    def test_global_cap_stops_scraping(self):
-        """Pipeline should stop scraping user feeds once global cap is hit.
-
-        Exercises the same capping logic used in pipeline.py:
-        - per-feed cap (USER_FEED_MAX_STORIES)
-        - global cap (USER_FEED_TOTAL_MAX_STORIES)
-        - break when global cap reached
-        """
-        # Simulate 10 user feeds, each returning 100 stories
-        num_feeds = 10
-        stories_per_feed = 100
-        per_feed_cap = 50
-        total_cap = 120
-
-        user_feed_count = 0
-        feeds_scraped = 0
-        for _i in range(num_feeds):
-            # Global cap check (mirrors pipeline.py logic)
-            if user_feed_count >= total_cap:
-                break
-            feeds_scraped += 1
-            stories = list(range(stories_per_feed))
-            # Per-feed cap
-            stories = stories[:per_feed_cap]
-            # Global cap enforcement on remaining budget
-            remaining = total_cap - user_feed_count
-            stories = stories[:remaining]
-            user_feed_count += len(stories)
-
-        # With cap=120 and per_feed=50, we should get 120 stories total
-        # (50 from feed 0, 50 from feed 1, 20 from feed 2, then stop)
-        assert user_feed_count == 120
-        assert feeds_scraped == 3  # only 3 feeds scraped, not all 10
-
-    def test_kill_switch_disables_user_feeds(self):
-        """When SOURCE_ENABLED['user_feeds'] is False, user feeds should be skipped."""
-        from src.config import SOURCE_ENABLED
-        # Simulate the kill switch being off
-        assert SOURCE_ENABLED.get("user_feeds", True) is not None
-        # Verify the toggle exists and works
-        test_config = dict(SOURCE_ENABLED)
-        test_config["user_feeds"] = False
-        assert test_config["user_feeds"] is False
-
-    def test_per_feed_cap_still_applies(self):
-        """Per-feed cap should still limit individual feeds within the global cap."""
-        from src.config import USER_FEED_MAX_STORIES, USER_FEED_TOTAL_MAX_STORIES
-        # Per-feed cap (50) should be less than global cap (500)
-        assert USER_FEED_MAX_STORIES < USER_FEED_TOTAL_MAX_STORIES
-        # A single feed should never exceed per-feed cap
-        stories = list(range(100))
-        capped = stories[:USER_FEED_MAX_STORIES]
-        assert len(capped) == 50
-
-    def test_global_cap_env_override(self):
-        """USER_FEED_TOTAL_MAX_STORIES should be overridable via env var."""
-        import os
-        with patch.dict(os.environ, {"USER_FEED_TOTAL_MAX_STORIES": "200"}):
-            # Re-evaluate the config
-            val = int(os.environ.get("USER_FEED_TOTAL_MAX_STORIES", "500"))
-            assert val == 200

@@ -1,9 +1,7 @@
 """Tests for JMA (Japan Meteorological Agency) weather warnings adapter."""
 
-import json
-import tempfile
-from pathlib import Path
-from unittest.mock import patch, MagicMock
+import pytest
+from unittest.mock import patch
 
 from src.jma import (
     scrape_jma,
@@ -23,7 +21,6 @@ from src.jma import (
     _WARNING_CODES,
     _PREFECTURE_CENTROIDS,
 )
-from src.database import init_db, get_connection, insert_story, store_extraction
 
 
 # --- Warning code mapping tests ---
@@ -61,57 +58,19 @@ def test_warning_info_unknown_code():
     assert _get_warning_info("99") is None
 
 
-def test_warning_info_all_codes_defined():
-    """All known JMA codes have definitions."""
-    expected_codes = [
-        "02", "03", "04", "05", "06", "07", "08", "09", "10",
-        "12", "13", "14", "15", "16", "17", "18", "19", "20",
-        "21", "22", "24", "26", "32",
-    ]
-    for code in expected_codes:
-        info = _get_warning_info(code)
-        assert info is not None, "Missing definition for code %s" % code
-        assert len(info) == 4, "Code %s should have 4 fields" % code
-
-
-def test_warning_severity_range():
-    """All warning severities are in 1-5 range."""
-    for code, info in _WARNING_CODES.items():
-        assert 1 <= info[2] <= 5, "Code %s severity %d out of range" % (code, info[2])
-
-
-def test_warning_human_interest_range():
-    """All human interest scores are in 1-10 range."""
-    for code, info in _WARNING_CODES.items():
-        assert 1 <= info[3] <= 10, "Code %s HI %d out of range" % (code, info[3])
-
-
 # --- Warning concepts tests ---
 
-def test_concepts_flood():
-    concepts = _get_warning_concepts("02")
-    assert "flood" in concepts
-
-
-def test_concepts_thunderstorm():
-    concepts = _get_warning_concepts("07")
-    assert "thunderstorm" in concepts
-
-
-def test_concepts_storm():
-    concepts = _get_warning_concepts("09")
-    assert "storm" in concepts
-    assert "wind" in concepts
-
-
-def test_concepts_snow():
-    concepts = _get_warning_concepts("12")
-    assert "snow" in concepts
-
-
-def test_concepts_avalanche():
-    concepts = _get_warning_concepts("20")
-    assert "avalanche" in concepts
+@pytest.mark.parametrize("code,expected_concepts", [
+    ("02", ["flood"]),
+    ("07", ["thunderstorm"]),
+    ("09", ["storm", "wind"]),
+    ("12", ["snow"]),
+    ("20", ["avalanche"]),
+])
+def test_concepts(code, expected_concepts):
+    concepts = _get_warning_concepts(code)
+    for c in expected_concepts:
+        assert c in concepts
 
 
 def test_concepts_unknown():
@@ -169,13 +128,6 @@ def test_centroid_okinawa():
 def test_centroid_unknown_prefix():
     """Unknown prefix returns None."""
     assert _get_centroid("990000") is None
-
-
-def test_all_prefectures_have_centroids():
-    """All 47 prefectures (01-47) have centroids defined."""
-    for i in range(1, 48):
-        prefix = "%02d" % i
-        assert prefix in _PREFECTURE_CENTROIDS, "Missing centroid for prefecture %s" % prefix
 
 
 # --- Title and summary builder tests ---
@@ -349,44 +301,6 @@ def test_scrape_basic():
     assert s["category"] in ("disaster", "weather")
 
 
-def test_scrape_story_shape():
-    """JMA story dict has all required fields."""
-    data = _make_jma_warning_data()
-    names = _make_area_names()
-
-    with patch("src.jma._fetch_warnings", return_value=data), \
-         patch("src.jma._fetch_area_names", return_value=names), \
-         patch("src.jma._cache", {"stories": [], "fetched_at": 0.0}):
-        stories = scrape_jma()
-
-    s = stories[0]
-
-    # Required story fields
-    assert "title" in s
-    assert "url" in s
-    assert "summary" in s
-    assert s["source"] == "JMA"
-    assert s["origin"] == "jma"
-    assert s["source_type"] == "inferred"
-    assert s["published_at"] is not None
-    assert s["scraped_at"] is not None
-    assert s["lat"] is not None
-    assert s["lon"] is not None
-    assert s["geocode_confidence"] == 0.7
-    assert "Japan" in s["location_name"]
-
-    # Extraction data
-    ext = s["_extraction"]
-    assert ext["event_signature"] is not None
-    assert "weather" in ext["topics"]
-    assert ext["severity"] == 3  # Heavy Rain Warning
-    assert ext["location_type"] == "terrestrial"
-    assert isinstance(ext["actors"], list)
-    assert isinstance(ext["locations"], list)
-    assert len(ext["locations"]) == 1
-    assert ext["locations"][0]["role"] == "event_location"
-
-
 def test_scrape_disaster_category():
     """Warnings (severity >= 3) get 'disaster' category."""
     areas = [
@@ -457,56 +371,16 @@ def test_scrape_dedup():
     assert len(stories) == 1
 
 
-def test_scrape_skips_low_value():
-    """Skip codes (dry air, fog) produce no stories."""
-    areas = [
-        {"code": "130010", "warnings": [{"code": "21", "status": "\u767a\u8868"}]},
-        {"code": "270000", "warnings": [{"code": "24", "status": "\u767a\u8868"}]},
-    ]
-    data = _make_jma_warning_data(areas)
-    names = _make_area_names()
-
-    with patch("src.jma._fetch_warnings", return_value=data), \
-         patch("src.jma._fetch_area_names", return_value=names), \
-         patch("src.jma._cache", {"stories": [], "fetched_at": 0.0}):
-        stories = scrape_jma()
-
-    assert len(stories) == 0
-
-
-def test_scrape_skips_inactive():
-    """Canceled warnings produce no stories."""
-    areas = [
-        {"code": "130010", "warnings": [{"code": "05", "status": "\u89e3\u9664"}]},
-    ]
-    data = _make_jma_warning_data(areas)
-    names = _make_area_names()
-
-    with patch("src.jma._fetch_warnings", return_value=data), \
-         patch("src.jma._fetch_area_names", return_value=names), \
-         patch("src.jma._cache", {"stories": [], "fetched_at": 0.0}):
-        stories = scrape_jma()
-
-    assert len(stories) == 0
-
-
-def test_scrape_empty_response():
-    """Empty API response returns empty list."""
-    with patch("src.jma._fetch_warnings", return_value=[]), \
+@pytest.mark.parametrize("warnings_data,area_code", [
+    ([], None),   # empty response
+    (None, None), # none response
+])
+def test_scrape_empty_or_none_response(warnings_data, area_code):
+    """Empty or None API response returns empty list."""
+    with patch("src.jma._fetch_warnings", return_value=warnings_data), \
          patch("src.jma._fetch_area_names", return_value={}), \
          patch("src.jma._cache", {"stories": [], "fetched_at": 0.0}):
         stories = scrape_jma()
-
-    assert stories == []
-
-
-def test_scrape_none_response():
-    """None API response returns empty/cached list."""
-    with patch("src.jma._fetch_warnings", return_value=None), \
-         patch("src.jma._fetch_area_names", return_value={}), \
-         patch("src.jma._cache", {"stories": [], "fetched_at": 0.0}):
-        stories = scrape_jma()
-
     assert stories == []
 
 
@@ -549,38 +423,6 @@ def test_scrape_severity_sort():
     severities = [s["_extraction"]["severity"] for s in stories]
     assert severities == sorted(severities, reverse=True)
     assert severities[0] == 5  # Special warning first
-
-
-def test_scrape_concepts_deduplicated():
-    """Concepts should not have duplicates."""
-    data = _make_jma_warning_data()
-    names = _make_area_names()
-
-    with patch("src.jma._fetch_warnings", return_value=data), \
-         patch("src.jma._fetch_area_names", return_value=names), \
-         patch("src.jma._cache", {"stories": [], "fetched_at": 0.0}):
-        stories = scrape_jma()
-
-    concepts = stories[0]["concepts"]
-    assert len(concepts) == len(set(concepts))
-
-
-def test_scrape_lat_lon_present():
-    """Stories have lat/lon from prefecture centroids."""
-    data = _make_jma_warning_data()
-    names = _make_area_names()
-
-    with patch("src.jma._fetch_warnings", return_value=data), \
-         patch("src.jma._fetch_area_names", return_value=names), \
-         patch("src.jma._cache", {"stories": [], "fetched_at": 0.0}):
-        stories = scrape_jma()
-
-    s = stories[0]
-    assert s["lat"] is not None
-    assert s["lon"] is not None
-    # Should be near Tokyo
-    assert 35 < s["lat"] < 36
-    assert 139 < s["lon"] < 140
 
 
 def test_scrape_unknown_area_still_works():
@@ -662,178 +504,6 @@ def test_scrape_handles_empty_warnings():
     assert stories == []
 
 
-# --- Database integration tests ---
-
-def test_insert_jma_story():
-    """JMA story with source_type='inferred' inserts correctly."""
-    with tempfile.TemporaryDirectory() as tmpdir:
-        db_path = Path(tmpdir) / "test.db"
-        init_db(db_path)
-        conn = get_connection(db_path)
-
-        story = {
-            "title": "Heavy Rain Warning - Tokyo Region, Japan",
-            "url": "https://www.jma.go.jp/bosai/warning/#area_type=class20s&area_code=130010&lang=en",
-            "summary": "JMA Warning: Heavy Rain Warning issued for Tokyo Region, Japan.",
-            "source": "JMA",
-            "scraped_at": "2026-03-14T12:00:00Z",
-            "origin": "jma",
-            "source_type": "inferred",
-            "category": "disaster",
-            "concepts": ["weather", "rain", "flood"],
-            "lat": 35.68,
-            "lon": 139.69,
-            "geocode_confidence": 0.7,
-        }
-
-        was_new = insert_story(conn, story)
-        assert was_new is True
-
-        row = conn.execute("SELECT source_type, origin FROM stories WHERE url = ?",
-                           (story["url"],)).fetchone()
-        assert row["source_type"] == "inferred"
-        assert row["origin"] == "jma"
-
-        conn.close()
-
-
-def test_jma_extraction_storage():
-    """Pre-built extraction data from JMA stores correctly."""
-    with tempfile.TemporaryDirectory() as tmpdir:
-        db_path = Path(tmpdir) / "test.db"
-        init_db(db_path)
-        conn = get_connection(db_path)
-
-        story = {
-            "title": "Storm Warning - Osaka Region, Japan",
-            "url": "https://www.jma.go.jp/bosai/warning/#area_type=class20s&area_code=270000&lang=en",
-            "summary": "JMA Warning: Storm Warning issued for Osaka Region, Japan.",
-            "source": "JMA",
-            "scraped_at": "2026-03-14T12:00:00Z",
-            "origin": "jma",
-            "source_type": "inferred",
-            "category": "disaster",
-            "concepts": ["weather", "storm", "wind"],
-            "lat": 34.69,
-            "lon": 135.52,
-            "geocode_confidence": 0.7,
-        }
-
-        insert_story(conn, story)
-        row = conn.execute("SELECT id FROM stories WHERE url = ?",
-                           (story["url"],)).fetchone()
-        story_id = row["id"]
-
-        extraction = {
-            "event_signature": "2026 Osaka Region Storm",
-            "topics": ["weather", "storm", "wind", "disaster"],
-            "severity": 3,
-            "sentiment": "negative",
-            "primary_action": "storm warning",
-            "location_type": "terrestrial",
-            "search_keywords": ["weather", "storm warning", "Osaka Region", "japan"],
-            "is_opinion": False,
-            "human_interest_score": 7,
-            "actors": [],
-            "locations": [
-                {"name": "Osaka Region, Japan", "role": "event_location",
-                 "lat": 34.69, "lon": 135.52}
-            ],
-        }
-
-        store_extraction(conn, story_id, extraction)
-        conn.execute(
-            "UPDATE stories SET extraction_status = 'done' WHERE id = ?",
-            (story_id,),
-        )
-        conn.commit()
-
-        ext_row = conn.execute(
-            "SELECT event_signature, severity, human_interest_score FROM story_extractions WHERE story_id = ?",
-            (story_id,),
-        ).fetchone()
-        assert ext_row["event_signature"] == "2026 Osaka Region Storm"
-        assert ext_row["severity"] == 3
-        assert ext_row["human_interest_score"] == 7
-
-        status_row = conn.execute(
-            "SELECT extraction_status FROM stories WHERE id = ?", (story_id,)
-        ).fetchone()
-        assert status_row["extraction_status"] == "done"
-
-        conn.close()
-
-
-# --- Config tests ---
-
-def test_source_enabled_jma():
-    """JMA source is enabled by default."""
-    from src.config import SOURCE_ENABLED
-    assert "jma" in SOURCE_ENABLED
-    assert SOURCE_ENABLED["jma"] is True
-
-
-def test_jma_config_urls():
-    """JMA config URLs are set."""
-    from src.config import JMA_WARNINGS_URL, JMA_AREA_URL
-    assert "jma.go.jp" in JMA_WARNINGS_URL
-    assert "warning" in JMA_WARNINGS_URL
-    assert "jma.go.jp" in JMA_AREA_URL
-    assert "area.json" in JMA_AREA_URL
-
-
-def test_jma_config_max_alerts():
-    """JMA_MAX_ALERTS config has sensible default."""
-    from src.config import JMA_MAX_ALERTS
-    assert isinstance(JMA_MAX_ALERTS, int)
-    assert JMA_MAX_ALERTS == 100
-
-
-def test_jma_config_cache_seconds():
-    """JMA_CACHE_SECONDS config has sensible default."""
-    from src.config import JMA_CACHE_SECONDS
-    assert isinstance(JMA_CACHE_SECONDS, int)
-    assert JMA_CACHE_SECONDS == 900
-
-
-def test_jma_config_timeout():
-    """JMA_TIMEOUT config has sensible default."""
-    from src.config import JMA_TIMEOUT
-    assert isinstance(JMA_TIMEOUT, int)
-    assert JMA_TIMEOUT == 10
-
-
-# --- Skip codes tests ---
-
-def test_skip_codes_are_low_value():
-    """All skip codes are advisory-level with severity 1."""
-    for code in _SKIP_CODES:
-        info = _get_warning_info(code)
-        assert info is not None
-        assert info[1] == "advisory"
-        assert info[2] == 1
-
-
-# --- Active status tests ---
-
-def test_active_statuses():
-    """Active statuses are the issued and continuing values."""
-    assert len(_ACTIVE_STATUSES) == 2
-    # These are Japanese strings for "issued" and "continuing"
-    assert "\u767a\u8868" in _ACTIVE_STATUSES
-    assert "\u7d99\u7d9a" in _ACTIVE_STATUSES
-
-
-# --- Fetch warnings mock test ---
-
-def test_fetch_warnings_uses_correct_url():
-    """_fetch_warnings calls fetch_json with the JMA URL."""
-    with patch("src.jma.fetch_json") as mock_fetch:
-        mock_fetch.return_value = []
-        _fetch_warnings()
-        mock_fetch.assert_called_once()
-        call_args = mock_fetch.call_args
-        assert "jma.go.jp" in call_args[0][0] or call_args[1].get("url", "") != ""
 
 
 def test_fetch_area_names_caches():

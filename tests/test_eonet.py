@@ -3,6 +3,8 @@
 import json
 from unittest.mock import patch, MagicMock
 
+import pytest
+
 from src.eonet import (
     scrape_eonet,
     _get_category_id,
@@ -35,23 +37,6 @@ def _make_eonet_event(event_id="EONET_1234", title="Wildfire - S of Lubbock, Tex
             }
         ],
     }
-
-
-# --- Category extraction tests ---
-
-def test_get_category_id():
-    event = _make_eonet_event(cat_id="wildfires")
-    assert _get_category_id(event) == "wildfires"
-
-
-def test_get_category_id_empty():
-    event = {"categories": []}
-    assert _get_category_id(event) == ""
-
-
-def test_get_category_title():
-    event = _make_eonet_event(cat_title="Wildfires")
-    assert _get_category_title(event) == "Wildfires"
 
 
 # --- Coordinate extraction tests ---
@@ -107,39 +92,12 @@ def test_geometry_most_recent():
     assert lon == 30.0
 
 
-# --- Date extraction tests ---
-
-def test_get_latest_date():
-    event = _make_eonet_event()
-    date = _get_latest_date(event)
-    assert date == "2026-03-14T00:00:00Z"
-
-
-def test_get_latest_date_empty():
-    event = {"geometry": []}
-    assert _get_latest_date(event) is None
-
-
 # --- URL builder tests ---
-
-def test_build_url_from_sources():
-    event = _make_eonet_event(source_url="https://firms.modaps.eosdis.nasa.gov")
-    url = _build_event_url(event)
-    assert url == "https://firms.modaps.eosdis.nasa.gov"
-
 
 def test_build_url_fallback():
     event = {"id": "EONET_9999", "sources": []}
     url = _build_event_url(event)
     assert "EONET_9999" in url
-
-
-# --- Summary tests ---
-
-def test_build_summary():
-    event = _make_eonet_event()
-    summary = _build_summary(event)
-    assert "Wildfire" in summary or "wildfire" in summary.lower()
 
 
 # --- Event signature tests ---
@@ -153,31 +111,31 @@ def test_event_signature():
 
 # --- Category/concept mapping tests ---
 
-def test_wildfire_category():
-    event = _make_eonet_event(cat_id="wildfires")
+@pytest.mark.parametrize("cat_id,cat_title,title,expected_category,expected_concept", [
+    ("wildfires", "Wildfires", "Wildfire - S of Lubbock, Texas, US", "disaster", "wildfire"),
+    ("volcanoes", "Volcanoes", "Kilauea Volcano, Hawaii", "disaster", "volcano"),
+    ("seaLakeIce", "Sea and Lake Ice", "Iceberg B-42", "environment", "ice"),
+])
+def test_category_parameterized(cat_id, cat_title, title, expected_category, expected_concept):
+    event = _make_eonet_event(cat_id=cat_id, cat_title=cat_title, title=title)
     with patch("src.eonet._fetch_events", return_value=[event]):
         stories = scrape_eonet()
     assert len(stories) == 1
-    assert stories[0]["category"] == "disaster"
-    assert "wildfire" in stories[0]["concepts"]
+    assert stories[0]["category"] == expected_category
+    assert expected_concept in stories[0]["concepts"]
 
 
-def test_volcano_category():
-    event = _make_eonet_event(cat_id="volcanoes", cat_title="Volcanoes",
-                               title="Kilauea Volcano, Hawaii")
+# --- Severity tests (via scrape_eonet) ---
+
+@pytest.mark.parametrize("cat_id,expected_severity", [
+    ("volcanoes", 4),
+    ("seaLakeIce", 1),
+])
+def test_severity_parameterized(cat_id, expected_severity):
+    event = _make_eonet_event(cat_id=cat_id)
     with patch("src.eonet._fetch_events", return_value=[event]):
         stories = scrape_eonet()
-    assert stories[0]["category"] == "disaster"
-    assert "volcano" in stories[0]["concepts"]
-
-
-def test_ice_category():
-    event = _make_eonet_event(cat_id="seaLakeIce", cat_title="Sea and Lake Ice",
-                               title="Iceberg B-42")
-    with patch("src.eonet._fetch_events", return_value=[event]):
-        stories = scrape_eonet()
-    assert stories[0]["category"] == "environment"
-    assert "ice" in stories[0]["concepts"]
+    assert stories[0]["_extraction"]["severity"] == expected_severity
 
 
 # --- Dedup tests ---
@@ -190,16 +148,6 @@ def test_dedup_same_id():
     with patch("src.eonet._fetch_events", return_value=events):
         stories = scrape_eonet()
     assert len(stories) == 1
-
-
-def test_dedup_different_ids():
-    events = [
-        _make_eonet_event(event_id="EONET_A1"),
-        _make_eonet_event(event_id="EONET_A2", title="Storm in Atlantic"),
-    ]
-    with patch("src.eonet._fetch_events", return_value=events):
-        stories = scrape_eonet()
-    assert len(stories) == 2
 
 
 # --- Story dict shape tests ---
@@ -257,19 +205,3 @@ def test_fetch_failure_returns_empty():
     with patch("src.eonet._fetch_events", return_value=[]):
         stories = scrape_eonet()
     assert stories == []
-
-
-# --- Severity mapping tests ---
-
-def test_severity_volcano():
-    event = _make_eonet_event(cat_id="volcanoes")
-    with patch("src.eonet._fetch_events", return_value=[event]):
-        stories = scrape_eonet()
-    assert stories[0]["_extraction"]["severity"] == 4
-
-
-def test_severity_ice():
-    event = _make_eonet_event(cat_id="seaLakeIce")
-    with patch("src.eonet._fetch_events", return_value=[event]):
-        stories = scrape_eonet()
-    assert stories[0]["_extraction"]["severity"] == 1

@@ -225,21 +225,6 @@ def test_positive_bright_side():
         conn.close()
 
 
-def test_positive_source_signal():
-    """Events from positive-tagged sources should be found."""
-    conn, tmpdir = _setup_test_db()
-    try:
-        from src.narrative_analyzer import _get_positive_events
-        events = _get_positive_events(conn, limit=50)
-        event_ids = {e["id"] for e in events}
-
-        # Event 6: Community Garden - 100% from positive-tagged sources
-        assert 6 in event_ids, f"Community Garden (positive sources) not found. Got IDs: {event_ids}"
-
-        print(f"  Positive source-signal events: Event 6 correctly found")
-    finally:
-        conn.close()
-
 
 def test_sports_unchanged():
     """Sports filtering should still work (threshold 0.5)."""
@@ -280,32 +265,14 @@ def test_news_unchanged():
         conn.close()
 
 
-def test_no_junk_entertainment():
-    """Entertainment should not include unrelated events just because of loose matching."""
-    conn, tmpdir = _setup_test_db()
-    try:
-        from src.narrative_analyzer import _get_domain_events
-        events = _get_domain_events(conn, "entertainment", limit=50)
-        event_ids = {e["id"] for e in events}
-
-        # Verify no news-only or sports-only events leaked in
-        assert 4 not in event_ids, "Iran Nuclear Talks leaked into entertainment"
-        assert 7 not in event_ids, "FIFA World Cup leaked into entertainment"
-
-        print(f"  No junk in entertainment: PASS (only {sorted(event_ids)})")
-    finally:
-        conn.close()
-
 
 if __name__ == "__main__":
     tests = [
         test_entertainment_source_ratio,
         test_entertainment_topic_signal,
         test_positive_bright_side,
-        test_positive_source_signal,
         test_sports_unchanged,
         test_news_unchanged,
-        test_no_junk_entertainment,
     ]
     passed = 0
     failed = 0

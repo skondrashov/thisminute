@@ -2,6 +2,11 @@
 
 Read this if your task touches the pipeline, LLM extraction, clustering, geocoding, or data quality.
 
+## Environment Notes
+
+- `flush=True` on all prints in background tasks
+- Avoid unicode in print — cp1252 can't encode arrows/special chars on Windows
+
 ## Pipeline Flow
 
 Every 15 minutes, `scheduler.py` runs `pipeline.py`:

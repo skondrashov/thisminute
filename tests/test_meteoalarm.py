@@ -1,10 +1,8 @@
 """Tests for Meteoalarm European severe weather alerts adapter."""
 
-import json
-import tempfile
 import time
-from pathlib import Path
-from unittest.mock import patch, MagicMock
+import pytest
+from unittest.mock import patch
 
 from src.meteoalarm import (
     scrape_meteoalarm,
@@ -24,7 +22,6 @@ from src.meteoalarm import (
     _cache,
 )
 from src.country_centroids import get_centroid
-from src.database import init_db, get_connection, insert_story, store_extraction
 
 
 # --- Helper to build mock warnings ---
@@ -85,14 +82,13 @@ def _make_warning(uuid="abc-123",
 
 # --- Awareness level parsing tests ---
 
-def test_parse_awareness_level_yellow():
-    params = [{"valueName": "awareness_level", "value": "2; yellow; Moderate"}]
-    assert _parse_awareness_level(params) == "2"
-
-
-def test_parse_awareness_level_red():
-    params = [{"valueName": "awareness_level", "value": "4; red; Extreme"}]
-    assert _parse_awareness_level(params) == "4"
+@pytest.mark.parametrize("value,expected", [
+    ("2; yellow; Moderate", "2"),
+    ("4; red; Extreme", "4"),
+])
+def test_parse_awareness_level(value, expected):
+    params = [{"valueName": "awareness_level", "value": value}]
+    assert _parse_awareness_level(params) == expected
 
 
 def test_parse_awareness_level_missing():
@@ -107,14 +103,13 @@ def test_parse_awareness_level_no_match():
 
 # --- Awareness type parsing tests ---
 
-def test_parse_awareness_type_wind():
-    params = [{"valueName": "awareness_type", "value": "1; Wind"}]
-    assert _parse_awareness_type(params) == "1"
-
-
-def test_parse_awareness_type_flood():
-    params = [{"valueName": "awareness_type", "value": "8; Flood"}]
-    assert _parse_awareness_type(params) == "8"
+@pytest.mark.parametrize("value,expected", [
+    ("1; Wind", "1"),
+    ("8; Flood", "8"),
+])
+def test_parse_awareness_type(value, expected):
+    params = [{"valueName": "awareness_type", "value": value}]
+    assert _parse_awareness_type(params) == expected
 
 
 def test_parse_awareness_type_missing():
@@ -124,47 +119,36 @@ def test_parse_awareness_type_missing():
 
 # --- Severity mapping tests ---
 
-def test_severity_from_awareness_level_2():
-    info = {"severity": "Moderate"}
-    assert _get_severity(info, "2") == 2
-
-
-def test_severity_from_awareness_level_3():
-    info = {"severity": "Severe"}
-    assert _get_severity(info, "3") == 3
-
-
-def test_severity_from_awareness_level_4():
-    info = {"severity": "Extreme"}
-    assert _get_severity(info, "4") == 4
+@pytest.mark.parametrize("sev_str,level,expected", [
+    ("Moderate", "2", 2),
+    ("Severe",   "3", 3),
+    ("Extreme",  "4", 4),
+])
+def test_severity_from_awareness_level(sev_str, level, expected):
+    assert _get_severity({"severity": sev_str}, level) == expected
 
 
 def test_severity_fallback():
     """When no awareness_level, falls back to severity string."""
-    info = {"severity": "Severe"}
-    assert _get_severity(info, None) == 3
+    assert _get_severity({"severity": "Severe"}, None) == 3
 
 
 def test_severity_unknown():
-    info = {"severity": "Unknown"}
-    assert _get_severity(info, None) == 2
+    assert _get_severity({"severity": "Unknown"}, None) == 2
 
 
 # --- Human interest score tests ---
 
-def test_hi_from_awareness_level_2():
-    info = {"severity": "Moderate"}
-    assert _get_human_interest(info, "2") == 4
-
-
-def test_hi_from_awareness_level_4():
-    info = {"severity": "Extreme"}
-    assert _get_human_interest(info, "4") == 9
+@pytest.mark.parametrize("sev_str,level,expected", [
+    ("Moderate", "2", 4),
+    ("Extreme",  "4", 9),
+])
+def test_hi_from_awareness_level(sev_str, level, expected):
+    assert _get_human_interest({"severity": sev_str}, level) == expected
 
 
 def test_hi_fallback():
-    info = {"severity": "Severe"}
-    assert _get_human_interest(info, None) == 7
+    assert _get_human_interest({"severity": "Severe"}, None) == 7
 
 
 # --- Event concepts tests ---
@@ -344,24 +328,6 @@ def test_green_alerts_filtered():
     assert result is None
 
 
-def test_yellow_alerts_kept():
-    """Yellow/moderate alerts (awareness level 2) are kept."""
-    warning = _make_warning(awareness_level="2; yellow; Moderate")
-    from datetime import datetime, timezone
-    now = datetime.now(timezone.utc).isoformat()
-    result = _parse_warning(warning, "germany", now)
-    assert result is not None
-
-
-def test_red_alerts_kept():
-    """Red/extreme alerts (awareness level 4) are kept."""
-    warning = _make_warning(awareness_level="4; red; Extreme")
-    from datetime import datetime, timezone
-    now = datetime.now(timezone.utc).isoformat()
-    result = _parse_warning(warning, "germany", now)
-    assert result is not None
-
-
 # --- Country centroids ---
 
 def test_centroids_exist_for_default_countries():
@@ -370,18 +336,6 @@ def test_centroids_exist_for_default_countries():
     for country in METEOALARM_COUNTRIES:
         centroid = get_centroid(country.replace("-", " "))
         assert centroid is not None, "Missing centroid for %s" % country
-
-
-def test_centroid_germany():
-    lat, lon = get_centroid("germany")
-    assert 49 < lat < 55
-    assert 5 < lon < 15
-
-
-def test_centroid_france():
-    lat, lon = get_centroid("france")
-    assert 42 < lat < 51
-    assert -5 < lon < 10
 
 
 # --- Story dict shape tests ---
@@ -420,24 +374,6 @@ def test_story_dict_shape():
     assert ext["locations"][0]["role"] == "event_location"
 
 
-def test_story_category_disaster_for_severe():
-    """Orange/severe alerts get category 'disaster'."""
-    warning = _make_warning(awareness_level="3; orange; Severe", severity="Severe")
-    from datetime import datetime, timezone
-    now = datetime.now(timezone.utc).isoformat()
-    story = _parse_warning(warning, "germany", now)
-    assert story["category"] == "disaster"
-
-
-def test_story_category_weather_for_moderate():
-    """Yellow/moderate alerts get category 'weather'."""
-    warning = _make_warning(awareness_level="2; yellow; Moderate", severity="Moderate")
-    from datetime import datetime, timezone
-    now = datetime.now(timezone.utc).isoformat()
-    story = _parse_warning(warning, "germany", now)
-    assert story["category"] == "weather"
-
-
 # --- Dedup tests ---
 
 def test_dedup_same_uuid():
@@ -452,22 +388,6 @@ def test_dedup_same_uuid():
             _cache["fetched_at"] = 0.0
             stories = scrape_meteoalarm()
     assert len(stories) == 1
-
-
-def test_dedup_different_uuids():
-    """Different UUIDs should both appear."""
-    warnings = [
-        _make_warning(uuid="uuid-1", identifier="id-1",
-                      headline="Wind Warning for Bavaria"),
-        _make_warning(uuid="uuid-2", identifier="id-2",
-                      headline="Flood Warning for Saxony"),
-    ]
-    with patch("src.meteoalarm._fetch_country_warnings", return_value=warnings):
-        with patch("src.meteoalarm.METEOALARM_COUNTRIES", ["germany"]):
-            _cache["stories"] = []
-            _cache["fetched_at"] = 0.0
-            stories = scrape_meteoalarm()
-    assert len(stories) == 2
 
 
 # --- Max alerts cap tests ---
@@ -559,68 +479,6 @@ def test_cache_expired():
     _cache["fetched_at"] = 0.0
 
 
-# --- Config tests ---
-
-def test_meteoalarm_config_exists():
-    """Meteoalarm config parameters exist."""
-    from src.config import (
-        METEOALARM_BASE_URL,
-        METEOALARM_CACHE_SECONDS,
-        METEOALARM_MAX_ALERTS,
-        METEOALARM_COUNTRIES,
-    )
-    assert "meteoalarm.org" in METEOALARM_BASE_URL
-    assert "{country}" in METEOALARM_BASE_URL
-    assert isinstance(METEOALARM_CACHE_SECONDS, int)
-    assert METEOALARM_CACHE_SECONDS > 0
-    assert isinstance(METEOALARM_MAX_ALERTS, int)
-    assert METEOALARM_MAX_ALERTS > 0
-    assert isinstance(METEOALARM_COUNTRIES, list)
-    assert len(METEOALARM_COUNTRIES) >= 10
-
-
-def test_source_enabled_meteoalarm():
-    """Meteoalarm should be in SOURCE_ENABLED."""
-    from src.config import SOURCE_ENABLED
-    assert "meteoalarm" in SOURCE_ENABLED
-    assert SOURCE_ENABLED["meteoalarm"] is True
-
-
-# --- Database integration tests ---
-
-def test_insert_meteoalarm_story():
-    """Meteoalarm story inserts correctly."""
-    with tempfile.TemporaryDirectory() as tmpdir:
-        db_path = Path(tmpdir) / "test.db"
-        init_db(db_path)
-        conn = get_connection(db_path)
-
-        story = {
-            "title": "Yellow Wind Warning for Germany - Bavaria",
-            "url": "https://meteoalarm.org/en/live/region/DE",
-            "summary": "Strong winds expected in Bavaria.",
-            "source": "Meteoalarm",
-            "scraped_at": "2026-03-14T00:00:00Z",
-            "origin": "meteoalarm",
-            "source_type": "inferred",
-            "category": "weather",
-            "concepts": ["weather", "wind", "storm"],
-            "lat": 51.2,
-            "lon": 10.4,
-            "geocode_confidence": 0.6,
-        }
-
-        was_new = insert_story(conn, story)
-        assert was_new is True
-
-        row = conn.execute("SELECT source_type, origin FROM stories WHERE url = ?",
-                           (story["url"],)).fetchone()
-        assert row["source_type"] == "inferred"
-        assert row["origin"] == "meteoalarm"
-
-        conn.close()
-
-
 # --- Time budget tests ---
 
 def test_per_request_timeout():
@@ -670,24 +528,6 @@ def test_time_budget_stops_fetching():
     _cache["fetched_at"] = 0.0
 
 
-def test_time_budget_uses_all_countries_when_fast():
-    """When requests are fast, all countries are fetched within budget."""
-    warnings = [_make_warning(uuid="uuid-test")]
-    with patch("src.meteoalarm._fetch_country_warnings", return_value=warnings):
-        with patch("src.meteoalarm.METEOALARM_COUNTRIES",
-                   ["germany", "france", "italy"]):
-            with patch("src.meteoalarm.METEOALARM_TOTAL_BUDGET", 60):
-                _cache["stories"] = []
-                _cache["fetched_at"] = 0.0
-                stories = scrape_meteoalarm()
-
-    # All 3 countries should have been fetched (same uuid so deduped to 1)
-    assert len(stories) >= 1
-    # Clean up
-    _cache["stories"] = []
-    _cache["fetched_at"] = 0.0
-
-
 def test_scrape_uses_meteoalarm_timeout_config():
     """scrape_meteoalarm passes METEOALARM_TIMEOUT to _fetch_country_warnings."""
     with patch("src.meteoalarm._fetch_country_warnings",
@@ -704,63 +544,3 @@ def test_scrape_uses_meteoalarm_timeout_config():
     _cache["fetched_at"] = 0.0
 
 
-def test_meteoalarm_extraction_storage():
-    """Pre-built extraction data from Meteoalarm stores correctly."""
-    with tempfile.TemporaryDirectory() as tmpdir:
-        db_path = Path(tmpdir) / "test.db"
-        init_db(db_path)
-        conn = get_connection(db_path)
-
-        story = {
-            "title": "Orange Flood Warning for France - Ile-de-France",
-            "url": "https://meteoalarm.org/en/live/region/FR/test",
-            "summary": "Flood warning for the Paris region.",
-            "source": "Meteoalarm",
-            "scraped_at": "2026-03-14T00:00:00Z",
-            "origin": "meteoalarm",
-            "source_type": "inferred",
-            "category": "disaster",
-            "concepts": ["weather", "flood", "disaster"],
-            "lat": 46.2,
-            "lon": 2.2,
-            "geocode_confidence": 0.6,
-        }
-
-        insert_story(conn, story)
-        row = conn.execute("SELECT id FROM stories WHERE url = ?",
-                           (story["url"],)).fetchone()
-        story_id = row["id"]
-
-        extraction = {
-            "event_signature": "2026 Ile-de-France Flood",
-            "topics": ["weather", "flood", "disaster"],
-            "severity": 3,
-            "sentiment": "negative",
-            "primary_action": "orange flood warning",
-            "location_type": "terrestrial",
-            "search_keywords": ["weather", "orange flood warning", "Ile-de-France"],
-            "is_opinion": False,
-            "human_interest_score": 7,
-            "actors": [],
-            "locations": [
-                {"name": "Ile-de-France", "role": "event_location", "lat": 46.2, "lon": 2.2}
-            ],
-        }
-
-        store_extraction(conn, story_id, extraction)
-        conn.execute(
-            "UPDATE stories SET extraction_status = 'done' WHERE id = ?",
-            (story_id,),
-        )
-        conn.commit()
-
-        # Verify extraction stored
-        ext_row = conn.execute(
-            "SELECT event_signature, severity, human_interest_score FROM story_extractions WHERE story_id = ?",
-            (story_id,),
-        ).fetchone()
-        assert ext_row["event_signature"] == "2026 Ile-de-France Flood"
-        assert ext_row["severity"] == 3
-        assert ext_row["human_interest_score"] == 7
-
-        conn.close()

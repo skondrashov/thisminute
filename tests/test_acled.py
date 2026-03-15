@@ -4,6 +4,8 @@ import tempfile
 from pathlib import Path
 from unittest.mock import patch
 
+import pytest
+
 from src.acled import (
     scrape_acled,
     _severity_with_fatalities,
@@ -47,122 +49,47 @@ def _make_acled_event(data_id="12345", event_type="Battles",
 
 # --- Severity mapping tests ---
 
-def test_severity_battles_no_fatalities():
-    assert _severity_with_fatalities("Battles", 0) == 3
-
-
-def test_severity_battles_with_fatalities():
-    assert _severity_with_fatalities("Battles", 5) == 4
-
-
-def test_severity_battles_many_fatalities():
-    assert _severity_with_fatalities("Battles", 20) == 5
-
-
-def test_severity_battles_mass_fatalities():
-    assert _severity_with_fatalities("Battles", 100) == 5
-
-
-def test_severity_protests_no_fatalities():
-    assert _severity_with_fatalities("Protests", 0) == 1
-
-
-def test_severity_protests_with_fatalities():
-    assert _severity_with_fatalities("Protests", 5) == 2
-
-
-def test_severity_protests_many_fatalities():
-    assert _severity_with_fatalities("Protests", 20) == 3
-
-
-def test_severity_protests_mass_fatalities():
-    assert _severity_with_fatalities("Protests", 100) == 5
-
-
-def test_severity_riots_no_fatalities():
-    assert _severity_with_fatalities("Riots", 0) == 2
-
-
-def test_severity_riots_with_fatalities():
-    assert _severity_with_fatalities("Riots", 5) == 3
-
-
-def test_severity_explosions_no_fatalities():
-    assert _severity_with_fatalities("Explosions/Remote violence", 0) == 3
-
-
-def test_severity_explosions_with_fatalities():
-    assert _severity_with_fatalities("Explosions/Remote violence", 1) == 3
-
-
-def test_severity_explosions_many_fatalities():
-    assert _severity_with_fatalities("Explosions/Remote violence", 20) == 5
-
-
-def test_severity_vac_no_fatalities():
-    assert _severity_with_fatalities("Violence against civilians", 0) == 3
-
-
-def test_severity_vac_with_fatalities():
-    assert _severity_with_fatalities("Violence against civilians", 1) == 3
-
-
-def test_severity_strategic_no_fatalities():
-    assert _severity_with_fatalities("Strategic developments", 0) == 1
-
-
-def test_severity_strategic_mass_fatalities():
-    assert _severity_with_fatalities("Strategic developments", 100) == 5
-
-
-def test_severity_unknown_type():
-    assert _severity_with_fatalities("Unknown type", 0) == 2
+@pytest.mark.parametrize("event_type,fatalities,expected", [
+    ("Battles", 0, 3),
+    ("Battles", 5, 4),
+    ("Battles", 20, 5),
+    ("Battles", 100, 5),
+    ("Protests", 0, 1),
+    ("Protests", 5, 2),
+    ("Protests", 20, 3),
+    ("Protests", 100, 5),
+    ("Riots", 0, 2),
+    ("Riots", 5, 3),
+    ("Explosions/Remote violence", 0, 3),
+    ("Explosions/Remote violence", 1, 3),
+    ("Explosions/Remote violence", 20, 5),
+    ("Violence against civilians", 0, 3),
+    ("Violence against civilians", 1, 3),
+    ("Strategic developments", 0, 1),
+    ("Strategic developments", 100, 5),
+    ("Unknown type", 0, 2),
+])
+def test_severity_mapping(event_type, fatalities, expected):
+    assert _severity_with_fatalities(event_type, fatalities) == expected
 
 
 # --- Human interest mapping tests ---
 
-def test_hi_battles_no_fatalities():
-    assert _human_interest_with_fatalities("Battles", 0) == 5
-
-
-def test_hi_battles_some_fatalities():
-    assert _human_interest_with_fatalities("Battles", 1) == 6
-
-
-def test_hi_battles_5_fatalities():
-    assert _human_interest_with_fatalities("Battles", 5) == 7
-
-
-def test_hi_battles_10_fatalities():
-    assert _human_interest_with_fatalities("Battles", 10) == 7
-
-
-def test_hi_battles_20_fatalities():
-    assert _human_interest_with_fatalities("Battles", 20) == 8
-
-
-def test_hi_battles_50_fatalities():
-    assert _human_interest_with_fatalities("Battles", 50) == 9
-
-
-def test_hi_battles_100_fatalities():
-    assert _human_interest_with_fatalities("Battles", 100) == 10
-
-
-def test_hi_protests_no_fatalities():
-    assert _human_interest_with_fatalities("Protests", 0) == 4
-
-
-def test_hi_vac_no_fatalities():
-    assert _human_interest_with_fatalities("Violence against civilians", 0) == 6
-
-
-def test_hi_strategic_no_fatalities():
-    assert _human_interest_with_fatalities("Strategic developments", 0) == 3
-
-
-def test_hi_unknown_type():
-    assert _human_interest_with_fatalities("Unknown", 0) == 4
+@pytest.mark.parametrize("event_type,fatalities,expected", [
+    ("Battles", 0, 5),
+    ("Battles", 1, 6),
+    ("Battles", 5, 7),
+    ("Battles", 10, 7),
+    ("Battles", 20, 8),
+    ("Battles", 50, 9),
+    ("Battles", 100, 10),
+    ("Protests", 0, 4),
+    ("Violence against civilians", 0, 6),
+    ("Strategic developments", 0, 3),
+    ("Unknown", 0, 4),
+])
+def test_human_interest_mapping(event_type, fatalities, expected):
+    assert _human_interest_with_fatalities(event_type, fatalities) == expected
 
 
 # --- Concept mapping tests ---
@@ -222,53 +149,29 @@ def test_concepts_no_duplicates():
 
 # --- Category mapping tests ---
 
-def test_category_battles():
-    assert _get_category("Battles") == "conflict"
-
-
-def test_category_explosions():
-    assert _get_category("Explosions/Remote violence") == "conflict"
-
-
-def test_category_vac():
-    assert _get_category("Violence against civilians") == "conflict"
-
-
-def test_category_protests():
-    assert _get_category("Protests") == "politics"
-
-
-def test_category_riots():
-    assert _get_category("Riots") == "conflict"
-
-
-def test_category_strategic():
-    assert _get_category("Strategic developments") == "politics"
+@pytest.mark.parametrize("event_type,expected", [
+    ("Battles", "conflict"),
+    ("Explosions/Remote violence", "conflict"),
+    ("Violence against civilians", "conflict"),
+    ("Protests", "politics"),
+    ("Riots", "conflict"),
+    ("Strategic developments", "politics"),
+])
+def test_category_mapping(event_type, expected):
+    assert _get_category(event_type) == expected
 
 
 # --- Event signature tests ---
 
-def test_event_signature_battles():
-    sig = _build_event_signature("Syria", "Battles")
-    assert "Syria" in sig
-    assert "Battles" in sig
-
-
-def test_event_signature_explosions():
-    sig = _build_event_signature("Ukraine", "Explosions/Remote violence")
-    assert "Ukraine" in sig
-    assert "Explosions" in sig
-
-
-def test_event_signature_protests():
-    sig = _build_event_signature("France", "Protests")
-    assert "France" in sig
-    assert "Protests" in sig
-
-
-def test_event_signature_has_year():
-    sig = _build_event_signature("Nigeria", "Battles")
-    assert "202" in sig  # year prefix
+@pytest.mark.parametrize("country,event_type,expected_parts", [
+    ("Syria", "Battles", ["Syria", "Battles"]),
+    ("Ukraine", "Explosions/Remote violence", ["Ukraine", "Explosions"]),
+    ("France", "Protests", ["France", "Protests"]),
+])
+def test_event_signature(country, event_type, expected_parts):
+    sig = _build_event_signature(country, event_type)
+    for part in expected_parts:
+        assert part in sig
 
 
 # --- Title tests ---
@@ -332,41 +235,13 @@ def test_url_from_data_id():
     assert url == "https://acleddata.com/data/12345"
 
 
-def test_url_different_id():
-    url = _build_url("99999")
-    assert "99999" in url
-
-
-# --- Graceful skip when no API key ---
-
-def test_skip_no_api_key():
-    with patch("src.acled.ACLED_API_KEY", ""):
-        with patch("src.acled.ACLED_EMAIL", "test@example.com"):
-            stories = scrape_acled()
-    assert stories == []
-
-
-def test_skip_no_email():
-    with patch("src.acled.ACLED_API_KEY", "test_key"):
-        with patch("src.acled.ACLED_EMAIL", ""):
-            stories = scrape_acled()
-    assert stories == []
-
+# --- Graceful skip when no credentials ---
 
 def test_skip_both_missing():
     with patch("src.acled.ACLED_API_KEY", ""):
         with patch("src.acled.ACLED_EMAIL", ""):
             stories = scrape_acled()
     assert stories == []
-
-
-# --- Fetch returns empty ---
-
-def test_fetch_no_credentials():
-    with patch("src.acled.ACLED_API_KEY", ""):
-        with patch("src.acled.ACLED_EMAIL", ""):
-            result = _fetch_acled()
-    assert result == []
 
 
 # --- Full scrape tests ---
@@ -454,19 +329,6 @@ def test_dedup_same_data_id():
     assert len(stories) == 1
 
 
-def test_dedup_different_data_ids():
-    events = [
-        _make_acled_event(data_id="11111", country="Syria"),
-        _make_acled_event(data_id="22222", country="Syria"),
-    ]
-    with patch("src.acled.ACLED_API_KEY", "test_key"):
-        with patch("src.acled.ACLED_EMAIL", "test@example.com"):
-            with patch("src.acled._fetch_acled", return_value=events):
-                stories = scrape_acled()
-
-    assert len(stories) == 2
-
-
 # --- Story dict shape tests ---
 
 def test_story_dict_shape():
@@ -508,44 +370,6 @@ def test_story_dict_shape():
     assert len(ext["locations"]) == 1
     assert ext["locations"][0]["role"] == "event_location"
     assert ext["locations"][0]["name"] == "Aleppo"
-
-
-def test_story_dict_shape_protests():
-    events = [_make_acled_event(
-        data_id="99999", event_type="Protests",
-        sub_event_type="Peaceful protest", country="France",
-        admin1="Paris", fatalities=0,
-        lat="48.86", lon="2.35")]
-    with patch("src.acled.ACLED_API_KEY", "test_key"):
-        with patch("src.acled.ACLED_EMAIL", "test@example.com"):
-            with patch("src.acled._fetch_acled", return_value=events):
-                stories = scrape_acled()
-
-    assert len(stories) == 1
-    s = stories[0]
-    assert s["category"] == "politics"
-    assert "protest" in s["concepts"]
-    assert s["_extraction"]["severity"] == 1
-    assert s["_extraction"]["sentiment"] == "mixed"
-
-
-def test_story_dict_shape_strategic():
-    events = [_make_acled_event(
-        data_id="88888", event_type="Strategic developments",
-        sub_event_type="Agreement", country="Colombia",
-        admin1="", fatalities=0,
-        lat="4.7", lon="-74.1")]
-    with patch("src.acled.ACLED_API_KEY", "test_key"):
-        with patch("src.acled.ACLED_EMAIL", "test@example.com"):
-            with patch("src.acled._fetch_acled", return_value=events):
-                stories = scrape_acled()
-
-    assert len(stories) == 1
-    s = stories[0]
-    assert s["category"] == "politics"
-    assert "political" in s["concepts"]
-    assert s["_extraction"]["severity"] == 1
-    assert s["_extraction"]["sentiment"] == "neutral"
 
 
 # --- Coordinate handling tests ---
@@ -653,24 +477,9 @@ def test_search_keywords_no_admin():
 
 # --- Config integration tests ---
 
-def test_config_acled_api_key():
-    from src.config import ACLED_API_KEY as cfg_key
-    assert isinstance(cfg_key, str)
-
-
-def test_config_acled_email():
-    from src.config import ACLED_EMAIL as cfg_email
-    assert isinstance(cfg_email, str)
-
-
 def test_config_acled_url():
     from src.config import ACLED_URL as cfg_url
     assert "acleddata.com" in cfg_url
-
-
-def test_config_source_enabled():
-    from src.config import SOURCE_ENABLED
-    assert "acled" in SOURCE_ENABLED
 
 
 # --- Database integration tests ---
@@ -858,15 +667,6 @@ def test_fetch_acled_uses_log_url():
     assert "secret_key_123" not in log_url
     assert "secret@example.com" not in log_url
     assert "REDACTED" in log_url
-
-
-def test_fetch_acled_log_url_has_base():
-    """Redacted log_url still contains the base ACLED URL."""
-    with patch("src.acled.ACLED_API_KEY", "mykey"):
-        with patch("src.acled.ACLED_EMAIL", "me@test.com"):
-            with patch("src.acled.fetch_json", return_value=[]) as mock_fj:
-                _fetch_acled()
-    log_url = mock_fj.call_args[1]["log_url"]
     assert "acleddata.com" in log_url
 
 

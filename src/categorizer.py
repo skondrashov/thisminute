@@ -169,6 +169,7 @@ CONCEPT_DOMAINS = {
                 "weather", "temperature", "heatwave", "cold snap",
                 "record heat", "record cold", "monsoon", "wet", "dry",
                 "forecast", "summer", "winter",
+                "weather warning", "severe weather",
             ],
             "disaster": [
                 "earthquake", "tsunami", "volcano", "eruption",
@@ -182,6 +183,7 @@ CONCEPT_DOMAINS = {
             "pollution": [
                 "pollution", "contamination", "toxic", "oil spill",
                 "plastic", "waste", "smog", "air quality",
+                "air quality index", "aqi", "pm2.5", "pm10",
             ],
             "wildlife": [
                 "endangered", "extinction", "biodiversity", "conservation",

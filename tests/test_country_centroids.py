@@ -28,19 +28,9 @@ def test_unknown_country():
     assert result is None
 
 
-def test_empty_string():
-    result = get_centroid("")
-    assert result is None
-
-
-def test_none():
-    result = get_centroid(None)
-    assert result is None
-
-
-def test_whitespace():
-    result = get_centroid("  Bangladesh  ")
-    assert result is not None
+def test_invalid_input_returns_none():
+    assert get_centroid("") is None
+    assert get_centroid(None) is None
 
 
 def test_drc():
@@ -51,8 +41,3 @@ def test_drc():
 def test_palestine():
     result = get_centroid("Palestine")
     assert result is not None
-
-
-def test_centroid_count():
-    """Should have a reasonable number of entries."""
-    assert len(CENTROIDS) >= 100

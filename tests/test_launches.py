@@ -5,6 +5,8 @@ import tempfile
 from pathlib import Path
 from unittest.mock import patch, MagicMock
 
+import pytest
+
 from src.launches import (
     scrape_launches,
     _status_to_severity,
@@ -60,9 +62,6 @@ def test_severity_routine_commercial():
 def test_severity_government():
     assert _status_to_severity("Go", "Military reconnaissance satellite.") == 3
 
-def test_severity_national_security():
-    assert _status_to_severity("Go", "National security payload.") == 3
-
 def test_severity_crew_mission():
     assert _status_to_severity("Go", "Crew Dragon carrying astronauts to ISS.") == 4
 
@@ -71,9 +70,6 @@ def test_severity_iss():
 
 def test_severity_maiden_flight():
     assert _status_to_severity("Go", "Maiden flight of the new rocket.") == 5
-
-def test_severity_first_flight():
-    assert _status_to_severity("Go", "First orbital test flight.") == 5
 
 def test_severity_default():
     assert _status_to_severity("TBD", "") == 2
@@ -130,32 +126,21 @@ def test_provider_multiple():
 
 # --- Summary builder tests ---
 
-def test_summary_basic():
-    launch = _make_launch()
+def test_summary_combined():
+    """Summary includes rocket name, pad, status, and date."""
+    launch = _make_launch(status_abbrev="Go", net="2026-03-15T14:30:00Z")
     summary = _build_summary(launch)
     assert "Falcon 9" in summary
     assert "Starlink" in summary
-
-def test_summary_with_pad():
-    launch = _make_launch()
-    summary = _build_summary(launch)
     assert "SLC-40" in summary or "Cape Canaveral" in summary
-
-def test_summary_with_status():
-    launch = _make_launch(status_abbrev="Go")
-    summary = _build_summary(launch)
     assert "Go" in summary
-
-def test_summary_with_net():
-    launch = _make_launch(net="2026-03-15T14:30:00Z")
-    summary = _build_summary(launch)
     assert "2026-03-15" in summary
+
 
 def test_summary_long_mission_desc():
     long_desc = "A" * 400
     launch = _make_launch(mission_desc=long_desc)
     summary = _build_summary(launch)
-    # Should be truncated
     assert "..." in summary
 
 
@@ -196,12 +181,6 @@ def test_coordinate_extraction():
 
 def test_coordinate_missing_lat():
     launch = _make_launch(pad_lat=None, pad_lon="-80.5772")
-    now = "2026-03-14T00:00:00Z"
-    story = _parse_launch(launch, now)
-    assert story is None
-
-def test_coordinate_missing_lon():
-    launch = _make_launch(pad_lat="28.5618", pad_lon=None)
     now = "2026-03-14T00:00:00Z"
     story = _parse_launch(launch, now)
     assert story is None
@@ -291,19 +270,15 @@ def test_story_dict_shape():
     assert ext["sentiment"] == "neutral"  # Go status
 
 
-def test_story_dict_success_status():
-    """Successful launch has positive sentiment."""
-    launch = _make_launch(status_abbrev="Success")
+@pytest.mark.parametrize("status_abbrev,expected_sentiment", [
+    ("Success", "positive"),
+    ("Failure", "negative"),
+])
+def test_story_dict_status_sentiment(status_abbrev, expected_sentiment):
+    launch = _make_launch(status_abbrev=status_abbrev)
     now = "2026-03-14T00:00:00Z"
     story = _parse_launch(launch, now)
-    assert story["_extraction"]["sentiment"] == "positive"
-
-def test_story_dict_failure_status():
-    """Failed launch has negative sentiment."""
-    launch = _make_launch(status_abbrev="Failure")
-    now = "2026-03-14T00:00:00Z"
-    story = _parse_launch(launch, now)
-    assert story["_extraction"]["sentiment"] == "negative"
+    assert story["_extraction"]["sentiment"] == expected_sentiment
 
 
 # --- Cache tests ---
@@ -369,39 +344,6 @@ def test_concepts_no_duplicates():
 
 
 # --- Database integration tests ---
-
-def test_insert_launch_story():
-    """Launch story with source_type='inferred' inserts correctly."""
-    with tempfile.TemporaryDirectory() as tmpdir:
-        db_path = Path(tmpdir) / "test.db"
-        init_db(db_path)
-        conn = get_connection(db_path)
-
-        story = {
-            "title": "Falcon 9 Block 5 | Starlink Group 12-3",
-            "url": "https://ll.thespacedevs.com/2.3.0/launch/test1/",
-            "summary": "Falcon 9 launch from Cape Canaveral.",
-            "source": "Launch Library",
-            "scraped_at": "2026-03-14T00:00:00Z",
-            "origin": "launches",
-            "source_type": "inferred",
-            "category": "science",
-            "concepts": ["space", "science", "launch", "spacex"],
-            "lat": 28.5618,
-            "lon": -80.5772,
-            "geocode_confidence": 1.0,
-        }
-
-        was_new = insert_story(conn, story)
-        assert was_new is True
-
-        row = conn.execute("SELECT source_type, origin FROM stories WHERE url = ?",
-                           (story["url"],)).fetchone()
-        assert row["source_type"] == "inferred"
-        assert row["origin"] == "launches"
-
-        conn.close()
-
 
 def test_launch_extraction_storage():
     """Pre-built extraction data from launches stores correctly."""

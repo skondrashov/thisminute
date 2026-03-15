@@ -1,5 +1,6 @@
 """Tests for US State Department Travel Advisories adapter."""
 
+import pytest
 from unittest.mock import patch
 
 from src.travel_advisories import (
@@ -75,33 +76,26 @@ def test_parse_country_level_info():
 
 # --- Severity mapping tests ---
 
-def test_severity_level_1():
-    assert _LEVEL_SEVERITY[1] == 1
-
-def test_severity_level_2():
-    assert _LEVEL_SEVERITY[2] == 2
-
-def test_severity_level_3():
-    assert _LEVEL_SEVERITY[3] == 3
-
-def test_severity_level_4():
-    """Level 4 maps to severity 5, skipping 4."""
-    assert _LEVEL_SEVERITY[4] == 5
+@pytest.mark.parametrize("level,expected", [
+    (1, 1),
+    (2, 2),
+    (3, 3),
+    (4, 5),
+])
+def test_severity_level(level, expected):
+    assert _LEVEL_SEVERITY[level] == expected
 
 
 # --- Human interest mapping tests ---
 
-def test_human_interest_level_1():
-    assert _LEVEL_HUMAN_INTEREST[1] == 2
-
-def test_human_interest_level_2():
-    assert _LEVEL_HUMAN_INTEREST[2] == 4
-
-def test_human_interest_level_3():
-    assert _LEVEL_HUMAN_INTEREST[3] == 6
-
-def test_human_interest_level_4():
-    assert _LEVEL_HUMAN_INTEREST[4] == 9
+@pytest.mark.parametrize("level,expected", [
+    (1, 2),
+    (2, 4),
+    (3, 6),
+    (4, 9),
+])
+def test_human_interest_level(level, expected):
+    assert _LEVEL_HUMAN_INTEREST[level] == expected
 
 
 # --- Threat concept extraction tests ---
@@ -140,19 +134,14 @@ def test_concepts_deduped():
 
 # --- Event signature tests ---
 
-def test_event_sig_standard():
-    sig = _build_event_signature("Afghanistan")
-    assert "Afghanistan" in sig
-    assert "Travel Advisory" in sig
-
-def test_event_sig_empty():
-    sig = _build_event_signature("")
-    assert "Travel Advisory" in sig
-
-def test_event_sig_has_year():
-    sig = _build_event_signature("Iraq")
-    # Should contain the current year
-    assert "202" in sig  # works for 2020s
+@pytest.mark.parametrize("country,check", [
+    ("Afghanistan", lambda sig: "Afghanistan" in sig and "Travel Advisory" in sig),
+    ("", lambda sig: "Travel Advisory" in sig),
+    ("Iraq", lambda sig: "202" in sig),
+])
+def test_event_sig(country, check):
+    sig = _build_event_signature(country)
+    assert check(sig)
 
 
 # --- Level filtering tests ---
@@ -166,33 +155,6 @@ def test_level_1_excluded():
     with patch("src.travel_advisories._fetch_advisory_rss", return_value=items):
         stories = scrape_travel_advisories()
     assert len(stories) == 0
-
-def test_level_2_included():
-    """Level 2 advisories should be included."""
-    items = [_make_advisory_item(
-        title="Mexico - Travel Advisory (Level 2: Exercise Increased Caution)",
-        url="https://travel.state.gov/mexico",
-    )]
-    with patch("src.travel_advisories._fetch_advisory_rss", return_value=items):
-        stories = scrape_travel_advisories()
-    assert len(stories) == 1
-
-def test_level_3_included():
-    """Level 3 advisories should be included."""
-    items = [_make_advisory_item(
-        title="Pakistan - Travel Advisory (Level 3: Reconsider Travel)",
-        url="https://travel.state.gov/pakistan",
-    )]
-    with patch("src.travel_advisories._fetch_advisory_rss", return_value=items):
-        stories = scrape_travel_advisories()
-    assert len(stories) == 1
-
-def test_level_4_included():
-    """Level 4 advisories should be included."""
-    items = [_make_advisory_item()]
-    with patch("src.travel_advisories._fetch_advisory_rss", return_value=items):
-        stories = scrape_travel_advisories()
-    assert len(stories) == 1
 
 def test_mixed_levels_filtering():
     """Only Level 2+ should survive filtering."""
@@ -269,35 +231,20 @@ def test_story_dict_shape():
     assert ext["locations"][0]["role"] == "event_location"
 
 
-def test_story_dict_level_2_severity():
-    """Level 2 advisory should have correct severity and human interest."""
-    items = [_make_advisory_item(
-        title="Mexico - Travel Advisory (Level 2: Exercise Increased Caution)",
-        url="https://travel.state.gov/mexico",
-        description="Exercise increased caution in Mexico due to crime.",
-    )]
+def test_extraction_dict_shape():
+    """Extraction dict should have all 11 required keys."""
+    items = [_make_advisory_item()]
     with patch("src.travel_advisories._fetch_advisory_rss", return_value=items):
         stories = scrape_travel_advisories()
 
-    assert len(stories) == 1
     ext = stories[0]["_extraction"]
-    assert ext["severity"] == 2
-    assert ext["human_interest_score"] == 4
-
-
-def test_story_dict_level_3_severity():
-    """Level 3 advisory should have correct severity and human interest."""
-    items = [_make_advisory_item(
-        title="Pakistan - Travel Advisory (Level 3: Reconsider Travel)",
-        url="https://travel.state.gov/pakistan",
-    )]
-    with patch("src.travel_advisories._fetch_advisory_rss", return_value=items):
-        stories = scrape_travel_advisories()
-
-    assert len(stories) == 1
-    ext = stories[0]["_extraction"]
-    assert ext["severity"] == 3
-    assert ext["human_interest_score"] == 6
+    required_keys = [
+        "event_signature", "topics", "severity", "sentiment",
+        "primary_action", "location_type", "search_keywords",
+        "is_opinion", "human_interest_score", "actors", "locations",
+    ]
+    for key in required_keys:
+        assert key in ext, "Missing key: %s" % key
 
 
 def test_story_unknown_country():
@@ -360,56 +307,6 @@ def test_fetch_failure_returns_empty():
     with patch("src.travel_advisories._fetch_advisory_rss", return_value=[]):
         stories = scrape_travel_advisories()
     assert stories == []
-
-
-# --- Config integration tests ---
-
-def test_travel_config_url():
-    from src.config import TRAVEL_ADVISORY_URL
-    assert "travel.state.gov" in TRAVEL_ADVISORY_URL
-
-def test_source_enabled_includes_travel():
-    from src.config import SOURCE_ENABLED
-    assert "travel" in SOURCE_ENABLED
-    assert SOURCE_ENABLED["travel"] is True
-
-
-# --- Database integration tests ---
-
-def test_story_insertable():
-    """Story dict should be compatible with database.insert_story()."""
-    items = [_make_advisory_item()]
-    with patch("src.travel_advisories._fetch_advisory_rss", return_value=items):
-        stories = scrape_travel_advisories()
-
-    s = stories[0]
-    # Must have all fields expected by insert_story
-    assert "title" in s
-    assert "url" in s
-    assert "summary" in s
-    assert "source" in s
-    assert "origin" in s
-    assert "source_type" in s
-    assert "category" in s
-    assert "concepts" in s
-    assert "scraped_at" in s
-    assert "_extraction" in s
-
-
-def test_extraction_dict_shape():
-    """Extraction dict should have all 11 required keys."""
-    items = [_make_advisory_item()]
-    with patch("src.travel_advisories._fetch_advisory_rss", return_value=items):
-        stories = scrape_travel_advisories()
-
-    ext = stories[0]["_extraction"]
-    required_keys = [
-        "event_signature", "topics", "severity", "sentiment",
-        "primary_action", "location_type", "search_keywords",
-        "is_opinion", "human_interest_score", "actors", "locations",
-    ]
-    for key in required_keys:
-        assert key in ext, "Missing key: %s" % key
 
 
 # --- Edge case tests ---

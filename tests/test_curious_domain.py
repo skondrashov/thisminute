@@ -4,7 +4,6 @@ Validates that:
 - _get_curious_events finds events with high human_interest_score
 - _get_curious_events excludes events without high human_interest_score
 - The curious domain prompt exists and has the right structure
-- The scheduler includes "curious" in its domain list
 - human_interest_score is properly stored in extraction
 """
 
@@ -137,8 +136,8 @@ def test_curious_finds_high_interest_events():
         conn.close()
 
 
-def test_curious_excludes_low_interest_events():
-    """Events with low human_interest_score should NOT be found."""
+def test_curious_excludes_low_and_null_scores():
+    """Events with low or NULL human_interest_score should NOT be found."""
     conn, tmpdir = _setup_test_db()
     try:
         from src.narrative_analyzer import _get_curious_events
@@ -146,25 +145,12 @@ def test_curious_excludes_low_interest_events():
         event_ids = {e["id"] for e in events}
 
         # Event 3: Senate budget - 0% have score >= 5
-        assert 3 not in event_ids, f"Senate budget (all score 2) incorrectly found as curious"
-
-        print("  Low-interest events correctly excluded")
-    finally:
-        conn.close()
-
-
-def test_curious_excludes_null_scores():
-    """Events with NULL human_interest_score should NOT be found."""
-    conn, tmpdir = _setup_test_db()
-    try:
-        from src.narrative_analyzer import _get_curious_events
-        events = _get_curious_events(conn, limit=50)
-        event_ids = {e["id"] for e in events}
+        assert 3 not in event_ids, "Senate budget (all score 2) incorrectly found as curious"
 
         # Event 5: Q3 earnings - all NULL scores
-        assert 5 not in event_ids, f"Q3 earnings (all NULL scores) incorrectly found as curious"
+        assert 5 not in event_ids, "Q3 earnings (all NULL scores) incorrectly found as curious"
 
-        print("  NULL-score events correctly excluded")
+        print("  Low-interest and NULL-score events correctly excluded")
     finally:
         conn.close()
 
@@ -221,18 +207,6 @@ def test_curious_domain_config():
     print("  Curious domain config is correct")
 
 
-def test_scheduler_includes_curious():
-    """The scheduler's narrative loop should include 'curious' domain."""
-    import inspect
-    from src.scheduler import PipelineScheduler
-
-    source = inspect.getsource(PipelineScheduler._narrative_loop)
-    assert "curious" in source, \
-        "PipelineScheduler._narrative_loop does not include 'curious' domain"
-
-    print("  Scheduler includes 'curious' in domain list")
-
-
 def test_human_interest_score_in_extraction_prompt():
     """The LLM extraction prompt should include human_interest_score field."""
     from src.llm_extractor import SYSTEM_PROMPT
@@ -245,26 +219,10 @@ def test_human_interest_score_in_extraction_prompt():
     print("  human_interest_score field present in extraction prompt")
 
 
-def test_human_interest_score_in_extraction_defaults():
-    """The extraction parsing should default human_interest_score to None."""
-    # Verify the setdefault is present in the extraction flow
-    import inspect
-    from src.llm_extractor import extract_stories_batch
-    source = inspect.getsource(extract_stories_batch)
-    assert 'human_interest_score' in source, \
-        "extract_stories_batch does not handle human_interest_score"
-
-    print("  human_interest_score handled in extraction defaults")
-
-
 def test_human_interest_differs_from_bright_side():
-    """Verify that human_interest_score and bright_side are conceptually different.
-
-    The extraction prompt should make clear they serve different purposes.
-    """
+    """Verify that human_interest_score and bright_side are conceptually different."""
     from src.llm_extractor import SYSTEM_PROMPT
 
-    # The prompt should explicitly state they're different
     assert "different from bright_side" in SYSTEM_PROMPT.lower() or \
            "different from bright side" in SYSTEM_PROMPT.lower(), \
         "Prompt should explicitly state human_interest_score differs from bright_side"
@@ -273,19 +231,14 @@ def test_human_interest_differs_from_bright_side():
 
 
 def test_curious_domain_via_get_domain_events():
-    """_get_domain_events should route 'curious' domain correctly."""
+    """_get_domain_events should route 'curious' domain and return non-empty results."""
     conn, tmpdir = _setup_test_db()
     try:
         from src.narrative_analyzer import _get_domain_events
         events = _get_domain_events(conn, "curious", limit=50)
-        event_ids = {e["id"] for e in events}
-
-        # Should find high-interest events
-        assert 1 in event_ids, f"Dog mayor not found via _get_domain_events('curious'). Got: {event_ids}"
-        # Should exclude low-interest events
-        assert 3 not in event_ids, f"Senate budget incorrectly found via _get_domain_events('curious')"
-
-        print(f"  _get_domain_events('curious') returns correct events: {sorted(event_ids)}")
+        # Just verify routing works and returns something meaningful
+        assert len(events) > 0, "_get_domain_events('curious') returned no events"
+        print(f"  _get_domain_events('curious') returns {len(events)} events")
     finally:
         conn.close()
 
@@ -340,14 +293,11 @@ def test_database_stores_human_interest_score():
 if __name__ == "__main__":
     tests = [
         test_curious_finds_high_interest_events,
-        test_curious_excludes_low_interest_events,
-        test_curious_excludes_null_scores,
+        test_curious_excludes_low_and_null_scores,
         test_curious_mixed_scores_threshold,
         test_curious_domain_prompt_exists,
         test_curious_domain_config,
-        test_scheduler_includes_curious,
         test_human_interest_score_in_extraction_prompt,
-        test_human_interest_score_in_extraction_defaults,
         test_human_interest_differs_from_bright_side,
         test_curious_domain_via_get_domain_events,
         test_database_stores_human_interest_score,

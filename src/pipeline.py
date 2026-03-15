@@ -22,6 +22,7 @@ from .jma import scrape_jma
 from .ner import extract_story_location
 from .geocoder import geocode_location
 from .categorizer import tag_concepts, get_primary_category
+from .source_utils import dedup_list
 from .database import get_connection, init_db, insert_story, store_extraction
 from .semantic_clusterer import cluster_new_stories
 from .event_analyzer import analyze_events
@@ -57,11 +58,17 @@ def process_story(story: dict) -> dict:
                 story["lon"] = geo["lon"]
                 story["geocode_confidence"] = geo.get("importance")
 
-    # Concept tagging — skip if already populated (e.g. from GDELT themes)
-    if not story.get("concepts"):
-        concepts = tag_concepts(story.get("title", ""), story.get("summary", ""))
-        story["concepts"] = [c["name"] for c in concepts]
-        story["category"] = get_primary_category(concepts)
+    # Concept tagging — always run, merge with any adapter-set concepts
+    taxonomy_concepts = tag_concepts(story.get("title", ""), story.get("summary", ""))
+    taxonomy_names = [c["name"] for c in taxonomy_concepts]
+    if story.get("concepts"):
+        merged = dedup_list(story["concepts"] + taxonomy_names)
+        story["concepts"] = merged
+        if not story.get("category") or story["category"] == "general":
+            story["category"] = get_primary_category(taxonomy_concepts)
+    else:
+        story["concepts"] = taxonomy_names
+        story["category"] = get_primary_category(taxonomy_concepts)
 
     return story
 
@@ -178,6 +185,11 @@ def run_pipeline() -> dict:
                     # If story has pre-built extraction (e.g. USGS), store directly
                     if extraction_data:
                         try:
+                            # Merge taxonomy concepts into extraction topics
+                            merged_topics = dedup_list(
+                                (extraction_data.get("topics") or []) + processed.get("concepts", [])
+                            )
+                            extraction_data["topics"] = merged_topics
                             store_extraction(conn, story_id, extraction_data)
                             conn.execute(
                                 "UPDATE stories SET extraction_status = 'done' WHERE id = ?",

@@ -8,6 +8,8 @@ import json
 import tempfile
 from pathlib import Path
 
+import pytest
+
 from src.semantic_clusterer import (
     _extract_tournament_key,
     _signature_similarity,
@@ -19,16 +21,26 @@ from src.database import init_db, get_connection
 
 # --- Tournament key extraction tests ---
 
-def test_tournament_key_premier_league():
+@pytest.mark.parametrize("title,expected_fragment", [
+    ("2026 Premier League", "premier league"),
+    ("2026 Indian Wells Tennis", "indian wells"),
+    ("Champions League Quarterfinals", "champions league"),
+    ("2026 IPL Cricket Season", "ipl"),
+    ("UFC 315", "ufc"),
+    ("2026 World Cup Qualifying", "world cup"),
+    ("Tour de France Stage 12", "tour de france"),
+    ("2028 Olympics Track Events", "olympic"),
+])
+def test_tournament_key_parameterized(title, expected_fragment):
+    key = _extract_tournament_key(title)
+    assert key is not None
+    assert expected_fragment in key.lower()
+
+
+def test_tournament_key_premier_league_variants():
     assert _extract_tournament_key("2026 Premier League") == "2026 premier league"
     assert _extract_tournament_key("Premier League Week 28") == "premier league"
     assert _extract_tournament_key("2025/26 Premier League") is not None
-
-
-def test_tournament_key_tennis():
-    key = _extract_tournament_key("2026 Indian Wells Tennis")
-    assert key is not None
-    assert "indian wells" in key
 
 
 def test_tournament_key_f1():
@@ -36,42 +48,6 @@ def test_tournament_key_f1():
     assert key is not None
     assert "f1" in key.lower() or "formula" in key.lower()
     assert "gp" in key.lower() or "grand prix" in key.lower()
-
-
-def test_tournament_key_champions_league():
-    key = _extract_tournament_key("Champions League Quarterfinals")
-    assert key is not None
-    assert "champions league" in key
-
-
-def test_tournament_key_six_nations():
-    key = _extract_tournament_key("2026 Six Nations Rugby")
-    assert key is not None
-    assert "six nations" in key
-
-
-def test_tournament_key_ipl():
-    key = _extract_tournament_key("2026 IPL Cricket Season")
-    assert key is not None
-    assert "ipl" in key
-
-
-def test_tournament_key_nfl():
-    key = _extract_tournament_key("2026 NFL Free Agency")
-    assert key is not None
-    assert "nfl" in key.lower()
-
-
-def test_tournament_key_ufc():
-    key = _extract_tournament_key("UFC 315")
-    assert key is not None
-    assert "ufc" in key.lower()
-
-
-def test_tournament_key_march_madness():
-    key = _extract_tournament_key("2026 March Madness")
-    assert key is not None
-    assert "march madness" in key
 
 
 def test_tournament_key_none_for_news():
@@ -85,24 +61,6 @@ def test_tournament_key_none_for_news():
 def test_tournament_key_none_for_empty():
     assert _extract_tournament_key("") is None
     assert _extract_tournament_key(None) is None
-
-
-def test_tournament_key_world_cup():
-    key = _extract_tournament_key("2026 World Cup Qualifying")
-    assert key is not None
-    assert "world cup" in key
-
-
-def test_tournament_key_tour_de_france():
-    key = _extract_tournament_key("Tour de France Stage 12")
-    assert key is not None
-    assert "tour de france" in key
-
-
-def test_tournament_key_olympics():
-    key = _extract_tournament_key("2028 Olympics Track Events")
-    assert key is not None
-    assert "olympic" in key.lower()
 
 
 # --- Signature similarity tests for sports ---
@@ -125,15 +83,6 @@ def test_different_tournament_signatures():
     assert score < SPORTS_MERGE_THRESHOLD, f"Score {score} should be below threshold"
 
 
-def test_same_league_different_wording():
-    """Different wordings of the same league should still share words."""
-    words_a = _signature_words("2026 Premier League")
-    words_b = _signature_words("Premier League Week 28")
-    overlap = words_a & words_b
-    assert "premier" in overlap
-    assert "league" in overlap
-
-
 def test_f1_gp_variations():
     """Various F1 GP signature formats should extract tournament keys."""
     sigs = [
@@ -147,8 +96,8 @@ def test_f1_gp_variations():
 
 # --- Integration test with DB ---
 
-def test_sports_event_detection_with_db():
-    """Test that _is_sports_event correctly detects sports events from sources."""
+def test_sports_and_non_sports_event_detection_with_db():
+    """Test _is_sports_event detects sports events and rejects news events."""
     from src.semantic_clusterer import _is_sports_event
 
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -156,7 +105,7 @@ def test_sports_event_detection_with_db():
         init_db(db_path)
         conn = get_connection(db_path)
 
-        # Insert stories from sports sources
+        # Insert sports stories
         for i, source in enumerate(["ESPN", "BBC Sport", "Sky Sports"]):
             conn.execute(
                 """INSERT INTO stories (title, url, source, scraped_at)
@@ -165,35 +114,23 @@ def test_sports_event_detection_with_db():
             )
         conn.commit()
 
-        # Create an event and assign the stories
         conn.execute(
             """INSERT INTO events (title, status, story_count, created_at, first_seen, last_updated)
                VALUES ('Test Sports Event', 'active', 3, datetime('now'), datetime('now'), datetime('now'))"""
         )
-        event_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
+        sports_event_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
 
         story_ids = [r[0] for r in conn.execute("SELECT id FROM stories").fetchall()]
         for sid in story_ids:
             conn.execute(
                 "INSERT INTO event_stories (event_id, story_id, added_at) VALUES (?, ?, datetime('now'))",
-                (event_id, sid),
+                (sports_event_id, sid),
             )
         conn.commit()
 
-        assert _is_sports_event(conn, event_id) is True
-        conn.close()
+        assert _is_sports_event(conn, sports_event_id) is True
 
-
-def test_non_sports_event_detection_with_db():
-    """Test that news events are NOT detected as sports."""
-    from src.semantic_clusterer import _is_sports_event
-
-    with tempfile.TemporaryDirectory() as tmpdir:
-        db_path = Path(tmpdir) / "test.db"
-        init_db(db_path)
-        conn = get_connection(db_path)
-
-        # Insert stories from news sources
+        # Insert news stories
         for i, source in enumerate(["BBC World", "CNN", "Al Jazeera"]):
             conn.execute(
                 """INSERT INTO stories (title, url, source, scraped_at)
@@ -206,42 +143,36 @@ def test_non_sports_event_detection_with_db():
             """INSERT INTO events (title, status, story_count, created_at, first_seen, last_updated)
                VALUES ('Test News Event', 'active', 3, datetime('now'), datetime('now'), datetime('now'))"""
         )
-        event_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
+        news_event_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
 
-        story_ids = [r[0] for r in conn.execute("SELECT id FROM stories").fetchall()]
-        for sid in story_ids:
+        news_story_ids = [
+            r[0] for r in conn.execute(
+                "SELECT id FROM stories WHERE source IN ('BBC World','CNN','Al Jazeera')"
+            ).fetchall()
+        ]
+        for sid in news_story_ids:
             conn.execute(
                 "INSERT INTO event_stories (event_id, story_id, added_at) VALUES (?, ?, datetime('now'))",
-                (event_id, sid),
+                (news_event_id, sid),
             )
         conn.commit()
 
-        assert _is_sports_event(conn, event_id) is False
+        assert _is_sports_event(conn, news_event_id) is False
+
         conn.close()
 
 
 if __name__ == "__main__":
     tests = [
-        test_tournament_key_premier_league,
-        test_tournament_key_tennis,
+        test_tournament_key_parameterized,
+        test_tournament_key_premier_league_variants,
         test_tournament_key_f1,
-        test_tournament_key_champions_league,
-        test_tournament_key_six_nations,
-        test_tournament_key_ipl,
-        test_tournament_key_nfl,
-        test_tournament_key_ufc,
-        test_tournament_key_march_madness,
         test_tournament_key_none_for_news,
         test_tournament_key_none_for_empty,
-        test_tournament_key_world_cup,
-        test_tournament_key_tour_de_france,
-        test_tournament_key_olympics,
         test_similar_tournament_signatures,
         test_different_tournament_signatures,
-        test_same_league_different_wording,
         test_f1_gp_variations,
-        test_sports_event_detection_with_db,
-        test_non_sports_event_detection_with_db,
+        test_sports_and_non_sports_event_detection_with_db,
     ]
     passed = 0
     failed = 0

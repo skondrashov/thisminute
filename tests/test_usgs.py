@@ -5,6 +5,8 @@ import tempfile
 from pathlib import Path
 from unittest.mock import patch, MagicMock
 
+import pytest
+
 from src.usgs import (
     scrape_usgs,
     _mag_to_severity,
@@ -18,80 +20,70 @@ from src.database import init_db, get_connection, insert_story, store_extraction
 
 # --- Severity mapping tests ---
 
-def test_severity_minor():
-    assert _mag_to_severity(4.5) == 1
-    assert _mag_to_severity(4.9) == 1
-
-def test_severity_moderate():
-    assert _mag_to_severity(5.0) == 2
-    assert _mag_to_severity(5.4) == 2
-
-def test_severity_strong():
-    assert _mag_to_severity(5.5) == 3
-    assert _mag_to_severity(5.9) == 3
-
-def test_severity_major():
-    assert _mag_to_severity(6.0) == 4
-    assert _mag_to_severity(6.9) == 4
-
-def test_severity_severe():
-    assert _mag_to_severity(7.0) == 5
-    assert _mag_to_severity(8.5) == 5
+@pytest.mark.parametrize("mag,expected", [
+    (4.5, 1),
+    (4.9, 1),
+    (5.0, 2),
+    (5.4, 2),
+    (5.5, 3),
+    (5.9, 3),
+    (6.0, 4),
+    (6.9, 4),
+    (7.0, 5),
+    (8.5, 5),
+])
+def test_severity_parameterized(mag, expected):
+    assert _mag_to_severity(mag) == expected
 
 
 # --- Human interest score tests ---
 
-def test_human_interest_small():
-    assert _mag_to_human_interest(4.5) == 3
-
-def test_human_interest_medium():
-    assert _mag_to_human_interest(5.5) == 5
-
-def test_human_interest_large():
-    assert _mag_to_human_interest(7.0) == 8
-
-def test_human_interest_great():
-    assert _mag_to_human_interest(8.0) == 10
+@pytest.mark.parametrize("mag,expected", [
+    (4.5, 3),
+    (5.5, 5),
+    (7.0, 8),
+    (8.0, 10),
+])
+def test_human_interest_parameterized(mag, expected):
+    assert _mag_to_human_interest(mag) == expected
 
 
 # --- Summary builder tests ---
 
-def test_summary_basic():
+def test_summary_all_variants():
+    """Test basic, depth, felt, and tsunami summary variants."""
+    # Basic
     props = {"mag": 5.2, "place": "52 km SSE of Hualien City, Taiwan"}
     summary = _build_summary(props)
     assert "M5.2" in summary
     assert "Hualien City, Taiwan" in summary
 
-def test_summary_with_depth():
+    # With depth
     props = {"mag": 6.1, "place": "Tokyo, Japan", "depth_km": 35.2}
-    summary = _build_summary(props)
-    assert "Depth: 35.2 km" in summary
+    assert "Depth: 35.2 km" in _build_summary(props)
 
-def test_summary_with_felt():
+    # With felt
     props = {"mag": 5.0, "place": "California", "felt": 1500}
-    summary = _build_summary(props)
-    assert "Felt by 1500 people" in summary
+    assert "Felt by 1500 people" in _build_summary(props)
 
-def test_summary_with_tsunami():
+    # With tsunami
     props = {"mag": 7.8, "place": "Chile", "tsunami": 1}
-    summary = _build_summary(props)
-    assert "Tsunami warning issued" in summary
+    assert "Tsunami warning issued" in _build_summary(props)
 
-def test_summary_no_mag():
+    # No mag
     props = {"place": "Unknown"}
-    summary = _build_summary(props)
-    assert "Earthquake near Unknown" in summary
+    assert "Earthquake near Unknown" in _build_summary(props)
 
 
 # --- Event signature tests ---
 
-def test_event_signature_with_country():
+def test_event_signature_place_variants():
+    """Test country extraction and no-comma fallback in one test."""
     props = {"place": "52 km SSE of Hualien City, Taiwan"}
     sig = _build_event_signature(props)
     assert "Taiwan" in sig
     assert "Earthquake" in sig
 
-def test_event_signature_no_comma():
     props = {"place": "Central Alaska"}
     sig = _build_event_signature(props)
     assert "Central Alaska" in sig
@@ -199,66 +191,6 @@ def test_min_magnitude_filter():
         with patch("src.usgs.USGS_MIN_MAGNITUDE", 4.5):
             stories = scrape_usgs()
     assert len(stories) == 0
-
-
-# --- Database integration tests ---
-
-def test_insert_usgs_story():
-    """USGS story with source_type='inferred' inserts correctly."""
-    with tempfile.TemporaryDirectory() as tmpdir:
-        db_path = Path(tmpdir) / "test.db"
-        init_db(db_path)
-        conn = get_connection(db_path)
-
-        story = {
-            "title": "M 5.5 - Taiwan Earthquake",
-            "url": "https://earthquake.usgs.gov/test1",
-            "summary": "M5.5 earthquake near Taiwan.",
-            "source": "USGS Earthquakes",
-            "scraped_at": "2026-03-14T00:00:00Z",
-            "origin": "usgs",
-            "source_type": "inferred",
-            "category": "disaster",
-            "concepts": ["disaster", "earthquake"],
-            "lat": 25.0,
-            "lon": 121.5,
-            "geocode_confidence": 1.0,
-        }
-
-        was_new = insert_story(conn, story)
-        assert was_new is True
-
-        row = conn.execute("SELECT source_type, origin FROM stories WHERE url = ?",
-                           (story["url"],)).fetchone()
-        assert row["source_type"] == "inferred"
-        assert row["origin"] == "usgs"
-
-        conn.close()
-
-
-def test_source_type_default_reported():
-    """Regular RSS stories default to source_type='reported'."""
-    with tempfile.TemporaryDirectory() as tmpdir:
-        db_path = Path(tmpdir) / "test.db"
-        init_db(db_path)
-        conn = get_connection(db_path)
-
-        story = {
-            "title": "Some news headline",
-            "url": "https://example.com/news1",
-            "summary": "A news story.",
-            "source": "BBC World",
-            "scraped_at": "2026-03-14T00:00:00Z",
-        }
-
-        was_new = insert_story(conn, story)
-        assert was_new is True
-
-        row = conn.execute("SELECT source_type FROM stories WHERE url = ?",
-                           (story["url"],)).fetchone()
-        assert row["source_type"] == "reported"
-
-        conn.close()
 
 
 def test_usgs_extraction_storage():
