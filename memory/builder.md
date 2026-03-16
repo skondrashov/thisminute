@@ -364,3 +364,28 @@
 - `renderWorldsBar()` inserts world buttons before `#world-share-btn` (not `#worlds-more-btn`) to maintain correct DOM order after dynamic re-renders.
 - Overflow fade `::after` offset increased from 36px to 68px to account for the extra button.
 - Cache-bust version bumped to `?v=143`.
+
+## Welcome Questionnaire / Pick Your Worlds (2026-03-15)
+
+- Replaces world picker in first-visit flow. 6 personality cards presented after world tour ends.
+- Modal overlay with selectable cards (icon + name + description + toggle checkbox).
+- All worlds selected by default. Dismissing (Done, Escape, click-outside) keeps everything.
+- Empty selection treated as all-selected to prevent empty bar.
+- Selection saved to `tm_visible_worlds` in localStorage (JSON array of world IDs). Key removed when all selected.
+- `_loadVisibleWorlds()` returns null when key absent = show all. try/catch for corrupted data.
+- World bar immediately updates to show only selected worlds. If active world hidden, switches to first visible.
+- Accessible later via main menu "Pick worlds" item.
+- Eye toggles in worlds panel sync bidirectionally with `tm_visible_worlds` via `_syncVisibleWorldsFromPrefs()`.
+- Deferred onboarding (`showOnboardingHint()` + mobile sheet peek) fires from `confirmWorldPicker()` gated by `_isFirstVisitForTour`, regardless of dismiss path.
+- Overlay click listener stored in module-level `_pickerOverlayClickRef`, cleaned up in `closeWorldPicker()`.
+- 2-column grid desktop, 1-column mobile at 600px breakpoint.
+
+## World Bar and Color Updates (2026-03-15)
+
+- Default world changed to Positive (was News).
+- World bar uses flex-wrap on desktop (was horizontal scroll).
+- Filter status line shows active time/filter count below world bar.
+- Full color overhaul: Tech=hot pink, Curious=orange, Markets=dark teal, etc. No more color collisions.
+- World-tinted dot colors: domain theme tints dots toward active world color, classic uses world color.
+- Replay tour menu item added to hamburger menu.
+- Palette button in mobile controls tray (not standalone on mobile).

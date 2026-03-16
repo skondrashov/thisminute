@@ -34,16 +34,31 @@ Filters are orthogonal AND dimensions — each narrows independently:
 ## World Bar
 
 - **Icon+label buttons** for all 12 world presets. `WORLD_SHORT_LABELS` abbreviates "Entertainment" to "Ent." and "Geopolitics" to "Geo".
-- **12 unique domain-colored active states** — CSS active backgrounds are darkened variants of the brand colors (e.g., positive `#a06800` not `#f5a623`). All pass WCAG AA 4.5:1 with white text.
+- **Flex-wrap on desktop** (was horizontal scroll). World buttons wrap to additional rows.
+- **Filter status line** shows active time/filter count below the world bar.
+- **Default world is Positive** (was News).
+- **12 unique domain-colored active states** — CSS active backgrounds are darkened variants of the brand colors (e.g., positive `#a06800` not `#f5a623`). All pass WCAG AA 4.5:1 with white text. Full color overhaul: Tech=hot pink, Curious=orange, Markets=dark teal, etc. (no more color collisions).
 - **Share button** (`#world-share-btn`) copies current URL to clipboard. Uses `_worldShareFallback()` for older browsers. Visual feedback: checkmark + green border for 1.5s.
+- **Replay tour** menu item in hamburger menu lets users re-run the auto-cycling world tour.
 - `renderWorldsBar()` inserts world buttons before `#world-share-btn` to maintain correct DOM order.
 
 ## Dot Color Blending
 
-- **Dominance-tinted**: `_blendLocationColors()` finds the dominant domain at each location, calculates `ratio = dominant_count / total_stories`, then RGB-lerps from a base color to the domain color.
+- **5 switchable themes**: domain (default), classic, mono, heat, neon. Persisted as `tm_dot_theme` in localStorage.
+- **Domain theme**: `_blendLocationColors()` finds the dominant domain at each location, calculates `ratio = dominant_count / total_stories`, then RGB-lerps from a base color to the domain color. World-tinted: domain theme tints dots toward active world color.
+- **Classic theme**: Uses world color directly for all dots.
 - **Theme-aware bases**: Dark mode = white (`#ffffff`, dots look like city lights). Light mode = medium gray (`#6e7681`).
+- **Palette button**: In mobile controls tray (not standalone on mobile). Popup menu near legend area on desktop.
 - `toggleTheme()` triggers re-blend so dots update with the correct base color.
 - The `blended_color` property name is preserved for MapLibre layer compatibility. Country polygon fills use a separate code path (already dominant-domain based).
+
+## Welcome Questionnaire
+
+- **Replaces world picker** in first-visit flow. 6 personality cards presented after world tour ends.
+- Selection personalizes the world bar (saved to `tm_visible_worlds` in localStorage).
+- Accessible later via main menu "Pick worlds" item.
+- All cards selected by default -- dismissing keeps everything. Empty selection treated as all-selected.
+- Bidirectional sync with eye toggles in worlds panel.
 
 ## SEO Files
 

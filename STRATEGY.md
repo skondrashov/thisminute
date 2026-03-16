@@ -9,7 +9,7 @@ thisminute.org shows what's happening in the world right now, plotted on a map. 
 ## Current Priorities (updated 2026-03-15)
 
 1. ~~**Deploy v116 + uncommitted work**~~ — DONE (v118 deployed).
-2. **First-use experience overhaul** — ~~Auto-cycling world presets~~, "pick your worlds" first-visit selector, ~~prominent world bar~~. MOSTLY DONE (v119). Pick-your-worlds selector remaining.
+2. ~~**First-use experience overhaul**~~ — DONE. Auto-cycling world presets, "pick your worlds" first-visit selector (now welcome questionnaire with 6 personality cards), prominent world bar. Welcome questionnaire replaces world picker for first-visit flow.
 3. ~~**Shareable world preset URLs + share button**~~ — DONE (v119). Share button in world bar.
 4. ~~**SEO/social shareability verification**~~ — DONE (v119). OG image, meta tags, robots.txt, sitemap.xml.
 5. **Domain distribution endpoint** — `/api/stats/domain-distribution` for monitoring content balance.
@@ -86,14 +86,17 @@ thisminute should work for ANY interest, not just hard news. The next major effo
 - [x] User-added RSS feeds frontend UI (modal dialog: add/list/remove feeds, status dots, tag selection, error display)
 - [x] Shareable world presets via URL (share button per world, copy-to-clipboard)
 
-### Phase 4.5: First-Use Experience — STARTED
+### Phase 4.5: First-Use Experience — COMPLETE
 
 - [x] Auto-cycling world presets for new visitors (6 worlds, 5s each, overlay with icon+name, stops on any interaction)
-- [ ] "Pick your worlds" first-visit selector (checkboxes, personalize world bar)
-- [x] Prominent world bar redesign (icon+label buttons, 12 unique domain-colored active states, hover lift)
+- [x] "Pick your worlds" first-visit selector — implemented as welcome questionnaire (6 personality cards, replaces world picker in first-visit flow)
+- [x] Prominent world bar redesign (icon+label buttons, 12 unique domain-colored active states, hover lift, flex-wrap on desktop)
 - [x] SEO/social shareability (OG image 1200x630, meta description, canonical link, twitter:card summary_large_image, dynamic OG for deep links, robots.txt, sitemap.xml)
 - [ ] Domain distribution endpoint (`/api/stats/domain-distribution`)
 - [x] Dominance-tinted dot colors (white/gray base, tints toward dominant domain — replaces misleading HSL blending)
+- [x] Full color overhaul (Tech=hot pink, Curious=orange, Markets=dark teal — no more collisions)
+- [x] Map dot color themes (5 themes: domain, classic, mono, heat, neon — palette button + popup menu)
+- [x] Replay tour menu item, filter status line below world bar
 
 ### Phase 5: Feedback Loop — STARTED
 
@@ -242,7 +245,7 @@ Steps 1-3 are backend-only (no cache version bump). Step 4-5 need a version bump
 | World-aware situations                  | A- (all 5 domains generating situations, domain-specific clustering shipped) |
 | User-configurable feeds                 | A- (backend + frontend complete and tested, add/list/remove with status, SSRF protection, pending deploy) |
 | Custom concepts                         | F (deferred to Phase 6)                                     |
-| First-use experience                    | B+ (auto-cycling world tour for new visitors, prominent icon+label world bar, mobile onboarding; remaining: "pick your worlds" selector) |
+| First-use experience                    | A- (auto-cycling world tour, welcome questionnaire with 6 personality cards, prominent icon+label world bar with flex-wrap, filter status line, replay tour, 5 dot color themes, full color overhaul) |
 | Shareability                            | A- (URL state, OpenGraph with OG image, share button in world bar, dynamic OG for situation deep links, robots.txt/sitemap.xml) |
 
-**Overall: A-** (World-aware situations live for all 5 domains with domain-specific clustering. User feeds complete. First-use experience greatly improved with world tour + prominent world bar. Shareability near-complete with OG image, share button, and SEO. Main gaps: "pick your worlds" first-visit selector, custom concepts deferred.)
+**Overall: A-** (World-aware situations live for all 5 domains with domain-specific clustering. User feeds complete. First-use experience complete with world tour + welcome questionnaire + prominent world bar + 5 dot color themes + full color overhaul. Shareability near-complete with OG image, share button, and SEO. Main gap: custom concepts deferred to Phase 6.)

@@ -57,7 +57,7 @@
     _trendingConcepts: /* @__PURE__ */ new Set(),
     // Worlds
     allWorlds: {},
-    activeWorldId: "news",
+    activeWorldId: "bright_side",
     worldModified: false,
     _pendingWorldId: null,
     worldPrefs: {},
@@ -130,10 +130,14 @@
     return _rgbToHex(255, 50, 30);
   }
   function _blendLocationColors(features) {
-    var base = state.lightMode ? _BLEND_BASE_LIGHT : _BLEND_BASE_DARK;
+    var rawBase = state.lightMode ? _BLEND_BASE_LIGHT : _BLEND_BASE_DARK;
     var theme = state.dotColorTheme || "domain";
-    var classicColor = state.lightMode ? "#0969da" : "#58a6ff";
     var monoColor = state.lightMode ? "#57606a" : "#ffffff";
+    /* World color tint — applied as a final pass on domain/classic themes */
+    var activeWorld = state.allWorlds[state.activeWorldId];
+    var worldRGB = activeWorld && activeWorld.color ? _hexToRGB(activeWorld.color) : null;
+    var base = rawBase;
+    var classicColor = worldRGB ? _rgbToHex(worldRGB[0], worldRGB[1], worldRGB[2]) : (state.lightMode ? "#0969da" : "#58a6ff");
     try {
       var byCoord = {};
       for (var i = 0; i < features.length; i++) {
@@ -186,6 +190,16 @@
             );
           }
         }
+        /* Apply world color tint to final blended color */
+        if (worldRGB && (theme === "domain" || theme === "classic")) {
+          var bRGB = _hexToRGB(blended);
+          var wt = 0.22;
+          blended = _rgbToHex(
+            bRGB[0] + (worldRGB[0] - bRGB[0]) * wt,
+            bRGB[1] + (worldRGB[1] - bRGB[1]) * wt,
+            bRGB[2] + (worldRGB[2] - bRGB[2]) * wt
+          );
+        }
         for (var j2 = 0; j2 < group.length; j2++) {
           group[j2].properties.blended_color = blended;
         }
@@ -196,7 +210,16 @@
     for (var ii = 0; ii < features.length; ii++) {
       if (!features[ii].properties.blended_color) {
         var dom2 = features[ii].properties._domain || "general";
-        features[ii].properties.blended_color = DOMAIN_COLORS[dom2] || "#484f58";
+        var fallback = DOMAIN_COLORS[dom2] || "#484f58";
+        if (worldRGB && (theme === "domain" || theme === "classic")) {
+          var fRGB = _hexToRGB(fallback);
+          fallback = _rgbToHex(
+            fRGB[0] + (worldRGB[0] - fRGB[0]) * 0.22,
+            fRGB[1] + (worldRGB[1] - fRGB[1]) * 0.22,
+            fRGB[2] + (worldRGB[2] - fRGB[2]) * 0.22
+          );
+        }
+        features[ii].properties.blended_color = fallback;
       }
     }
   }
@@ -239,17 +262,17 @@
     { domain: "uplifting", color: "#f1c40f", keywords: ["rescue", "hero", "discovery", "breakthrough", "donation", "volunteer", "recovery", "milestone", "achievement", "innovation"] }
   ];
   var WORLD_PRESETS = {
-    news: {
-      label: "News",
-      color: "#1f6feb",
+    bright_side: {
+      label: "Bright Side",
+      color: "#c99700",
       builtIn: true,
       config: {
         activeConcepts: [],
         excludedConcepts: [],
         activeSources: [],
         excludedSources: [],
-        activeOrigins: ["rss", "gdelt", "usgs", "noaa", "eonet", "gdacs", "reliefweb", "who", "launches", "openaq", "travel", "firms", "meteoalarm", "acled", "jma"],
-        brightSideMode: false,
+        activeOrigins: ["rss", "gdelt", "launches"],
+        brightSideMode: true,
         searchText: "",
         timeHours: "",
         hideOpinion: false
@@ -257,7 +280,7 @@
     },
     sports: {
       label: "Sports",
-      color: "#2ea043",
+      color: "#218838",
       builtIn: true,
       config: {
         activeConcepts: [],
@@ -274,7 +297,7 @@
     },
     entertainment: {
       label: "Entertainment",
-      color: "#a855f7",
+      color: "#9645de",
       builtIn: true,
       config: {
         activeConcepts: [],
@@ -289,9 +312,9 @@
       },
       feedTags: ["entertainment"]
     },
-    positive: {
-      label: "Positive",
-      color: "#f5a623",
+    curious: {
+      label: "Curious",
+      color: "#d97236",
       builtIn: true,
       config: {
         activeConcepts: [],
@@ -299,7 +322,8 @@
         activeSources: [],
         excludedSources: [],
         activeOrigins: ["rss", "gdelt", "usgs", "noaa", "eonet", "gdacs", "reliefweb", "who", "launches", "openaq", "travel", "firms", "meteoalarm", "acled", "jma"],
-        brightSideMode: true,
+        brightSideMode: false,
+        curiousMode: true,
         searchText: "",
         timeHours: "",
         hideOpinion: false
@@ -307,7 +331,7 @@
     },
     science: {
       label: "Science",
-      color: "#00b4d8",
+      color: "#0891b2",
       builtIn: true,
       config: {
         activeConcepts: [],
@@ -324,7 +348,7 @@
     },
     tech: {
       label: "Tech",
-      color: "#e63946",
+      color: "#db2777",
       builtIn: true,
       config: {
         activeConcepts: [],
@@ -339,41 +363,24 @@
       },
       feedTags: ["tech"]
     },
-    curious: {
-      label: "Curious",
-      color: "#ff6f61",
+    planet: {
+      label: "Planet",
+      color: "#4a80b0",
       builtIn: true,
       config: {
         activeConcepts: [],
         excludedConcepts: [],
         activeSources: [],
         excludedSources: [],
-        activeOrigins: ["rss", "gdelt", "usgs", "noaa", "eonet", "gdacs", "reliefweb", "who", "launches", "openaq", "travel", "firms", "meteoalarm", "acled", "jma"],
-        brightSideMode: false,
-        curiousMode: true,
-        searchText: "",
-        timeHours: "",
-        hideOpinion: false
-      }
-    },
-    weather: {
-      label: "Weather",
-      color: "#0ea5e9",
-      builtIn: true,
-      config: {
-        activeConcepts: [],
-        excludedConcepts: [],
-        activeSources: [],
-        excludedSources: [],
-        activeOrigins: ["rss", "noaa", "eonet", "usgs", "gdacs", "firms", "meteoalarm", "jma"],
+        activeOrigins: ["noaa", "eonet", "usgs", "gdacs", "firms", "meteoalarm", "jma"],
         brightSideMode: false,
         searchText: "",
         timeHours: "",
         hideOpinion: false
       }
     },
-    crisis: {
-      label: "Crisis",
+    conflict: {
+      label: "Conflict",
       color: "#dc2626",
       builtIn: true,
       config: {
@@ -381,16 +388,17 @@
         excludedConcepts: [],
         activeSources: [],
         excludedSources: [],
-        activeOrigins: ["rss", "usgs", "noaa", "eonet", "gdacs", "reliefweb", "who", "travel", "firms", "meteoalarm", "acled", "jma"],
+        activeOrigins: ["rss", "gdelt", "acled"],
         brightSideMode: false,
         searchText: "",
         timeHours: "",
         hideOpinion: false
-      }
+      },
+      keywords: ["war", "conflict", "military", "attack", "bombing", "airstrike", "weapons", "ceasefire", "protest", "shooting", "terrorism"]
     },
     travel: {
       label: "Travel",
-      color: "#8b5cf6",
+      color: "#6d28d9",
       builtIn: true,
       config: {
         activeConcepts: [],
@@ -404,8 +412,8 @@
         hideOpinion: false
       }
     },
-    geopolitics: {
-      label: "Geopolitics",
+    power: {
+      label: "Power",
       color: "#6b7280",
       builtIn: true,
       config: {
@@ -418,11 +426,12 @@
         searchText: "",
         timeHours: "",
         hideOpinion: false
-      }
+      },
+      keywords: ["politics", "election", "government", "legislation", "congress", "parliament", "diplomacy", "sanctions", "corruption", "justice", "court"]
     },
     markets: {
       label: "Markets",
-      color: "#16a34a",
+      color: "#0d7367",
       builtIn: true,
       config: {
         activeConcepts: [],
@@ -436,9 +445,43 @@
         hideOpinion: false
       },
       feedTags: ["business"]
+    },
+    health: {
+      label: "Health",
+      color: "#7c3aed",
+      builtIn: true,
+      config: {
+        activeConcepts: [],
+        excludedConcepts: [],
+        activeSources: [],
+        excludedSources: [],
+        activeOrigins: ["rss", "who", "reliefweb"],
+        brightSideMode: false,
+        searchText: "",
+        timeHours: "",
+        hideOpinion: false
+      },
+      keywords: ["health", "disease", "vaccine", "hospital", "drug", "cancer", "pandemic", "surgery", "outbreak", "medical"]
+    },
+    all: {
+      label: "All",
+      color: "#1f6feb",
+      builtIn: true,
+      permanent: true,
+      config: {
+        activeConcepts: [],
+        excludedConcepts: [],
+        activeSources: [],
+        excludedSources: [],
+        activeOrigins: ["rss", "gdelt", "usgs", "noaa", "eonet", "gdacs", "reliefweb", "who", "launches", "openaq", "travel", "firms", "meteoalarm", "acled", "jma"],
+        brightSideMode: false,
+        searchText: "",
+        timeHours: "",
+        hideOpinion: false
+      }
     }
   };
-  var WORLD_ICONS = { all: "\u25C9", news: "\u{1F4F0}", sports: "\u26BD", entertainment: "\u{1F3AC}", positive: "\u2728", science: "\u{1F52C}", tech: "\u{1F4BB}", curious: "\u{1F9E9}", weather: "\u26C5", crisis: "\u{1F6A8}", travel: "\u2708\uFE0F", geopolitics: "\u{1F310}", markets: "\u{1F4C8}" };
+  var WORLD_ICONS = { all: "\u25C9", bright_side: "\u2728", sports: "\u26BD", entertainment: "\u{1F3AC}", science: "\u{1F52C}", tech: "\u{1F4BB}", curious: "\u{1F9E9}", planet: "\u{1F30D}", conflict: "\u2694\uFE0F", travel: "\u2708\uFE0F", power: "\u{1F3DB}\uFE0F", markets: "\u{1F4C8}", health: "\u{1F3E5}" };
   var NAME_EMOJI_MAP = [
     [/war|conflict|military|defense/i, "\u2694\uFE0F"],
     [/tech|ai|cyber|software|data/i, "\u{1F4BB}"],
@@ -473,11 +516,13 @@
     "#d19a66"
   ];
   var WORLD_DOMAIN_MAP = {
-    news: "news",
+    bright_side: "positive",
     sports: "sports",
     entertainment: "entertainment",
-    positive: "positive",
-    curious: "curious"
+    curious: "curious",
+    conflict: "news",
+    power: "news",
+    health: "news"
   };
   var _DOMAIN_HIGHLIGHT_COLORS = {
     dark: { news: "#58a6ff", sports: "#3fb950", entertainment: "#bc8cff", positive: "#f5a623", curious: "#ff6f61" },
@@ -816,9 +861,9 @@
       nameEl.textContent = world ? world.label : activeBtn.textContent;
     }
     if (dotEl && activeBtn) {
-      const colors = { news: "#1f6feb", sports: "#2ea043", entertainment: "#a371f7", positive: "#f0883e", science: "#00b4d8", tech: "#e63946", curious: "#ff6f61", weather: "#0ea5e9", crisis: "#dc2626", travel: "#8b5cf6" };
-      const worldId = activeBtn.dataset.world || "news";
-      dotEl.style.background = colors[worldId] || "#1f6feb";
+      const worldId = activeBtn.dataset.world || "bright_side";
+      const world = state.allWorlds[worldId];
+      dotEl.style.background = world ? world.color : "#c99700";
     }
     const filterDot = document.getElementById("mobile-filter-dot");
     if (filterDot && state._filterState) {
@@ -974,17 +1019,29 @@
       const current = sidebar.dataset.sheetState || "closed";
       if (current !== "closed") setSheetState("closed");
     });
+  }
+  function initMobileMapControls() {
     const mCtrlToggle = document.getElementById("mobile-ctrl-toggle");
     const mCtrlTray = document.getElementById("mobile-ctrl-tray");
-    const mGlobe = document.getElementById("mobile-globe-btn");
-    const mLabels = document.getElementById("mobile-labels-btn");
-    const mSpin = document.getElementById("mobile-spin-btn");
-    const mReload = document.getElementById("mobile-reload-btn");
-    if (mCtrlToggle) mCtrlToggle.addEventListener("click", () => {
-      mCtrlTray.classList.toggle("open");
-    });
+    if (mCtrlToggle && mCtrlTray) {
+      mCtrlToggle.addEventListener("click", (e) => {
+        e.stopPropagation();
+        mCtrlTray.classList.toggle("open");
+      });
+      document.addEventListener("click", (e) => {
+        if (mCtrlTray.classList.contains("open") && !mCtrlTray.contains(e.target)) {
+          mCtrlTray.classList.remove("open");
+        }
+      });
+    }
+    var mGlobe = document.getElementById("mobile-globe-btn");
+    var mLabels = document.getElementById("mobile-labels-btn");
+    var mTheme = document.getElementById("mobile-theme-btn");
+    var mSpin = document.getElementById("mobile-spin-btn");
+    var mReload = document.getElementById("mobile-reload-btn");
     if (mGlobe) mGlobe.addEventListener("click", toggleGlobe);
     if (mLabels) mLabels.addEventListener("click", toggleMapLabels);
+    if (mTheme) mTheme.addEventListener("click", _toggleDotThemeMenu);
     if (mSpin) mSpin.addEventListener("click", () => { if (state.toggleAutoRotate) state.toggleAutoRotate(); });
     if (mReload) mReload.addEventListener("click", () => {
       mReload.classList.add("spinning");
@@ -1631,18 +1688,51 @@
     }
     localStorage.setItem(_VISITED_KEY, JSON.stringify([...state._visitedStories]));
   }
+  var _introSpinActive = false;
+  function _startIntroSpin() {
+    if (_isFirstVisitForTour) return; // tour handles first-timers
+    if (state.currentProjection !== "globe") return;
+    _introSpinActive = true;
+    var startLon = Math.random() * 360 - 180;
+    var targetLon = startLon + 120 + Math.random() * 60; // spin 120-180 degrees
+    var targetLat = (Math.random() * 60) - 10; // land between -10 and 50
+    var startZoom = 1.0;
+    var endZoom = 1.8;
+    var duration = 3000;
+    var start = performance.now();
+    function frame(now) {
+      if (!_introSpinActive) return;
+      var t = Math.min(1, (now - start) / duration);
+      var ease = 1 - Math.pow(1 - t, 3); // cubic ease-out (decelerates)
+      var lon = startLon + (targetLon - startLon) * ease;
+      var lat = targetLat * ease;
+      var zoom = startZoom + (endZoom - startZoom) * ease;
+      state.map.jumpTo({ center: [lon, lat], zoom: zoom });
+      if (t < 1) requestAnimationFrame(frame);
+      else _introSpinActive = false;
+    }
+    requestAnimationFrame(frame);
+    // Stop on any interaction
+    var stopEvents = ["click", "mousedown", "touchstart", "wheel"];
+    function stopSpin() {
+      _introSpinActive = false;
+      stopEvents.forEach(function(ev) { document.removeEventListener(ev, stopSpin, true); });
+    }
+    stopEvents.forEach(function(ev) { document.addEventListener(ev, stopSpin, true); });
+  }
   function initMap() {
     state.map = new maplibregl.Map({
       container: "map",
       style: state.lightMode ? "https://basemaps.cartocdn.com/gl/positron-gl-style/style.json" : "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json",
       center: [20, 30],
-      zoom: 1.5,
+      zoom: 1.0,
       minZoom: 0,
       maxZoom: 18
     });
     state.map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "bottom-right");
     state.map.on("style.load", () => {
       state.map.setProjection({ type: state.currentProjection });
+      _startIntroSpin();
     });
     const _prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     let _autoRotate = !_prefersReducedMotion;
@@ -1821,9 +1911,11 @@
     await Promise.allSettled([quickStoriesP, conceptsP, sourcesP, eventsP, overviewP, narrativesP]);
     hideLoadingBar();
     if (state._pendingMapView && state.map) {
+      _introSpinActive = false;
       state.map.jumpTo({ center: [state._pendingMapView.lon, state._pendingMapView.lat], zoom: state._pendingMapView.zoom });
       state._pendingMapView = null;
     }
+    _introSpinActive = false; // stop spin once data is loaded
     startWorldTour();
     if (!_worldTourActive) {
       showOnboardingHint();
@@ -2282,6 +2374,7 @@
       renderSourceChips(filtered.sourceCounts);
       updateWorldOverviewFilterState(filtered.hasFilters);
       renderActiveFilterPills();
+      updateFilterStatus();
       updateMobileBar();
       saveStateToURL();
     } catch (err) {
@@ -2319,6 +2412,74 @@
         markWorldModified();
       });
     });
+  }
+  var _TIME_LABELS = { "": "", "1": "1h", "3": "3h", "6": "6h", "12": "12h", "24": "24h", "48": "2d", "168": "7d" };
+  var _TIME_BADGE_LABELS = { "": "All Time", "1": "Last Hour", "3": "Last 3 Hours", "6": "Last 6 Hours", "12": "Last 12 Hours", "24": "Last 24 Hours", "48": "Last 2 Days", "168": "Last 7 Days" };
+  var _TIME_CYCLE = ["", "1", "3", "6", "12", "24", "48", "168"];
+  function _updateTimeBadge() {
+    var labelEl = document.getElementById("time-badge-label");
+    if (!labelEl) return;
+    var timeVal = document.getElementById("filter-time").value;
+    var label = _TIME_BADGE_LABELS[timeVal] || "All Time";
+    var fs = state._filterState;
+    var countStr = fs ? fs.stats.showing.toLocaleString() + " stories" : "";
+    labelEl.innerHTML = '<span class="tb-time">' + escapeHtml(label) + '</span>' + (countStr ? ' <span class="tb-count">\u00B7 ' + escapeHtml(countStr) + '</span>' : '');
+    /* Update active state in menu */
+    var menu = document.getElementById("time-badge-menu");
+    if (menu) menu.querySelectorAll(".tb-option").forEach(function(opt) {
+      opt.classList.toggle("active", opt.dataset.time === timeVal);
+    });
+  }
+  function _initTimeBadge() {
+    var badge = document.getElementById("time-badge");
+    var menu = document.getElementById("time-badge-menu");
+    if (!badge || !menu) return;
+    /* Build menu options */
+    for (var i = 0; i < _TIME_CYCLE.length; i++) {
+      var val = _TIME_CYCLE[i];
+      var opt = document.createElement("button");
+      opt.className = "tb-option" + (val === "" ? " active" : "");
+      opt.dataset.time = val;
+      opt.textContent = _TIME_BADGE_LABELS[val] || val;
+      opt.addEventListener("click", (function(v) {
+        return function(e) {
+          e.stopPropagation();
+          var sel = document.getElementById("filter-time");
+          sel.value = v;
+          sel.dispatchEvent(new Event("change"));
+          menu.classList.remove("open");
+        };
+      })(val));
+      menu.appendChild(opt);
+    }
+    /* Toggle menu */
+    badge.addEventListener("click", function(e) {
+      e.stopPropagation();
+      menu.classList.toggle("open");
+    });
+    /* Close on outside click */
+    document.addEventListener("click", function() {
+      menu.classList.remove("open");
+    });
+  }
+  function updateFilterStatus() {
+    _updateTimeBadge();
+    var el = document.getElementById("filter-status");
+    if (!el) return;
+    var parts = [];
+    var timeVal = document.getElementById("filter-time").value;
+    if (timeVal) parts.push(_TIME_LABELS[timeVal] || timeVal + "h");
+    var nFilters = state.activeConcepts.size + state.excludedConcepts.size + state.activeSources.size + state.excludedSources.size;
+    var hideOp = document.getElementById("filter-opinion")?.checked;
+    if (hideOp) nFilters++;
+    var searchQ = (document.getElementById("search-box").value || "").trim();
+    if (searchQ) parts.push("\u201C" + (searchQ.length > 20 ? searchQ.slice(0, 20) + "\u2026" : searchQ) + "\u201D");
+    if (nFilters > 0) parts.push(nFilters + " filter" + (nFilters > 1 ? "s" : ""));
+    var fs = state._filterState;
+    if (fs) parts.push(fs.stats.showing.toLocaleString() + " stories");
+    if (parts.length === 0) { el.classList.remove("visible"); return; }
+    el.innerHTML = parts.map(function(t, i) { return (i > 0 ? '<span class="fs-dot"></span>' : "") + '<span class="fs-item">' + escapeHtml(t) + "</span>"; }).join("");
+    el.classList.add("visible");
   }
   async function fetchCloudData() {
     try {
@@ -2632,26 +2793,9 @@
       return [];
     }
   }
-  var ALL_WORLD = {
-    label: "All",
-    color: "#8b949e",
-    builtIn: true,
-    permanent: true,
-    config: {
-      activeConcepts: [],
-      excludedConcepts: [],
-      activeSources: [],
-      excludedSources: [],
-      activeOrigins: ["rss", "gdelt", "usgs", "noaa", "eonet", "gdacs", "reliefweb", "who", "launches", "openaq", "travel", "firms", "meteoalarm", "acled", "jma"],
-      brightSideMode: false,
-      searchText: "",
-      timeHours: "",
-      hideOpinion: false
-    }
-  };
   function loadWorlds() {
     const removed = _getRemovedWorlds();
-    state.allWorlds = { all: ALL_WORLD };
+    state.allWorlds = {};
     for (const [id, preset] of Object.entries(WORLD_PRESETS)) {
       if (!removed.includes(id)) state.allWorlds[id] = preset;
     }
@@ -2828,6 +2972,8 @@
     applyWorldConfig(effectiveConfig, world.keywords, world.feedTags);
     state.activeWorldId = worldId;
     state.worldModified = false;
+    _blendLocationColors(state.cloudData.features || []);
+    _updateLegendColors();
     updateWorldsBar();
     renderWorldOverview();
     applyFilters();
@@ -2980,7 +3126,7 @@
       switchWorld("all");
     }
   }
-  var WORLD_SHORT_LABELS = { entertainment: "Ent.", geopolitics: "Geo" };
+  var WORLD_SHORT_LABELS = { entertainment: "Ent." };
   function renderWorldsBar() {
     const bar = document.getElementById("worlds-bar");
     const shareBtn = document.getElementById("world-share-btn");
@@ -3009,7 +3155,7 @@
     updateWorldsBarOverflow();
   }
   // === World Tour: Auto-cycling world presets for first-time visitors ===
-  var WORLD_TOUR_SEQUENCE = ["news", "crisis", "sports", "entertainment", "positive", "curious"];
+  var WORLD_TOUR_SEQUENCE = ["bright_side", "sports", "curious", "entertainment", "conflict", "travel"];
   var WORLD_TOUR_INTERVAL = 5000;
   var _worldTourTimer = null;
   var _worldTourIdx = 0;
@@ -3017,6 +3163,13 @@
   var _isFirstVisitForTour = false;
   function captureFirstVisitFlag() {
     _isFirstVisitForTour = !localStorage.getItem("tm_world_tour_seen") && !localStorage.getItem("tm_last_visit") && !localStorage.getItem("tm_default_world") && !window.location.hash;
+  }
+  function replayWorldTour() {
+    if (_worldTourActive) stopWorldTour();
+    if (_worldTourTimer) { clearInterval(_worldTourTimer); _worldTourTimer = null; }
+    _isFirstVisitForTour = true;
+    _worldTourActive = false;
+    startWorldTour();
   }
   function startWorldTour() {
     if (!_isFirstVisitForTour) return;
@@ -3054,9 +3207,9 @@
       overlay.classList.remove("visible");
       overlay.classList.add("fading");
     }
-    // Show world picker for first-time visitors after tour ends
+    // Show welcome questionnaire for first-time visitors after tour ends
     if (_shouldShowWorldPicker()) {
-      setTimeout(() => showWorldPicker(), 600);
+      setTimeout(() => _showWelcomeDialog(), 600);
     } else {
       // Fire deferred onboarding after tour ends
       showOnboardingHint();
@@ -3096,20 +3249,22 @@
 
   // === World Picker: First-visit world selector ===
   var WORLD_PICKER_DESCRIPTIONS = {
-    news: "Global headlines and breaking news",
+    bright_side: "Uplifting and feel-good stories",
     sports: "Live scores, transfers, tournaments",
     entertainment: "Film, music, celebrity, awards",
-    positive: "Uplifting and feel-good stories",
+    curious: "Quirky and human-interest stories",
     science: "Research, discoveries, space",
     tech: "AI, cyber, software, startups",
-    curious: "Quirky and human-interest stories",
-    weather: "Storms, forecasts, climate",
-    crisis: "Conflicts, disasters, emergencies",
+    planet: "Earthquakes, storms, climate, wildfires",
+    conflict: "Wars, attacks, protests, crises",
     travel: "Advisories, tourism, destinations",
-    geopolitics: "Elections, diplomacy, sanctions",
-    markets: "Stocks, finance, economy"
+    power: "Elections, diplomacy, legislation",
+    markets: "Stocks, finance, economy",
+    health: "Disease, outbreaks, medical research",
+    all: "Everything, unfiltered"
   };
   var _worldPickerSelection = null;
+  var _pickerOverlayClickRef = null;
   function showWorldPicker() {
     var dialog = document.getElementById("world-picker-dialog");
     var grid = document.getElementById("world-picker-grid");
@@ -3139,12 +3294,16 @@
     }
     dialog.classList.add("visible");
     // Click outside the panel to confirm
-    dialog.addEventListener("click", function _pickerOverlayClick(e) {
+    // Remove any stale listener before adding a new one
+    if (_pickerOverlayClickRef) {
+      dialog.removeEventListener("click", _pickerOverlayClickRef);
+    }
+    _pickerOverlayClickRef = function(e) {
       if (e.target === dialog) {
-        dialog.removeEventListener("click", _pickerOverlayClick);
         confirmWorldPicker();
       }
-    });
+    };
+    dialog.addEventListener("click", _pickerOverlayClickRef);
   }
   function _worldPickerToggle(e) {
     var card = e.currentTarget;
@@ -3160,7 +3319,14 @@
   }
   function closeWorldPicker() {
     var dialog = document.getElementById("world-picker-dialog");
-    if (dialog) dialog.classList.remove("visible");
+    if (dialog) {
+      dialog.classList.remove("visible");
+      // Remove overlay click listener to prevent leak (Fix #2)
+      if (_pickerOverlayClickRef) {
+        dialog.removeEventListener("click", _pickerOverlayClickRef);
+        _pickerOverlayClickRef = null;
+      }
+    }
   }
   function confirmWorldPicker() {
     if (!_worldPickerSelection) { closeWorldPicker(); return; }
@@ -3191,10 +3357,21 @@
     renderWorldsBar();
     // If current world was hidden, switch to first visible or news
     if (state.activeWorldId !== "all" && selected.indexOf(state.activeWorldId) === -1) {
-      switchWorld(selected[0] || "news");
+      switchWorld(selected[0] || "all");
     }
     closeWorldPicker();
     _worldPickerSelection = null;
+    // Deferred onboarding: show hint + mobile sheet peek on first visit (Fix #1)
+    // This fires regardless of how the picker was dismissed (Done, Escape, or click-outside)
+    if (_isFirstVisitForTour) {
+      showOnboardingHint();
+      if (_isMobile() && !localStorage.getItem("thisminute-onboarded")) {
+        setTimeout(() => {
+          setSheetState("half");
+          setTimeout(() => setSheetState("closed"), 1500);
+        }, 2e3);
+      }
+    }
   }
   function _loadVisibleWorlds() {
     try {
@@ -3236,6 +3413,38 @@
   function _shouldShowWorldPicker() {
     // Show if first visit (tour just finished) AND no saved visible worlds preference
     return _isFirstVisitForTour && !localStorage.getItem("tm_visible_worlds");
+  }
+
+  var _welcomeDialogInit = false;
+  function _showWelcomeDialog() {
+    var dialog = document.getElementById("welcome-dialog");
+    if (!dialog) return;
+    dialog.classList.add("visible");
+    if (_welcomeDialogInit) return;
+    _welcomeDialogInit = true;
+    dialog.querySelectorAll(".welcome-card").forEach(function(card) {
+      card.addEventListener("click", function() {
+        var worldId = card.dataset.world;
+        dialog.classList.remove("visible");
+        if (worldId && state.allWorlds[worldId]) {
+          switchWorld(worldId);
+          localStorage.setItem("tm_default_world", worldId);
+        }
+        showOnboardingHint();
+        if (_isMobile() && !localStorage.getItem("thisminute-onboarded")) {
+          setTimeout(function() {
+            setSheetState("half");
+            setTimeout(function() { setSheetState("closed"); }, 1500);
+          }, 2e3);
+        }
+      });
+    });
+    dialog.addEventListener("click", function(e) {
+      if (e.target === dialog) {
+        dialog.classList.remove("visible");
+        showOnboardingHint();
+      }
+    });
   }
 
   function toggleWorldsPanel() {
@@ -3774,6 +3983,7 @@
                     ${loc}
                     <span class="story-time" data-time="${escapeHtml(ev.last_updated || "")}" title="${escapeHtml(fullTime)}">${time}</span>
                     <button class="feedback-btn" data-fb-type="event" data-fb-id="${ev.id}" data-fb-title="${escapeHtml(ev.title)}" title="Report issue">&#9873;</button>
+                    <button class="event-share-btn" data-event-id="${ev.id}" title="Copy link to this event">&#128279;</button>
                 </div>
                 <div class="event-stories-container"><div class="event-stories-inner"></div></div>
             </div>
@@ -3791,9 +4001,21 @@
         openFeedbackDialog({ type: btn.dataset.fbType, id: parseInt(btn.dataset.fbId), title: btn.dataset.fbTitle });
       });
     });
+    container.querySelectorAll(".event-share-btn").forEach((btn) => {
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const evId = btn.dataset.eventId;
+        const url = new URL(window.location.origin);
+        url.searchParams.set("event", evId);
+        navigator.clipboard.writeText(url.toString()).then(() => {
+          btn.textContent = "\u2713";
+          setTimeout(() => { btn.innerHTML = "&#128279;"; }, 1500);
+        }).catch(() => {});
+      });
+    });
     container.querySelectorAll(".event-item").forEach((item) => {
       item.addEventListener("click", (e) => {
-        if (e.target.tagName === "A" || e.target.classList.contains("feedback-btn")) return;
+        if (e.target.tagName === "A" || e.target.classList.contains("feedback-btn") || e.target.classList.contains("event-share-btn")) return;
         const eventId = parseInt(item.dataset.eventId);
         const wasExpanded = item.classList.contains("expanded");
         container.querySelectorAll(".event-item.expanded").forEach((i) => {
@@ -3893,6 +4115,11 @@
   }
   function _highlightEventOnMap(stories, lat, lon) {
     if (stories.length > 0) {
+      const ids = stories.map((s) => s.id).filter(Boolean);
+      if (ids.length > 0 && state.map.getLayer("cloud-points")) {
+        state.map.setPaintProperty("cloud-points", "circle-opacity",
+          ["case", ["in", ["get", "id"], ["literal", ids]], 0.95, 0.08]);
+      }
       const lats = stories.filter((s) => s.lat).map((s) => s.lat);
       const lons = stories.filter((s) => s.lon).map((s) => s.lon);
       if (lats.length > 1) {
@@ -3905,6 +4132,10 @@
   }
   function _clearEventHighlight() {
     _clearHoverHighlight();
+    if (state.map && state.map.getLayer("cloud-points")) {
+      state.map.setPaintProperty("cloud-points", "circle-opacity",
+        ["interpolate", ["linear"], ["get", "age_hours"], 0, 0.95, 6, 0.85, 24, 0.6, 72, 0.35]);
+    }
   }
   async function loadNarratives() {
     try {
@@ -4552,9 +4783,9 @@
       bar.classList.remove("visible");
       return;
     }
-    const worldId = state.activeWorldId || "news";
+    const worldId = state.activeWorldId || "all";
     const domain = _getWorldDomain(worldId);
-    if (domain && domain !== "news") {
+    if (domain) {
       const domainNarrs = (state.narrativesData || []).filter((n) => (n.domain || "news") === domain);
       if (domainNarrs.length > 0) {
         const topNames = domainNarrs.slice(0, 3).map((n) => n.title).join(" \xB7 ");
@@ -4563,13 +4794,17 @@
       } else {
         bar.querySelector(".world-overview-text").textContent = "Situations will appear as stories accumulate";
       }
-    } else {
+    } else if (worldId === "all" || !worldId) {
       bar.querySelector(".world-overview-text").textContent = state.worldOverview.summary;
+    } else {
+      /* Worlds without a narrative domain (planet, travel, etc.) — hide generic summary */
+      bar.classList.remove("visible");
+      return;
     }
     const label = bar.querySelector(".world-overview-label");
     if (label) {
-      const worldColors = { news: "#58a6ff", sports: "#3fb950", entertainment: "#bc8cff", positive: "#f5a623", science: "#00b4d8", tech: "#e63946", curious: "#ff6f61", weather: "#0ea5e9", crisis: "#dc2626", travel: "#8b5cf6" };
-      label.style.color = worldColors[worldId] || "#58a6ff";
+      var w = state.allWorlds[worldId];
+      label.style.color = w ? w.color : "#58a6ff";
     }
     bar.classList.add("visible");
   }
@@ -4643,6 +4878,29 @@
       items[i].classList.toggle("active", items[i].dataset.theme === state.dotColorTheme);
     }
   }
+  function _updateLegendColors() {
+    var legendEl = document.getElementById("map-legend");
+    if (!legendEl) return;
+    var activeWorld = state.allWorlds[state.activeWorldId];
+    var worldRGB = activeWorld && activeWorld.color ? _hexToRGB(activeWorld.color) : null;
+    var theme = state.dotColorTheme || "domain";
+    var wt = 0.35;
+    legendEl.querySelectorAll(".legend-item").forEach(function(item) {
+      var domain = item.dataset.domain;
+      var dot = item.querySelector(".legend-dot");
+      if (!dot || !domain) return;
+      var domRGB = _domainRGB[domain] || _fallbackRGB;
+      if (worldRGB && (theme === "domain" || theme === "classic")) {
+        dot.style.background = _rgbToHex(
+          domRGB[0] + (worldRGB[0] - domRGB[0]) * wt,
+          domRGB[1] + (worldRGB[1] - domRGB[1]) * wt,
+          domRGB[2] + (worldRGB[2] - domRGB[2]) * wt
+        );
+      } else {
+        dot.style.background = DOMAIN_COLORS[domain] || "#484f58";
+      }
+    });
+  }
   function _updateLegendForTheme() {
     var legendEl = document.getElementById("map-legend");
     var heatLegend = document.getElementById("heat-legend");
@@ -4696,7 +4954,7 @@
   }
   function saveStateToURL() {
     const params = new URLSearchParams();
-    if (state.activeWorldId && state.activeWorldId !== "news") params.set("world", state.activeWorldId);
+    if (state.activeWorldId && state.activeWorldId !== "bright_side") params.set("world", state.activeWorldId);
     const world = state.allWorlds[state.activeWorldId];
     const worldFeedTagSources = world && world.feedTags ? new Set(sourcesForTags(world.feedTags)) : null;
     if (state.activeConcepts.size > 0) params.set("in", [...state.activeConcepts].join(","));
@@ -4742,7 +5000,7 @@
         document.getElementById("filter-time").value = "24";
       }
       const defaultWorldId = localStorage.getItem("tm_default_world");
-      if (defaultWorldId && state.allWorlds[defaultWorldId] && defaultWorldId !== "news") {
+      if (defaultWorldId && state.allWorlds[defaultWorldId] && defaultWorldId !== "all") {
         const w = state.allWorlds[defaultWorldId];
         if (w.feedTags && w.feedTags.length > 0) {
           applyWorldConfig(w.config);
@@ -4856,6 +5114,7 @@
   document.addEventListener("DOMContentLoaded", async () => {
     applyInitialTheme();
     initMobileSheet();
+    initMobileMapControls();
     initInfoPanelSwipe(closeInfoPanel);
     loadFeedTags();
     loadWorlds();
@@ -4978,6 +5237,7 @@
       });
     }
     _buildDotThemeUI();
+    _initTimeBadge();
     document.addEventListener("click", (e) => {
       const tag = e.target.closest(".story-concept-tag.clickable");
       if (!tag || !tag.dataset.concept) return;
@@ -5028,6 +5288,10 @@
     document.getElementById("menu-feeds").addEventListener("click", () => {
       document.getElementById("main-menu").classList.remove("visible");
       openUserFeedsDialog();
+    });
+    document.getElementById("menu-replay-tour").addEventListener("click", () => {
+      document.getElementById("main-menu").classList.remove("visible");
+      replayWorldTour();
     });
     document.getElementById("menu-feedback").addEventListener("click", () => {
       document.getElementById("main-menu").classList.remove("visible");
@@ -5083,14 +5347,6 @@
     });
     document.getElementById("world-picker-done").addEventListener("click", () => {
       confirmWorldPicker();
-      // Show onboarding hint after picker closes
-      showOnboardingHint();
-      if (_isMobile() && !localStorage.getItem("thisminute-onboarded")) {
-        setTimeout(() => {
-          setSheetState("half");
-          setTimeout(() => setSheetState("closed"), 1500);
-        }, 2e3);
-      }
     });
     document.getElementById("user-feeds-close").addEventListener("click", closeUserFeedsDialog);
     document.getElementById("user-feed-add-btn").addEventListener("click", _addUserFeed);
@@ -5138,6 +5394,12 @@
         document.getElementById("search-box").focus();
       }
       if (e.key === "Escape") {
+        const welcomeDialog = document.getElementById("welcome-dialog");
+        if (welcomeDialog && welcomeDialog.classList.contains("visible")) {
+          welcomeDialog.classList.remove("visible");
+          showOnboardingHint();
+          return;
+        }
         const worldPickerDialog = document.getElementById("world-picker-dialog");
         if (worldPickerDialog && worldPickerDialog.classList.contains("visible")) {
           confirmWorldPicker();
@@ -5259,7 +5521,7 @@
       }
       applyFilters();
     });
-    if (!state.activeWorldId) switchWorld("news");
+    if (!state.activeWorldId) switchWorld("all");
     setInterval(loadEvents, EVENTS_INTERVAL);
     setInterval(loadWorldOverview, EVENTS_INTERVAL);
     setInterval(loadNarratives, NARRATIVES_INTERVAL);

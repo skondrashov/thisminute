@@ -4,13 +4,13 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>thisminute — global news, live</title>
-    <meta name="description" content="Real-time global news map. Every story gets a dot. 95 sources, 12 world views. You decide what matters.">
+    <meta name="description" content="Real-time global news map. Every story gets a dot. 95 sources, 13 world views. You decide what matters.">
     <link rel="canonical" href="https://thisminute.org">
 
     <!-- Open Graph -->
     <meta property="og:type" content="website">
     <meta property="og:title" content="thisminute — global news, live">
-    <meta property="og:description" content="Real-time global news map. Every story gets a dot. 95 sources, 12 world views. You decide what matters.">
+    <meta property="og:description" content="Real-time global news map. Every story gets a dot. 95 sources, 13 world views. You decide what matters.">
     <meta property="og:url" content="https://thisminute.org">
     <meta property="og:site_name" content="thisminute">
     <meta property="og:image" content="https://thisminute.org/static/og-image.png">
@@ -21,7 +21,7 @@
     <!-- Twitter Card -->
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="thisminute — global news, live">
-    <meta name="twitter:description" content="Real-time global news map. Every story gets a dot. 95 sources, 12 world views. You decide what matters.">
+    <meta name="twitter:description" content="Real-time global news map. Every story gets a dot. 95 sources, 13 world views. You decide what matters.">
     <meta name="twitter:image" content="https://thisminute.org/static/og-image.png">
 
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%230d1117'/%3E%3Ctext x='16' y='24' text-anchor='middle' font-family='system-ui,sans-serif' font-weight='800' font-size='22' fill='%23f0f6fc'%3Et%3C/text%3E%3Ccircle cx='26' cy='6' r='4' fill='%23e64436'/%3E%3C/svg%3E">
@@ -29,7 +29,7 @@
     <script defer data-domain="thisminute.org" src="https://plausible.io/js/script.js"></script>
 
     <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5.5.0/dist/maplibre-gl.css" />
-    <link rel="stylesheet" href="/static/css/style.css?v=147" />
+    <link rel="stylesheet" href="/static/css/style.css?v=148" />
 </head>
 <body>
     <div id="sidebar" role="navigation" aria-label="News filters and situations">
@@ -52,11 +52,9 @@
                 <button class="menu-item" id="menu-pick-worlds"><span class="menu-icon">&#127760;</span> Pick worlds</button>
                 <button class="menu-item" id="menu-feeds"><span class="menu-icon">+</span> My feeds</button>
                 <button class="menu-item" id="menu-feedback"><span class="menu-icon">&#9873;</span> Send feedback</button>
+                <button class="menu-item" id="menu-replay-tour"><span class="menu-icon">&#9654;</span> Replay tour</button>
                 <div class="menu-divider"></div>
-                <div class="menu-heading">Other projects</div>
-                <a class="menu-item" href="/forge/" rel="noopener"><span class="menu-icon">&#128296;</span> Agent Forge</a>
-                <a class="menu-item" href="https://rhizome.wiki" target="_blank" rel="noopener"><span class="menu-icon">&#127793;</span> Rhizome</a>
-                <a class="menu-item" href="https://mainmenu.app" target="_blank" rel="noopener"><span class="menu-icon">&#9776;</span> Mainmenu</a>
+                <a class="menu-item menu-forge" href="/forge/" rel="noopener"><span class="menu-icon">&#128296;</span> Maintained by Forge</a>
             </div>
         </div>
 
@@ -83,21 +81,23 @@
 
         <div class="worlds-bar-wrapper">
         <div id="worlds-bar">
-            <button class="world-btn active" data-world="news" title="News"><span class="world-btn-icon">&#x1F4F0;</span><span class="world-btn-label">News</span></button>
+            <button class="world-btn active" data-world="bright_side" title="Bright Side"><span class="world-btn-icon">&#x2728;</span><span class="world-btn-label">Bright Side</span></button>
             <button class="world-btn" data-world="sports" title="Sports"><span class="world-btn-icon">&#x26BD;</span><span class="world-btn-label">Sports</span></button>
             <button class="world-btn" data-world="entertainment" title="Entertainment"><span class="world-btn-icon">&#x1F3AC;</span><span class="world-btn-label">Ent.</span></button>
-            <button class="world-btn" data-world="positive" title="Positive"><span class="world-btn-icon">&#x2728;</span><span class="world-btn-label">Positive</span></button>
+            <button class="world-btn" data-world="curious" title="Curious"><span class="world-btn-icon">&#x1F9E9;</span><span class="world-btn-label">Curious</span></button>
             <button class="world-btn" data-world="science" title="Science"><span class="world-btn-icon">&#x1F52C;</span><span class="world-btn-label">Science</span></button>
             <button class="world-btn" data-world="tech" title="Tech"><span class="world-btn-icon">&#x1F4BB;</span><span class="world-btn-label">Tech</span></button>
-            <button class="world-btn" data-world="curious" title="Curious"><span class="world-btn-icon">&#x1F9E9;</span><span class="world-btn-label">Curious</span></button>
-            <button class="world-btn" data-world="weather" title="Weather"><span class="world-btn-icon">&#x26C5;</span><span class="world-btn-label">Weather</span></button>
-            <button class="world-btn" data-world="crisis" title="Crisis"><span class="world-btn-icon">&#x1F6A8;</span><span class="world-btn-label">Crisis</span></button>
-            <button class="world-btn" data-world="travel" title="Travel"><span class="world-btn-icon">&#x2708;&#xFE0F;</span><span class="world-btn-label">Travel</span></button>
-            <button class="world-btn" data-world="geopolitics" title="Geopolitics"><span class="world-btn-icon">&#x1F310;</span><span class="world-btn-label">Geo</span></button>
             <button class="world-btn" data-world="markets" title="Markets"><span class="world-btn-icon">&#x1F4C8;</span><span class="world-btn-label">Markets</span></button>
+            <button class="world-btn" data-world="planet" title="Planet"><span class="world-btn-icon">&#x1F30D;</span><span class="world-btn-label">Planet</span></button>
+            <button class="world-btn" data-world="conflict" title="Conflict"><span class="world-btn-icon">&#x2694;&#xFE0F;</span><span class="world-btn-label">Conflict</span></button>
+            <button class="world-btn" data-world="travel" title="Travel"><span class="world-btn-icon">&#x2708;&#xFE0F;</span><span class="world-btn-label">Travel</span></button>
+            <button class="world-btn" data-world="power" title="Power"><span class="world-btn-icon">&#x1F3DB;&#xFE0F;</span><span class="world-btn-label">Power</span></button>
+            <button class="world-btn" data-world="health" title="Health"><span class="world-btn-icon">&#x1F3E5;</span><span class="world-btn-label">Health</span></button>
+            <button class="world-btn" data-world="all" title="All"><span class="world-btn-icon">&#x25C9;</span><span class="world-btn-label">All</span></button>
             <button id="world-share-btn" title="Share this world" aria-label="Share this world">&#x1F517;</button>
             <button id="worlds-more-btn" title="Manage filter presets">&#9881;</button>
         </div>
+        <div id="filter-status"></div>
 
         <div id="worlds-panel">
             <div class="worlds-panel-header">
@@ -301,6 +301,45 @@
         </div>
     </div>
 
+    <div id="welcome-dialog" class="modal-overlay">
+        <div class="modal-panel welcome-panel">
+            <h3>What are you here for?</h3>
+            <div id="welcome-grid">
+                <button class="welcome-card" data-world="bright_side">
+                    <span class="welcome-icon">&#x2728;</span>
+                    <span class="welcome-label">Good news</span>
+                    <span class="welcome-desc">Uplifting stories from around the world</span>
+                </button>
+                <button class="welcome-card" data-world="science">
+                    <span class="welcome-icon">&#x1F52C;</span>
+                    <span class="welcome-label">Science</span>
+                    <span class="welcome-desc">Discoveries, space, and breakthroughs</span>
+                </button>
+                <button class="welcome-card" data-world="sports">
+                    <span class="welcome-icon">&#x26BD;</span>
+                    <span class="welcome-label">Sports</span>
+                    <span class="welcome-desc">Matches, transfers, and results worldwide</span>
+                </button>
+                <button class="welcome-card" data-world="curious">
+                    <span class="welcome-icon">&#x1F9E9;</span>
+                    <span class="welcome-label">Surprise me</span>
+                    <span class="welcome-desc">Weird, wonderful, and fascinating</span>
+                </button>
+                <button class="welcome-card" data-world="conflict">
+                    <span class="welcome-icon">&#x2694;&#xFE0F;</span>
+                    <span class="welcome-label">Breaking</span>
+                    <span class="welcome-desc">Wars, conflicts, and urgent events</span>
+                </button>
+                <button class="welcome-card" data-world="entertainment">
+                    <span class="welcome-icon">&#x1F3AC;</span>
+                    <span class="welcome-label">Culture</span>
+                    <span class="welcome-desc">Film, music, TV, and celebrity</span>
+                </button>
+            </div>
+            <p class="welcome-hint">You can switch anytime from the bar at the top</p>
+        </div>
+    </div>
+
     <div id="loading-bar" role="status" aria-label="Loading data">
         <div id="loading-bar-fill"></div>
     </div>
@@ -308,6 +347,11 @@
     <!-- Main map view -->
     <div id="map-container" role="application" aria-label="Interactive news map">
         <div id="map"></div>
+        <div id="time-badge">
+            <span id="time-badge-label">All Time</span>
+            <span class="tb-arrow">&#9662;</span>
+            <div id="time-badge-menu"></div>
+        </div>
         <div id="world-tour-overlay"><div class="world-tour-label"><span class="tour-icon"></span><span class="tour-name"></span><span class="tour-hint">click anywhere to explore</span></div></div>
         <div id="map-reticle"></div>
         <div id="map-preview"></div>
@@ -316,6 +360,7 @@
             <div id="mobile-ctrl-tray">
                 <button id="mobile-globe-btn" title="Toggle globe/flat">&#127758;</button>
                 <button id="mobile-labels-btn" title="Toggle labels">Aa</button>
+                <button id="mobile-theme-btn" title="Dot color theme">&#127912;</button>
                 <button id="mobile-spin-btn" class="spin-toggle-btn" title="Spin globe">&#10227;</button>
                 <button id="mobile-reload-btn" title="Refresh">&#8635;</button>
             </div>
@@ -332,6 +377,6 @@
     </div>
 
     <script src="https://unpkg.com/maplibre-gl@5.5.0/dist/maplibre-gl.js"></script>
-    <script src="/static/js/app.js?v=147"></script>
+    <script src="/static/js/app.js?v=148"></script>
 </body>
 </html>
