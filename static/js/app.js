@@ -1514,7 +1514,7 @@
   }
   function computeFilteredState() {
     const searchText = (document.getElementById("search-box").value || "").trim().toLowerCase();
-    const timeHours = parseInt(document.getElementById("filter-time").value) || 0;
+    const timeHours = parseFloat(document.getElementById("filter-time").value) || 0;
     const hideOpinion = document.getElementById("filter-opinion")?.checked || false;
     const now = Date.now();
     const originFiltering = state.activeOrigins.size < 15;
