@@ -26,7 +26,7 @@ from .database import (
     get_event_stories, get_world_overview,
     search_stories_multi, get_story_extraction, get_story_actors,
     get_active_narratives, get_narrative_by_id, get_narrative_events,
-    get_active_registry_events,
+    get_active_registry_events, get_domain_distribution,
 )
 from .categorizer import get_all_concept_names, CONCEPT_DOMAINS
 from .geocoder import bbox_to_radius_km
@@ -902,6 +902,51 @@ async def api_stats():
     return JSONResponse(
         content=stats,
         headers={"Cache-Control": "public, max-age=60"},
+    )
+
+
+# ---------------------------------------------------------------------------
+# Domain distribution — content balance monitoring
+# ---------------------------------------------------------------------------
+
+_domain_dist_cache = _TTLCache()
+_domain_dist_rate: dict[str, list[float]] = {}
+
+
+@app.get("/api/stats/domain-distribution")
+async def api_domain_distribution(
+    hours: int = Query(24, ge=1, le=168, description="Lookback window in hours (1-168)"),
+    request: Request = None,
+):
+    """Return distribution of stories across feed tags, source types, and domains.
+
+    Monitoring/analytics endpoint for understanding content balance.
+    Cached for 5 minutes. Rate limited to 10 requests/minute per IP.
+    """
+    # Rate limit: 10/min per IP (read-only but query is moderately expensive)
+    ip = _get_client_ip(request) if request else "unknown"
+    if _check_rate_limit(_domain_dist_rate, f"ip:{ip}", max_calls=10):
+        return JSONResponse({"error": "rate limited"}, status_code=429)
+
+    # For the default 24h window, use the cache
+    is_default = (hours == 24)
+    if is_default:
+        cached = _domain_dist_cache.get()
+        if cached:
+            return JSONResponse(content=cached, headers={"Cache-Control": "public, max-age=300"})
+
+    conn = get_connection()
+    try:
+        result = get_domain_distribution(conn, hours)
+    finally:
+        conn.close()
+
+    if is_default:
+        _domain_dist_cache.set(result, 300)  # 5 min TTL
+
+    return JSONResponse(
+        content=result,
+        headers={"Cache-Control": "public, max-age=300"},
     )
 
 

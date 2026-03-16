@@ -567,6 +567,120 @@ def get_stats(conn: sqlite3.Connection) -> dict:
     }
 
 
+def get_domain_distribution(conn: sqlite3.Connection, hours: int = 24) -> dict:
+    """Return domain distribution metrics for stories in the last *hours* hours.
+
+    Computes:
+    - Story counts per feed tag (news, sports, entertainment, positive, tech, etc.)
+    - Story counts per source_type (reported vs inferred)
+    - Positive proxy: stories with bright_side_score >= 4
+    - Curious proxy: stories with human_interest_score >= 6
+    - Total story count for the period
+    - Active narrative counts per domain
+    - Event counts with domain breakdown via constituent stories
+    """
+    from .config import FEED_TAG_MAP
+
+    cutoff_clause = f"datetime('now', '-{hours} hours')"
+
+    # Total stories in window
+    total = conn.execute(
+        f"SELECT COUNT(*) as c FROM stories WHERE scraped_at > {cutoff_clause}"
+    ).fetchone()["c"]
+
+    # Stories per source_type
+    source_type_rows = conn.execute(
+        f"""SELECT COALESCE(source_type, 'reported') as st, COUNT(*) as c
+            FROM stories WHERE scraped_at > {cutoff_clause}
+            GROUP BY st"""
+    ).fetchall()
+    by_source_type = {r["st"]: r["c"] for r in source_type_rows}
+
+    # Stories per feed tag -- a story may count toward multiple tags
+    # via its source name in FEED_TAG_MAP
+    source_rows = conn.execute(
+        f"""SELECT source, COUNT(*) as c
+            FROM stories WHERE scraped_at > {cutoff_clause}
+            GROUP BY source"""
+    ).fetchall()
+    tag_counts = {}
+    untagged = 0
+    for row in source_rows:
+        tags = FEED_TAG_MAP.get(row["source"], [])
+        if not tags:
+            untagged += row["c"]
+        for tag in tags:
+            tag_counts[tag] = tag_counts.get(tag, 0) + row["c"]
+
+    # Positive proxy: stories with bright_side_score >= 4
+    positive_proxy = conn.execute(
+        f"""SELECT COUNT(*) as c
+            FROM stories s
+            JOIN story_extractions se ON se.story_id = s.id
+            WHERE s.scraped_at > {cutoff_clause}
+            AND se.bright_side_score >= 4"""
+    ).fetchone()["c"]
+
+    # Curious proxy: stories with human_interest_score >= 6
+    curious_proxy = conn.execute(
+        f"""SELECT COUNT(*) as c
+            FROM stories s
+            JOIN story_extractions se ON se.story_id = s.id
+            WHERE s.scraped_at > {cutoff_clause}
+            AND se.human_interest_score >= 6"""
+    ).fetchone()["c"]
+
+    # Extracted vs pending
+    extracted = conn.execute(
+        f"""SELECT COUNT(*) as c
+            FROM stories s
+            JOIN story_extractions se ON se.story_id = s.id
+            WHERE s.scraped_at > {cutoff_clause}"""
+    ).fetchone()["c"]
+
+    # Active narrative counts per domain
+    narrative_rows = conn.execute(
+        """SELECT domain, COUNT(*) as c
+           FROM narratives WHERE status = 'active'
+           GROUP BY domain"""
+    ).fetchall()
+    narratives_by_domain = {r["domain"]: r["c"] for r in narrative_rows}
+
+    # Event counts in the window with story-source-based domain breakdown
+    event_rows = conn.execute(
+        f"""SELECT e.id, GROUP_CONCAT(s.source, '||') as sources
+            FROM events e
+            JOIN event_stories es ON es.event_id = e.id
+            JOIN stories s ON s.id = es.story_id
+            WHERE e.last_updated > {cutoff_clause}
+            GROUP BY e.id"""
+    ).fetchall()
+    event_tag_counts = {}
+    total_events = len(event_rows)
+    for erow in event_rows:
+        sources = (erow["sources"] or "").split("||")
+        event_tags = set()
+        for src in sources:
+            for tag in FEED_TAG_MAP.get(src.strip(), []):
+                event_tags.add(tag)
+        for tag in event_tags:
+            event_tag_counts[tag] = event_tag_counts.get(tag, 0) + 1
+
+    return {
+        "hours": hours,
+        "total_stories": total,
+        "extracted_stories": extracted,
+        "by_feed_tag": tag_counts,
+        "untagged_stories": untagged,
+        "by_source_type": by_source_type,
+        "positive_proxy": positive_proxy,
+        "curious_proxy": curious_proxy,
+        "narratives_by_domain": narratives_by_domain,
+        "total_events": total_events,
+        "events_by_tag": event_tag_counts,
+    }
+
+
 # --- Feed state ---
 
 def get_feed_state(conn: sqlite3.Connection, feed_url: str) -> Optional[dict]:
