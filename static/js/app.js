@@ -481,6 +481,14 @@
       }
     }
   };
+  var WORLD_ALIASES = {
+    "positive": "bright_side",
+    "weather": "planet",
+    "crisis": "conflict",
+    "geopolitics": "power",
+    "news": "all"
+  };
+  function _resolveWorldAlias(id) { return id && WORLD_ALIASES[id] || id; }
   var WORLD_ICONS = { all: "\u25C9", bright_side: "\u2728", sports: "\u26BD", entertainment: "\u{1F3AC}", science: "\u{1F52C}", tech: "\u{1F4BB}", curious: "\u{1F9E9}", planet: "\u{1F30D}", conflict: "\u2694\uFE0F", travel: "\u2708\uFE0F", power: "\u{1F3DB}\uFE0F", markets: "\u{1F4C8}", health: "\u{1F3E5}" };
   var NAME_EMOJI_MAP = [
     [/war|conflict|military|defense/i, "\u2694\uFE0F"],
@@ -2697,7 +2705,7 @@
       _clearHoverHighlight();
       document.title = "thisminute \u2014 global news, live";
     }
-    const defaultWorldId = localStorage.getItem("tm_default_world");
+    const defaultWorldId = _resolveWorldAlias(localStorage.getItem("tm_default_world"));
     const fallback = defaultWorldId && state.allWorlds[defaultWorldId] ? defaultWorldId : "all";
     switchWorld(fallback);
   }
@@ -2810,7 +2818,7 @@
       console.error("Failed to load saved worlds:", e);
     }
     loadWorldPrefs();
-    const defaultWorldId = localStorage.getItem("tm_default_world");
+    const defaultWorldId = _resolveWorldAlias(localStorage.getItem("tm_default_world"));
     if (defaultWorldId && state.allWorlds[defaultWorldId]) {
       state.activeWorldId = defaultWorldId;
     }
@@ -3466,7 +3474,7 @@
     sorted.forEach(([_, w], i) => {
       if (w.builtIn) lastBuiltIn = i;
     });
-    const defaultWorldId = localStorage.getItem("tm_default_world");
+    const defaultWorldId = _resolveWorldAlias(localStorage.getItem("tm_default_world"));
     sorted.forEach(([id, world], idx) => {
       const pref = state.worldPrefs[id] || {};
       const isVisible = pref.visible !== false;
@@ -5000,7 +5008,7 @@
       } else {
         document.getElementById("filter-time").value = "24";
       }
-      const defaultWorldId = localStorage.getItem("tm_default_world");
+      const defaultWorldId = _resolveWorldAlias(localStorage.getItem("tm_default_world"));
       if (defaultWorldId && state.allWorlds[defaultWorldId] && defaultWorldId !== "all") {
         const w = state.allWorlds[defaultWorldId];
         if (w.feedTags && w.feedTags.length > 0) {
@@ -5026,7 +5034,7 @@
     localStorage.setItem("tm_last_visit", Date.now().toString());
     const params = new URLSearchParams(hash);
     if (params.has("world")) {
-      const worldId = params.get("world");
+      const worldId = _resolveWorldAlias(params.get("world"));
       if (state.allWorlds[worldId]) {
         const w = state.allWorlds[worldId];
         if (w.keywords && w.keywords.length > 0) {
