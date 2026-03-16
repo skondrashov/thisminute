@@ -348,7 +348,7 @@
     },
     tech: {
       label: "Tech",
-      color: "#db2777",
+      color: "#ec4899",
       builtIn: true,
       config: {
         activeConcepts: [],
@@ -2413,9 +2413,9 @@
       });
     });
   }
-  var _TIME_LABELS = { "": "", "1": "1h", "3": "3h", "6": "6h", "12": "12h", "24": "24h", "48": "2d", "168": "7d" };
-  var _TIME_BADGE_LABELS = { "": "All Time", "1": "Last Hour", "3": "Last 3 Hours", "6": "Last 6 Hours", "12": "Last 12 Hours", "24": "Last 24 Hours", "48": "Last 2 Days", "168": "Last 7 Days" };
-  var _TIME_CYCLE = ["", "1", "3", "6", "12", "24", "48", "168"];
+  var _TIME_LABELS = { "": "", "0.0167": "1m", "1": "1h", "3": "3h", "6": "6h", "12": "12h", "24": "24h", "48": "2d", "168": "7d" };
+  var _TIME_BADGE_LABELS = { "": "All Time", "0.0167": "This Minute", "1": "Last Hour", "3": "Last 3 Hours", "6": "Last 6 Hours", "12": "Last 12 Hours", "24": "Last 24 Hours", "48": "Last 2 Days", "168": "Last 7 Days" };
+  var _TIME_CYCLE = ["", "0.0167", "1", "3", "6", "12", "24", "48", "168"];
   function _updateTimeBadge() {
     var labelEl = document.getElementById("time-badge-label");
     if (!labelEl) return;
@@ -3172,6 +3172,7 @@
     startWorldTour();
   }
   function startWorldTour() {
+    if (_worldTourTimer) { clearInterval(_worldTourTimer); _worldTourTimer = null; }
     if (!_isFirstVisitForTour) return;
     _worldTourActive = true;
     _worldTourIdx = 0;
