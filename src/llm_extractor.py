@@ -242,31 +242,35 @@ FIELD SPECIFICATIONS
     Science stories are bright side when there's a real-world impact, not just "paper published."
 
 15. "human_interest_score" — integer 1-10 or null
-    How interesting, engaging, or shareable is this story to a GENERAL audience, regardless of
-    its political or geopolitical significance? This measures "you won't believe this" factor,
-    viral potential, emotional resonance, uniqueness, and human curiosity appeal.
+    How QUIRKY, SURPRISING, or DELIGHTFUL is this story? This powers a "Curious" feed of
+    lighthearted, offbeat, and genuinely unusual stories. Think "you won't believe this" in
+    a FUN way — not in a tragic or horrifying way.
 
-    This is DIFFERENT from bright_side. Bright side = "this is good news." Human interest = "this is
-    a fascinating/engaging story." A war crime investigation can be high human-interest (gripping,
-    dramatic) but low bright-side. A routine charity donation can be high bright-side but low
-    human-interest (not particularly engaging to read about).
+    IMPORTANT: This is NOT "how engaging/dramatic is this story." War, violence, tragedy,
+    conflict, death, disaster, and political drama should score LOW (1-3) even if they are
+    gripping or emotionally intense. The Oscars, major sporting events, and mainstream
+    celebrity news should also score LOW (2-4) — they are entertainment, not curiosities.
 
-    1-2 = routine (standard policy announcement, quarterly earnings, minor political statement)
-    3-4 = mildly interesting (unusual angle on a common story, notable quirk, local color)
-    5-6 = engaging (surprising twist, dramatic confrontation, compelling human drama, odd science)
-    7-8 = highly interesting (viral-worthy, bizarre event, remarkable achievement, "wait really?")
-    9-10 = extraordinary (once-in-a-decade oddity, jaw-dropping discovery, universally captivating)
+    What scores HIGH: unusual, weird, heartwarming, scientifically surprising, "wait really?",
+    quirky human achievements, odd animal behavior, unexpected discoveries, wholesome surprises.
 
-    Stories that score high: "Dog elected mayor of small town" (9), "New deep-sea species discovered
+    1-2 = routine hard news, politics, conflict, tragedy, standard business/sports/entertainment
+    3-4 = mildly unusual angle, but fundamentally a normal news story
+    5-6 = genuinely surprising or quirky (odd science finding, unusual achievement, weird event)
+    7-8 = highly unusual (bizarre event, remarkable coincidence, "wait really?", delightful oddity)
+    9-10 = extraordinary (once-in-a-decade oddity, jaw-dropping wholesome discovery)
+
+    Stories that score HIGH: "Dog elected mayor of small town" (9), "New deep-sea species discovered
     in backyard pond" (8), "Man builds working rollercoaster in garage" (8), "92-year-old graduates
     college" (7), "New island appears after underwater volcano" (8), "Twins reunited after 60 years
     via DNA test" (7), "Scientists discover New Zealand-sized continent" (9)
 
-    Stories that score low: "Senate passes budget resolution" (2), "Company reports Q3 earnings" (1),
-    "Traffic update for highway construction" (1), "Diplomatic meeting scheduled" (2)
+    Stories that score LOW: "Senate passes budget resolution" (2), "Israeli soldiers kill family" (1),
+    "Oscar winners announced" (3), "Harry Styles hosts SNL" (3), "Earthquake kills dozens" (1),
+    "Company reports Q3 earnings" (1), "War escalates in region" (1), "Celebrity divorce" (2)
 
-    Return null if you cannot assess. Most hard news scores 2-4. Reserve 7+ for genuinely
-    remarkable stories that would make someone stop scrolling.
+    Return null if you cannot assess. Most news scores 1-4. Reserve 6+ for genuinely
+    quirky or delightful stories that would make someone smile or say "huh, neat."
 
 16. "wikipedia_events" — array of 0-3 strings (Wikipedia article titles)
     Map this story to Wikipedia articles about the EVENT or TOPIC it covers.

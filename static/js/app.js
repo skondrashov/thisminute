@@ -247,7 +247,7 @@
   var EVENTS_INTERVAL = 12e4;
   var NARRATIVES_INTERVAL = 3e5;
   var BRIGHT_SIDE_MIN_SCORE = 4;
-  var CURIOUS_MIN_SCORE = 6;
+  var CURIOUS_MIN_SCORE = 7;
   var _VISITED_KEY = "thisminute-visited";
   var _VISITED_MAX = 500;
   var TOPIC_DOMAIN_RULES = [

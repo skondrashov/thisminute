@@ -220,14 +220,16 @@ def test_human_interest_score_in_extraction_prompt():
 
 
 def test_human_interest_differs_from_bright_side():
-    """Verify that human_interest_score and bright_side are conceptually different."""
+    """Verify that human_interest_score prompt focuses on quirky/surprising, not tragedy."""
     from src.llm_extractor import SYSTEM_PROMPT
 
-    assert "different from bright_side" in SYSTEM_PROMPT.lower() or \
-           "different from bright side" in SYSTEM_PROMPT.lower(), \
-        "Prompt should explicitly state human_interest_score differs from bright_side"
+    prompt_lower = SYSTEM_PROMPT.lower()
+    assert "quirky" in prompt_lower or "delightful" in prompt_lower, \
+        "Prompt should emphasize quirky/delightful for human_interest_score"
+    assert "violence" in prompt_lower or "tragedy" in prompt_lower, \
+        "Prompt should explicitly exclude violence/tragedy from high scores"
 
-    print("  Prompt explicitly differentiates human_interest from bright_side")
+    print("  Prompt correctly scopes human_interest to quirky/surprising content")
 
 
 def test_curious_domain_via_get_domain_events():
