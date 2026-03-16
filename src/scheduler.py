@@ -51,7 +51,7 @@ class PipelineScheduler:
         if self._stop_event.wait(timeout=300):  # 5 min delay
             return
 
-        domains = ["news", "sports", "entertainment", "positive", "curious"]
+        domains = ["news", "sports", "entertainment", "positive", "curious", "science", "business", "health"]
 
         while not self._stop_event.is_set():
             for domain in domains:

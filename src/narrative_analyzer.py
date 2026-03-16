@@ -24,15 +24,21 @@ DOMAIN_MAX_NARRATIVES = {
     "entertainment": 10,
     "positive": 10,
     "curious": 10,
+    "science": 8,
+    "business": 8,
+    "health": 6,
 }
 
 # Which feed tags map to which domain
 DOMAIN_FEED_TAGS = {
-    "news": {"news", "business", "tech", "science", "health"},
+    "news": {"news"},
     "sports": {"sports"},
     "entertainment": {"entertainment"},
     "positive": None,  # positive uses all events, filtered by bright_side_score
     "curious": None,   # curious uses all events, filtered by human_interest_score
+    "science": {"science", "tech"},
+    "business": {"business"},
+    "health": {"health"},
 }
 
 # Source-ratio thresholds per domain.  Sports events are dominated by
@@ -44,6 +50,9 @@ DOMAIN_SOURCE_RATIO = {
     "news": 0.5,
     "sports": 0.5,
     "entertainment": 0.15,
+    "science": 0.3,
+    "business": 0.3,
+    "health": 0.3,
 }
 
 # Topic slugs that act as a secondary signal for entertainment events.
@@ -60,6 +69,41 @@ _ENTERTAINMENT_TOPIC_SIGNALS = {
     "comic-con", "anime", "manga", "gaming", "video-games",
     "marvel", "dc-comics", "star-wars", "franchise",
     "billboard", "charts", "record-label", "awards",
+}
+
+_SCIENCE_TOPIC_SIGNALS = {
+    "space", "nasa", "esa", "spacex", "rocket", "satellite", "asteroid",
+    "mars", "moon", "jupiter", "exoplanet", "telescope", "jwst", "hubble",
+    "quantum", "physics", "chemistry", "biology", "genetics", "crispr",
+    "climate-change", "climate", "fossil", "evolution", "archaeology",
+    "neuroscience", "brain", "dna", "genome", "stem-cells",
+    "ai", "artificial-intelligence", "machine-learning", "deep-learning",
+    "cybersecurity", "cyber", "hacking", "data-breach",
+    "robotics", "autonomous", "semiconductor", "chip",
+    "renewable-energy", "solar", "nuclear-fusion", "battery",
+    "research", "discovery", "experiment", "study",
+}
+
+_BUSINESS_TOPIC_SIGNALS = {
+    "stocks", "stock-market", "wall-street", "nasdaq", "dow-jones", "s&p-500",
+    "fed", "federal-reserve", "interest-rates", "inflation", "recession",
+    "gdp", "trade", "tariffs", "sanctions", "trade-war",
+    "oil", "oil-prices", "opec", "commodities", "gold",
+    "crypto", "bitcoin", "cryptocurrency", "blockchain",
+    "ipo", "merger", "acquisition", "earnings", "revenue",
+    "layoffs", "hiring", "unemployment", "jobs-report",
+    "real-estate", "housing", "mortgage",
+    "banking", "finance", "fintech", "venture-capital",
+}
+
+_HEALTH_TOPIC_SIGNALS = {
+    "covid", "pandemic", "epidemic", "outbreak", "virus", "vaccine",
+    "who", "cdc", "disease", "infection", "pathogen",
+    "cancer", "diabetes", "heart-disease", "alzheimers", "dementia",
+    "mental-health", "depression", "anxiety", "suicide",
+    "drug", "pharmaceutical", "fda", "clinical-trial",
+    "hospital", "healthcare", "nhs", "public-health",
+    "antimicrobial-resistance", "antibiotic", "bird-flu", "h5n1", "mpox",
 }
 
 # Domain-specific prompt preambles
@@ -93,6 +137,24 @@ DOMAIN_PROMPTS = {
         "examples_good": '"New Deep-Sea Species Discovered 2026", "Small Town Viral Moments", "Backyard Archaeology Finds", "AI Art Controversy", "Record-Breaking Human Feats 2026", "Weird Weather Phenomena", "Animal Heroes & Oddities"',
         "examples_bad": '"Interesting news" (meaningless), "Human interest stories" (too vague), "Viral content" (too broad), "Miscellaneous curiosities" (catch-all bucket), "Good news roundup" (that\'s positive, not curious)',
         "guidance": 'A curious situation is something that makes people say "wait, really?" or "you have to see this." Think viral stories, quirky science, unusual discoveries, local heroes doing remarkable things, animal stories, odd coincidences, record-breaking feats, and unexpected events. "Dog Elected Mayor of Small Town" qualifies. "Senate Passes Budget" does not. This is NOT the same as positive — a gripping true crime investigation or a bizarre natural disaster can be highly curious without being positive. And a routine charity donation is positive but not curious. Focus on stories with high engagement/shareability factor. NEVER create thematic buckets — each situation must be about ONE specific story or connected set of events.',
+    },
+    "science": {
+        "intro": 'You are grouping current science and technology events into SITUATIONS — ongoing research breakthroughs, space missions, tech industry developments, and scientific discoveries that a curious reader would follow.',
+        "examples_good": '"James Webb Telescope Deep Field 2026", "CRISPR Gene Therapy Trials", "OpenAI GPT-5 Rollout", "Mars Sample Return Mission", "Quantum Computing Breakthrough Race", "mRNA Cancer Vaccine Trials"',
+        "examples_bad": '"Science news" (meaningless), "Tech developments" (too vague), "Innovation" (too abstract), "AI advances" (too broad — name the specific product, company, or breakthrough)',
+        "guidance": 'A situation is a specific research program, space mission, product launch cycle, regulatory battle, or discovery arc. "LIGO Detects New Gravitational Wave Source" qualifies. "Science is advancing" does not. Keep science and tech situations separate when they are unrelated — a climate study and an AI model release are different situations. NEVER group unrelated discoveries into thematic buckets.',
+    },
+    "business": {
+        "intro": 'You are grouping current business and financial events into SITUATIONS — market movements, trade policy developments, corporate stories, and economic trends that someone following the markets would track.',
+        "examples_good": '"US-China Tariff Escalation 2026", "Fed Interest Rate Decision Cycle", "Tesla Stock Volatility", "Oil Price Surge from Hormuz Disruption", "Tech Layoffs Wave Q1 2026", "Crypto Regulation Push"',
+        "examples_bad": '"Market movements" (meaningless), "Economic developments" (too vague), "Business news" (too abstract), "Global economy" (not a situation)',
+        "guidance": 'A situation is a specific market event, trade dispute, corporate saga, economic policy shift, or sector trend. "Boeing 737 MAX Production Crisis" qualifies. "Stocks went up" does not. Wars and geopolitics ONLY belong here if the situation is specifically about their MARKET IMPACT — "Oil Price Surge from Iran War" is a business situation, but "Iran War" itself is not. NEVER create catch-all buckets.',
+    },
+    "health": {
+        "intro": 'You are grouping current health and medical events into SITUATIONS — disease outbreaks, public health campaigns, medical breakthroughs, and health policy developments that someone following global health would track.',
+        "examples_good": '"H5N1 Bird Flu Outbreak 2026", "WHO Mpox Emergency Response", "mRNA Malaria Vaccine Trial", "US Healthcare Policy Overhaul", "Antimicrobial Resistance Crisis", "Long COVID Research Findings"',
+        "examples_bad": '"Health news" (meaningless), "Medical developments" (too vague), "Disease concerns" (too abstract), "Public health" (not a situation)',
+        "guidance": 'A situation is a specific outbreak, clinical trial, health policy battle, or medical milestone. "Measles Resurgence in Unvaccinated Communities" qualifies. "People are getting sick" does not. Focus on stories from WHO, health agencies, and medical research — not general news that happens to mention health. NEVER create thematic buckets.',
     },
 }
 
@@ -244,10 +306,17 @@ def _get_domain_events(conn, domain: str, limit: int = 50) -> list[dict]:
     ).fetchall()
     results = {r["id"]: dict(r) for r in rows}
 
-    # For entertainment: add events matched by topic signal
-    if domain == "entertainment":
+    # Add events matched by topic signal (for domains with topic keywords)
+    _DOMAIN_TOPIC_SIGNALS = {
+        "entertainment": _ENTERTAINMENT_TOPIC_SIGNALS,
+        "science": _SCIENCE_TOPIC_SIGNALS,
+        "business": _BUSINESS_TOPIC_SIGNALS,
+        "health": _HEALTH_TOPIC_SIGNALS,
+    }
+    topic_signals = _DOMAIN_TOPIC_SIGNALS.get(domain)
+    if topic_signals:
         topic_events = _get_events_by_topic_signal(
-            conn, _ENTERTAINMENT_TOPIC_SIGNALS, limit,
+            conn, topic_signals, limit,
             exclude_ids=set(results.keys()),
         )
         for ev in topic_events:

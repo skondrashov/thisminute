@@ -530,11 +530,14 @@
     curious: "curious",
     conflict: "news",
     power: "news",
-    health: "news"
+    health: "health",
+    science: "science",
+    tech: "science",
+    markets: "business"
   };
   var _DOMAIN_HIGHLIGHT_COLORS = {
-    dark: { news: "#58a6ff", sports: "#3fb950", entertainment: "#bc8cff", positive: "#f5a623", curious: "#ff6f61" },
-    light: { news: "#0969da", sports: "#1a7f37", entertainment: "#8250df", positive: "#bf8700", curious: "#c9302c" }
+    dark: { news: "#58a6ff", sports: "#3fb950", entertainment: "#bc8cff", positive: "#f5a623", curious: "#ff6f61", science: "#22d3ee", business: "#2dd4a8", health: "#a78bfa" },
+    light: { news: "#0969da", sports: "#1a7f37", entertainment: "#8250df", positive: "#bf8700", curious: "#c9302c", science: "#0891b2", business: "#0d7367", health: "#7c3aed" }
   };
 
   // src/js/utils.js
