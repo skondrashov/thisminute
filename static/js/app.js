@@ -5341,6 +5341,10 @@
       document.getElementById("main-menu").classList.remove("visible");
       replayWorldTour();
     });
+    document.getElementById("menu-about").addEventListener("click", () => {
+      document.getElementById("main-menu").classList.remove("visible");
+      document.getElementById("about-dialog").classList.add("visible");
+    });
     document.getElementById("menu-feedback").addEventListener("click", () => {
       document.getElementById("main-menu").classList.remove("visible");
       openFeedbackDialog(null);
@@ -5451,6 +5455,11 @@
         const worldPickerDialog = document.getElementById("world-picker-dialog");
         if (worldPickerDialog && worldPickerDialog.classList.contains("visible")) {
           confirmWorldPicker();
+          return;
+        }
+        const aboutDialog = document.getElementById("about-dialog");
+        if (aboutDialog && aboutDialog.classList.contains("visible")) {
+          aboutDialog.classList.remove("visible");
           return;
         }
         const mainMenu = document.getElementById("main-menu");

@@ -53,6 +53,7 @@
                 <button class="menu-item" id="menu-feeds"><span class="menu-icon">+</span> My feeds</button>
                 <button class="menu-item" id="menu-feedback"><span class="menu-icon">&#9873;</span> Send feedback</button>
                 <button class="menu-item" id="menu-replay-tour"><span class="menu-icon">&#9654;</span> Replay tour</button>
+                <button class="menu-item" id="menu-about"><span class="menu-icon">&#9432;</span> How it works</button>
                 <div class="menu-divider"></div>
                 <a class="menu-item menu-forge" href="/forge/" rel="noopener"><span class="menu-icon">&#128296;</span> Maintained by Forge</a>
             </div>
@@ -243,6 +244,22 @@
                 <button id="world-save-cancel">Cancel</button>
                 <button id="world-save-confirm">Save</button>
             </div>
+        </div>
+    </div>
+
+    <div id="about-dialog" class="modal-overlay">
+        <div class="modal-panel" style="max-width: 520px;">
+            <h3>How thisminute works</h3>
+            <div style="font-size: 13px; line-height: 1.6; color: var(--text-secondary); max-height: 70vh; overflow-y: auto; padding-right: 8px;">
+                <p><strong>Sources.</strong> Every 15 minutes, thisminute scrapes ~100 RSS feeds (BBC, Reuters, ESPN, Variety, etc.) plus 13 structured data APIs (USGS earthquakes, NOAA weather, WHO disease alerts, and more). Stories are placed on the map by location.</p>
+                <p><strong>Worlds.</strong> Each world preset filters stories by source type. Sports shows stories from sports feeds. Markets shows business feeds. Planet shows weather/earthquake APIs. The "All" world is unfiltered.</p>
+                <p><strong>Situations.</strong> An AI (Claude) groups related stories into events, then synthesizes ongoing situations per domain: news, sports, entertainment, positive, and curious. Each domain has its own prompt tuned for what a "situation" means in that context.</p>
+                <p><strong>Bright Side.</strong> The AI scores every story on a "bright side" scale. The Bright Side world shows stories that are genuinely positive — not "the silver lining of a war," but actually good news.</p>
+                <p><strong>Curious.</strong> Stories are scored on quirkiness and surprise. High scores go to unusual, delightful, "wait really?" stories. War, tragedy, and routine celebrity news score low, even if they're dramatic.</p>
+                <p><strong>Limitations.</strong> Categorization is imperfect. A story about an SNL sketch set in Iran might get geocoded to Iran instead of NYC. A mainstream entertainment story might sneak into Curious. We're continuously improving the scoring and welcome feedback.</p>
+                <p><strong>Philosophy.</strong> Anti-curation. You decide what to see, not editors. The map is the filter. Every story gets a dot. Worlds are lenses, not editorial choices.</p>
+            </div>
+            <button class="modal-close" onclick="document.getElementById('about-dialog').classList.remove('visible')">&times;</button>
         </div>
     </div>
 
