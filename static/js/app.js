@@ -35,7 +35,7 @@
     currentView: "narratives",
     eventsData: [],
     registryData: [],
-    worldOverview: null,
+    presetOverview: null,
     narrativesData: [],
     expandedEventId: null,
     expandedEventStories: [],
@@ -55,12 +55,12 @@
     hoverTooltipEl: null,
     _filterState: null,
     _trendingConcepts: /* @__PURE__ */ new Set(),
-    // Worlds
-    allWorlds: {},
-    activeWorldId: "bright_side",
-    worldModified: false,
-    _pendingWorldId: null,
-    worldPrefs: {},
+    // Presets
+    allPresets: {},
+    activePresetId: "bright_side",
+    presetModified: false,
+    _pendingPresetId: null,
+    presetPrefs: {},
     // Sources
     sourceCounts: [],
     // Narratives
@@ -133,11 +133,11 @@
     var rawBase = state.lightMode ? _BLEND_BASE_LIGHT : _BLEND_BASE_DARK;
     var theme = state.dotColorTheme || "domain";
     var monoColor = state.lightMode ? "#57606a" : "#ffffff";
-    /* World color tint — applied as a final pass on domain/classic themes */
-    var activeWorld = state.allWorlds[state.activeWorldId];
-    var worldRGB = activeWorld && activeWorld.color ? _hexToRGB(activeWorld.color) : null;
+    /* Preset color tint — applied as a final pass on domain/classic themes */
+    var activePreset = state.allPresets[state.activePresetId];
+    var presetRGB = activePreset && activePreset.color ? _hexToRGB(activePreset.color) : null;
     var base = rawBase;
-    var classicColor = worldRGB ? _rgbToHex(worldRGB[0], worldRGB[1], worldRGB[2]) : (state.lightMode ? "#0969da" : "#58a6ff");
+    var classicColor = presetRGB ? _rgbToHex(presetRGB[0], presetRGB[1], presetRGB[2]) : (state.lightMode ? "#0969da" : "#58a6ff");
     try {
       var byCoord = {};
       for (var i = 0; i < features.length; i++) {
@@ -190,14 +190,14 @@
             );
           }
         }
-        /* Apply world color tint to final blended color */
-        if (worldRGB && (theme === "domain" || theme === "classic")) {
+        /* Apply preset color tint to final blended color */
+        if (presetRGB && (theme === "domain" || theme === "classic")) {
           var bRGB = _hexToRGB(blended);
           var wt = 0.22;
           blended = _rgbToHex(
-            bRGB[0] + (worldRGB[0] - bRGB[0]) * wt,
-            bRGB[1] + (worldRGB[1] - bRGB[1]) * wt,
-            bRGB[2] + (worldRGB[2] - bRGB[2]) * wt
+            bRGB[0] + (presetRGB[0] - bRGB[0]) * wt,
+            bRGB[1] + (presetRGB[1] - bRGB[1]) * wt,
+            bRGB[2] + (presetRGB[2] - bRGB[2]) * wt
           );
         }
         for (var j2 = 0; j2 < group.length; j2++) {
@@ -211,12 +211,12 @@
       if (!features[ii].properties.blended_color) {
         var dom2 = features[ii].properties._domain || "general";
         var fallback = DOMAIN_COLORS[dom2] || "#484f58";
-        if (worldRGB && (theme === "domain" || theme === "classic")) {
+        if (presetRGB && (theme === "domain" || theme === "classic")) {
           var fRGB = _hexToRGB(fallback);
           fallback = _rgbToHex(
-            fRGB[0] + (worldRGB[0] - fRGB[0]) * 0.22,
-            fRGB[1] + (worldRGB[1] - fRGB[1]) * 0.22,
-            fRGB[2] + (worldRGB[2] - fRGB[2]) * 0.22
+            fRGB[0] + (presetRGB[0] - fRGB[0]) * 0.22,
+            fRGB[1] + (presetRGB[1] - fRGB[1]) * 0.22,
+            fRGB[2] + (presetRGB[2] - fRGB[2]) * 0.22
           );
         }
         features[ii].properties.blended_color = fallback;
@@ -481,15 +481,15 @@
       }
     }
   };
-  var WORLD_ALIASES = {
+  var PRESET_ALIASES = {
     "positive": "bright_side",
     "weather": "planet",
     "crisis": "conflict",
     "geopolitics": "power",
     "news": "all"
   };
-  function _resolveWorldAlias(id) { return id && WORLD_ALIASES[id] || id; }
-  var WORLD_ICONS = { all: "\u25C9", bright_side: "\u2728", sports: "\u26BD", entertainment: "\u{1F3AC}", science: "\u{1F52C}", tech: "\u{1F4BB}", curious: "\u{1F9E9}", planet: "\u{1F30D}", conflict: "\u2694\uFE0F", travel: "\u2708\uFE0F", power: "\u{1F3DB}\uFE0F", markets: "\u{1F4C8}", health: "\u{1F3E5}" };
+  function _resolvePresetAlias(id) { return id && PRESET_ALIASES[id] || id; }
+  var PRESET_ICONS = { all: "\u25C9", bright_side: "\u2728", sports: "\u26BD", entertainment: "\u{1F3AC}", science: "\u{1F52C}", tech: "\u{1F4BB}", curious: "\u{1F9E9}", planet: "\u{1F30D}", conflict: "\u2694\uFE0F", travel: "\u2708\uFE0F", power: "\u{1F3DB}\uFE0F", markets: "\u{1F4C8}", health: "\u{1F3E5}" };
   var NAME_EMOJI_MAP = [
     [/war|conflict|military|defense/i, "\u2694\uFE0F"],
     [/tech|ai|cyber|software|data/i, "\u{1F4BB}"],
@@ -523,7 +523,7 @@
     "#be5046",
     "#d19a66"
   ];
-  var WORLD_DOMAIN_MAP = {
+  var PRESET_DOMAIN_MAP = {
     bright_side: "positive",
     sports: "sports",
     entertainment: "entertainment",
@@ -535,6 +535,8 @@
     tech: "science",
     markets: "business"
   };
+  // Presets that are API-driven (structured data only) and should not show narrative situations
+  var _DOMAINLESS_HIDE_SITUATIONS = new Set(["planet", "travel"]);
   var _DOMAIN_HIGHLIGHT_COLORS = {
     dark: { news: "#58a6ff", sports: "#3fb950", entertainment: "#bc8cff", positive: "#f5a623", curious: "#ff6f61", science: "#22d3ee", business: "#2dd4a8", health: "#a78bfa" },
     light: { news: "#0969da", sports: "#1a7f37", entertainment: "#8250df", positive: "#bf8700", curious: "#c9302c", science: "#0891b2", business: "#0d7367", health: "#7c3aed" }
@@ -550,6 +552,31 @@
   function truncateRaw(text, maxLen) {
     if (!text) return "";
     return text.length <= maxLen ? text : text.slice(0, maxLen) + "...";
+  }
+
+  /** Shared clipboard-copy with checkmark animation. */
+  function _copyToClipboard(btn, url, originalIcon) {
+    originalIcon = originalIcon || "&#128279;";
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(url).then(() => {
+        btn.textContent = "\u2713";
+        if (btn.classList) btn.classList.add("copied");
+        setTimeout(() => {
+          btn.innerHTML = originalIcon;
+          if (btn.classList) btn.classList.remove("copied");
+        }, 1500);
+      }).catch(() => {});
+    }
+  }
+
+  /** Shared feedback-button wiring — call on any container with .feedback-btn elements. */
+  function _wireFeedbackButtons(container) {
+    container.querySelectorAll(".feedback-btn").forEach((btn) => {
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        openFeedbackDialog({ type: btn.dataset.fbType, id: parseInt(btn.dataset.fbId), title: btn.dataset.fbTitle });
+      });
+    });
   }
   function formatTime(isoString) {
     if (!isoString) return "";
@@ -864,16 +891,16 @@
     if (showingEl && mobileShowing) {
       mobileShowing.textContent = showingEl.textContent;
     }
-    const activeBtn = document.querySelector(".world-btn.active");
-    const nameEl = document.getElementById("mobile-world-name");
-    const dotEl = document.querySelector(".mobile-bar-world-dot");
+    const activeBtn = document.querySelector(".preset-btn.active");
+    const nameEl = document.getElementById("mobile-preset-name");
+    const dotEl = document.querySelector(".mobile-bar-preset-dot");
     if (activeBtn && nameEl) {
-      const world = state.allWorlds[activeBtn.dataset.world];
+      const world = state.allPresets[activeBtn.dataset.world];
       nameEl.textContent = world ? world.label : activeBtn.textContent;
     }
     if (dotEl && activeBtn) {
-      const worldId = activeBtn.dataset.world || "bright_side";
-      const world = state.allWorlds[worldId];
+      const presetId = activeBtn.dataset.world || "bright_side";
+      const world = state.allPresets[presetId];
       dotEl.style.background = world ? world.color : "#c99700";
     }
     const filterDot = document.getElementById("mobile-filter-dot");
@@ -1520,8 +1547,8 @@
   }
 
   // src/js/store.js
-  function _getWorldDomain(worldId) {
-    return WORLD_DOMAIN_MAP[worldId] || null;
+  function _getPresetDomain(presetId) {
+    return PRESET_DOMAIN_MAP[presetId] || null;
   }
   function computeFilteredState() {
     const searchText = (document.getElementById("search-box").value || "").trim().toLowerCase();
@@ -1616,11 +1643,13 @@
       ...n,
       filteredCount: contentFiltering && storyIds && n.story_ids ? n.story_ids.filter((id) => storyIds.has(id)).length : n.story_ids ? n.story_ids.filter((id) => allStoryIds.has(id)).length || n.story_count : n.story_count
     }));
-    const worldDomain = _getWorldDomain(state.activeWorldId);
-    if (worldDomain) {
-      narratives = narratives.filter((n) => (n.domain || "news") === worldDomain);
+    const presetDomain = _getPresetDomain(state.activePresetId);
+    if (_DOMAINLESS_HIDE_SITUATIONS.has(state.activePresetId)) {
+      narratives = [];
+    } else if (presetDomain) {
+      narratives = narratives.filter((n) => (n.domain || "news") === presetDomain);
     }
-    if (state.brightSideMode && !worldDomain) {
+    if (state.brightSideMode && !presetDomain) {
       narratives = narratives.filter((n) => (n.bright_side_count || 0) > 0);
     }
     if (searchText) {
@@ -1630,7 +1659,7 @@
         return searchTerms.every((term) => haystack.includes(term));
       });
     }
-    if (contentFiltering && storyIds && !worldDomain) {
+    if (contentFiltering && storyIds && !presetDomain) {
       narratives = narratives.filter((n) => n.filteredCount > 0);
     }
     if (state.narrativeSortMode === "new") {
@@ -1953,7 +1982,7 @@
     const conceptsP = loadConcepts();
     const sourcesP = loadSources();
     const eventsP = loadEvents();
-    const overviewP = loadWorldOverview();
+    const overviewP = loadPresetOverview();
     const narrativesP = loadNarratives();
     await Promise.allSettled([quickStoriesP, conceptsP, sourcesP, eventsP, overviewP, narrativesP]);
     hideLoadingBar();
@@ -1963,8 +1992,8 @@
       state._pendingMapView = null;
     }
     // Don't kill intro spin here — let it finish naturally or stop on user interaction
-    startWorldTour();
-    if (!_worldTourActive) {
+    startPresetTour();
+    if (!_presetTourActive) {
       showOnboardingHint();
       if (_isMobile() && !localStorage.getItem("thisminute-onboarded")) {
         setTimeout(() => {
@@ -1979,7 +2008,7 @@
     if (localStorage.getItem("thisminute-onboarded")) return;
     const hint = document.createElement("div");
     hint.id = "onboarding-hint";
-    hint.innerHTML = _isMobile() ? "Tap a situation to explore &middot; Swipe to browse &middot; Try different worlds above" : "Click a situation to explore &middot; Use <kbd>j</kbd>/<kbd>k</kbd> to navigate &middot; <kbd>?</kbd> for shortcuts";
+    hint.innerHTML = _isMobile() ? "Tap a situation to explore &middot; Swipe to browse &middot; Try different presets above" : "Click a situation to explore &middot; Use <kbd>j</kbd>/<kbd>k</kbd> to navigate &middot; <kbd>?</kbd> for shortcuts";
     document.getElementById("sidebar").appendChild(hint);
     const dismiss = () => {
       hint.classList.add("dismissed");
@@ -2077,7 +2106,9 @@
       const time = formatTime(timeIso);
       const fullTime = formatFullTime(timeIso);
       const rawSummary = p.summary ? escapeHtml(truncateRaw(p.summary, 200)) : "";
-      const titleHtml = _highlightText(escapeHtml(p.title), searchQ);
+      const displayTitle = p.translated_title || p.title;
+      const titleHtml = _highlightText(escapeHtml(displayTitle), searchQ);
+      const originalLine = p.translated_title ? `<div class="info-card-original">${_highlightText(escapeHtml(p.title), searchQ)}</div>` : "";
       const summaryHtml = _highlightText(rawSummary, searchQ);
       const [lon, lat] = f.geometry.coordinates;
       const img = p.image_url ? `<img class="info-card-img" src="${escapeHtml(p.image_url)}" loading="lazy" alt="" onload="this.classList.add('loaded')" onerror="this.remove()">` : "";
@@ -2087,6 +2118,7 @@
                 ${img}
                 <div class="info-card-body">
                     <div class="info-card-title">${titleHtml}</div>
+                    ${originalLine}
                     <div class="info-card-meta">
                         ${favicon}<span class="story-source clickable" data-source="${escapeHtml(p.source)}">${escapeHtml(p.source)}</span>
                         ${tags}
@@ -2169,7 +2201,7 @@
           state.activeConcepts.clear();
           state.activeConcepts.add(concept);
           applyFilters();
-          markWorldModified();
+          markPresetModified();
           return;
         }
         if (e.target.classList.contains("story-source") && e.target.dataset.source) {
@@ -2177,7 +2209,7 @@
           state.activeSources.clear();
           state.activeSources.add(e.target.dataset.source);
           applyFilters();
-          markWorldModified();
+          markPresetModified();
           return;
         }
         const lon = parseFloat(card.dataset.lon);
@@ -2195,21 +2227,10 @@
     panelStories.querySelectorAll(".info-card-copy").forEach((btn) => {
       btn.addEventListener("click", (e) => {
         e.stopPropagation();
-        navigator.clipboard.writeText(btn.dataset.url).then(() => {
-          btn.textContent = "\u2713";
-          setTimeout(() => {
-            btn.innerHTML = "&#128279;";
-          }, 1500);
-        }).catch(() => {
-        });
+        _copyToClipboard(btn, btn.dataset.url);
       });
     });
-    panelStories.querySelectorAll(".info-card-feedback").forEach((btn) => {
-      btn.addEventListener("click", (e) => {
-        e.stopPropagation();
-        openFeedbackDialog({ type: btn.dataset.fbType, id: parseInt(btn.dataset.fbId), title: btn.dataset.fbTitle });
-      });
-    });
+    _wireFeedbackButtons(panelStories);
   }
   function openInfoPanel(title, features, loading, opts) {
     const panel = document.getElementById("info-panel");
@@ -2419,7 +2440,7 @@
       updateFeedButtonCounts(filtered.feedCounts);
       renderConceptChips(filtered.topicCounts);
       renderSourceChips(filtered.sourceCounts);
-      updateWorldOverviewFilterState(filtered.hasFilters);
+      updatePresetOverviewFilterState(filtered.hasFilters);
       renderActiveFilterPills();
       updateFilterStatus();
       updateMobileBar();
@@ -2456,7 +2477,7 @@
         if (type === "source") state.activeSources.delete(value);
         if (type === "exclude-source") state.excludedSources.delete(value);
         applyFilters();
-        markWorldModified();
+        markPresetModified();
       });
     });
   }
@@ -2647,14 +2668,14 @@
         state.allConceptMeta[domain].concepts.push(t);
       }
       renderConceptChips();
-      if (state._pendingWorldId) {
-        const pending = state.allWorlds[state._pendingWorldId];
+      if (state._pendingPresetId) {
+        const pending = state.allPresets[state._pendingPresetId];
         if (pending && pending.keywords && pending.keywords.length > 0) {
           const matched = _matchingConcepts(pending.keywords);
           matched.forEach((c) => state.activeConcepts.add(c));
           applyFilters();
         }
-        state._pendingWorldId = null;
+        state._pendingPresetId = null;
       }
     } catch (err) {
       console.error("Failed to load concepts:", err);
@@ -2721,7 +2742,7 @@
     state.excludedConcepts.delete(name);
     if (state.activeConcepts.has(name)) state.activeConcepts.delete(name);
     else state.activeConcepts.add(name);
-    markWorldModified();
+    markPresetModified();
     updateFilterDrawerToggle();
     applyFilters();
   }
@@ -2729,7 +2750,7 @@
     state.activeConcepts.delete(name);
     if (state.excludedConcepts.has(name)) state.excludedConcepts.delete(name);
     else state.excludedConcepts.add(name);
-    markWorldModified();
+    markPresetModified();
     updateFilterDrawerToggle();
     applyFilters();
   }
@@ -2744,9 +2765,9 @@
       _clearHoverHighlight();
       document.title = "thisminute \u2014 global news, live";
     }
-    const defaultWorldId = _resolveWorldAlias(localStorage.getItem("tm_default_world"));
-    const fallback = defaultWorldId && state.allWorlds[defaultWorldId] ? defaultWorldId : "all";
-    switchWorld(fallback);
+    const defaultPresetId = _resolvePresetAlias(localStorage.getItem("tm_default_world"));
+    const fallback = defaultPresetId && state.allPresets[defaultPresetId] ? defaultPresetId : "all";
+    switchPreset(fallback);
   }
   function toggleDomain(domain) {
     const info = state.allConceptMeta[domain];
@@ -2758,7 +2779,7 @@
       state.excludedConcepts.delete(n);
       state.activeConcepts.add(n);
     });
-    markWorldModified();
+    markPresetModified();
     updateFilterDrawerToggle();
     applyFilters();
   }
@@ -2772,7 +2793,7 @@
       state.activeConcepts.delete(n);
       state.excludedConcepts.add(n);
     });
-    markWorldModified();
+    markPresetModified();
     updateFilterDrawerToggle();
     applyFilters();
   }
@@ -2809,16 +2830,16 @@
     const hasFilter = state.activeSources.size > 0 || state.excludedSources.size > 0;
     el.classList.toggle("has-source-filter", hasFilter);
   }
-  function toggleWorldOverview() {
-    const bar = document.getElementById("world-overview-bar");
+  function togglePresetOverview() {
+    const bar = document.getElementById("preset-overview-bar");
     bar.classList.toggle("expanded");
   }
-  function updateWorldOverviewFilterState(hasFilters) {
-    const bar = document.getElementById("world-overview-bar");
+  function updatePresetOverviewFilterState(hasFilters) {
+    const bar = document.getElementById("preset-overview-bar");
     bar.classList.toggle("has-filters", !!hasFilters);
   }
-  state._pendingWorldId = null;
-  var _editingWorldId = null;
+  state._pendingPresetId = null;
+  var _editingPresetId = null;
   function _matchingConcepts(keywords) {
     const matched = /* @__PURE__ */ new Set();
     const allConcepts = Object.keys(state.conceptCounts);
@@ -2833,83 +2854,83 @@
     }
     return matched;
   }
-  function _getRemovedWorlds() {
+  function _getRemovedPresets() {
     try {
       return JSON.parse(localStorage.getItem("tm_removed_worlds") || "[]");
     } catch (e) {
       return [];
     }
   }
-  function loadWorlds() {
-    const removed = _getRemovedWorlds();
-    state.allWorlds = {};
+  function loadPresets() {
+    const removed = _getRemovedPresets();
+    state.allPresets = {};
     for (const [id, preset] of Object.entries(WORLD_PRESETS)) {
-      if (!removed.includes(id)) state.allWorlds[id] = preset;
+      if (!removed.includes(id)) state.allPresets[id] = preset;
     }
     try {
       const saved = JSON.parse(localStorage.getItem("tm_worlds") || "{}");
       for (const [id, world] of Object.entries(saved)) {
         if (!WORLD_PRESETS[id]) {
-          state.allWorlds[id] = world;
+          state.allPresets[id] = world;
         }
       }
     } catch (e) {
-      console.error("Failed to load saved worlds:", e);
+      console.error("Failed to load saved presets:", e);
     }
-    loadWorldPrefs();
-    const defaultWorldId = _resolveWorldAlias(localStorage.getItem("tm_default_world"));
-    if (defaultWorldId && state.allWorlds[defaultWorldId]) {
-      state.activeWorldId = defaultWorldId;
+    loadPresetPrefs();
+    const defaultPresetId = _resolvePresetAlias(localStorage.getItem("tm_default_world"));
+    if (defaultPresetId && state.allPresets[defaultPresetId]) {
+      state.activePresetId = defaultPresetId;
     }
   }
-  function saveWorlds() {
+  function savePresets() {
     const custom = {};
-    for (const [id, world] of Object.entries(state.allWorlds)) {
+    for (const [id, world] of Object.entries(state.allPresets)) {
       if (!world.builtIn) custom[id] = world;
     }
     try {
       localStorage.setItem("tm_worlds", JSON.stringify(custom));
     } catch (e) {
-      console.error("Failed to save worlds:", e);
+      console.error("Failed to save presets:", e);
     }
   }
-  function loadWorldPrefs() {
+  function loadPresetPrefs() {
     try {
-      state.worldPrefs = JSON.parse(localStorage.getItem("tm_world_prefs") || "{}");
+      state.presetPrefs = JSON.parse(localStorage.getItem("tm_world_prefs") || "{}");
     } catch (e) {
-      state.worldPrefs = {};
+      state.presetPrefs = {};
     }
     let order = 0;
-    for (const id of Object.keys(state.allWorlds)) {
-      if (!state.worldPrefs[id]) {
-        state.worldPrefs[id] = { visible: true, order };
+    for (const id of Object.keys(state.allPresets)) {
+      if (!state.presetPrefs[id]) {
+        state.presetPrefs[id] = { visible: true, order };
       }
-      if (state.worldPrefs[id].order == null) state.worldPrefs[id].order = order;
+      if (state.presetPrefs[id].order == null) state.presetPrefs[id].order = order;
       order++;
     }
-    for (const id of Object.keys(state.worldPrefs)) {
-      if (!state.allWorlds[id]) delete state.worldPrefs[id];
+    for (const id of Object.keys(state.presetPrefs)) {
+      if (!state.allPresets[id]) delete state.presetPrefs[id];
     }
-    // Apply tm_visible_worlds to worldPrefs visibility
-    var visibleWorlds = _loadVisibleWorlds();
-    if (visibleWorlds) {
-      for (var vid in state.worldPrefs) {
+    // Apply tm_visible_worlds to presetPrefs visibility
+    var visiblePresets = _loadVisiblePresets();
+    if (visiblePresets) {
+      for (var vid in state.presetPrefs) {
         if (WORLD_PRESETS[vid]) {
-          state.worldPrefs[vid].visible = visibleWorlds.indexOf(vid) !== -1;
+          state.presetPrefs[vid].visible = visiblePresets.indexOf(vid) !== -1;
         }
       }
     }
-    saveWorldPrefs();
+    savePresetPrefs();
   }
-  function saveWorldPrefs() {
+  function savePresetPrefs() {
     try {
-      localStorage.setItem("tm_world_prefs", JSON.stringify(state.worldPrefs));
+      localStorage.setItem("tm_world_prefs", JSON.stringify(state.presetPrefs));
     } catch (e) {
-      console.error("Failed to save world prefs:", e);
+      console.error("Failed to save preset prefs:", e);
     }
   }
-  function _getVisibleWorldEntries() {
-    return Object.entries(state.allWorlds).filter(([id]) => state.worldPrefs[id]?.visible !== false).sort((a, b) => (state.worldPrefs[a[0]]?.order ?? 99) - (state.worldPrefs[b[0]]?.order ?? 99));
+  function _getVisiblePresetEntries() {
+    return Object.entries(state.allPresets).filter(([id]) => state.presetPrefs[id]?.visible !== false).sort((a, b) => (state.presetPrefs[a[0]]?.order ?? 99) - (state.presetPrefs[b[0]]?.order ?? 99));
   }
   function _autoDetectIcon(name, world) {
     for (const [re, emoji] of NAME_EMOJI_MAP) {
@@ -2956,7 +2977,7 @@
       hideOpinion: document.getElementById("filter-opinion")?.checked || false
     };
   }
-  function applyWorldConfig(config, keywords, feedTags) {
+  function applyPresetConfig(config, keywords, feedTags) {
     state.activeConcepts.clear();
     state.excludedConcepts.clear();
     state.activeSources.clear();
@@ -2985,15 +3006,15 @@
     updateFilterDrawerToggle();
     updateSourcesIndicator();
   }
-  async function switchWorld(worldId) {
-    const world = state.allWorlds[worldId];
+  async function switchPreset(presetId) {
+    const world = state.allPresets[presetId];
     if (!world) return;
-    if (state.activeWorldId === worldId && !state.worldModified) return;
+    if (state.activePresetId === presetId && !state.presetModified) return;
     if (world.feedTags && world.feedTags.length > 0 && state._feedTagsReady) {
       await state._feedTagsReady;
     }
     if (state.activeNarrativeId) {
-      const newDomain = WORLD_DOMAIN_MAP[worldId];
+      const newDomain = PRESET_DOMAIN_MAP[presetId];
       const activeNarr = state.narrativesData.find((n) => n.id === state.activeNarrativeId);
       if (activeNarr && newDomain && (activeNarr.domain || "news") !== newDomain) {
         state.activeNarrativeId = null;
@@ -3015,54 +3036,54 @@
       }
       state.activeLocationFilter = null;
     }
-    const effectiveConfig = world.builtIn && state.worldPrefs[worldId]?.configOverride || world.config;
-    applyWorldConfig(effectiveConfig, world.keywords, world.feedTags);
-    state.activeWorldId = worldId;
-    state.worldModified = false;
+    const effectiveConfig = world.builtIn && state.presetPrefs[presetId]?.configOverride || world.config;
+    applyPresetConfig(effectiveConfig, world.keywords, world.feedTags);
+    state.activePresetId = presetId;
+    state.presetModified = false;
     _blendLocationColors(state.cloudData.features || []);
     _updateLegendColors();
-    updateWorldsBar();
-    renderWorldOverview();
+    updatePresetsBar();
+    renderPresetOverview();
     applyFilters();
   }
-  function markWorldModified() {
-    if (!state.activeWorldId) return;
-    state.worldModified = true;
-    updateWorldsBar();
+  function markPresetModified() {
+    if (!state.activePresetId) return;
+    state.presetModified = true;
+    updatePresetsBar();
   }
-  function updateWorldConfig(worldId) {
-    const world = state.allWorlds[worldId];
+  function updatePresetConfig(presetId) {
+    const world = state.allPresets[presetId];
     if (!world) return;
     const config = captureCurrentConfig();
     if (world.builtIn) {
-      if (!state.worldPrefs[worldId]) state.worldPrefs[worldId] = { visible: true, order: 0 };
-      state.worldPrefs[worldId].configOverride = config;
-      saveWorldPrefs();
+      if (!state.presetPrefs[presetId]) state.presetPrefs[presetId] = { visible: true, order: 0 };
+      state.presetPrefs[presetId].configOverride = config;
+      savePresetPrefs();
     } else {
       world.config = config;
-      saveWorlds();
+      savePresets();
     }
-    state.worldModified = false;
-    updateWorldsBar();
+    state.presetModified = false;
+    updatePresetsBar();
   }
-  function resetWorldConfig(worldId) {
-    const pref = state.worldPrefs[worldId];
+  function resetPresetConfig(presetId) {
+    const pref = state.presetPrefs[presetId];
     if (pref?.configOverride) {
       delete pref.configOverride;
-      saveWorldPrefs();
-      switchWorld(worldId);
+      savePresetPrefs();
+      switchPreset(presetId);
     }
   }
-  function generatePresetURL(worldId) {
-    const world = state.allWorlds[worldId];
+  function generatePresetURL(presetId) {
+    const world = state.allPresets[presetId];
     if (!world) return window.location.href;
     const base = window.location.origin + window.location.pathname;
     if (world.builtIn) {
-      const pref = state.worldPrefs[worldId];
+      const pref = state.presetPrefs[presetId];
       if (pref?.configOverride) {
         return base + "#" + _configToParams(pref.configOverride).toString();
       }
-      return base + "#world=" + worldId;
+      return base + "#world=" + presetId;
     }
     const effectiveConfig = world.config;
     return base + "#" + _configToParams(effectiveConfig).toString();
@@ -3083,9 +3104,9 @@
     if (config.hideOpinion) params.set("op", "0");
     return params;
   }
-  function updateWorldsBarOverflow() {
-    const wrapper = document.querySelector(".worlds-bar-wrapper");
-    const bar = document.getElementById("worlds-bar");
+  function updatePresetsBarOverflow() {
+    const wrapper = document.querySelector(".presets-bar-wrapper");
+    const bar = document.getElementById("presets-bar");
     if (!wrapper || !bar) return;
     const sl = bar.scrollLeft;
     const sw = bar.scrollWidth;
@@ -3093,44 +3114,44 @@
     wrapper.classList.toggle("scroll-left", sl > 4);
     wrapper.classList.toggle("scroll-right", sl + cw < sw - 4);
   }
-  function updateWorldsBar() {
+  function updatePresetsBar() {
     const domainCounts = {};
     for (const n of state.narrativesData || []) {
       const d = n.domain || "news";
       domainCounts[d] = (domainCounts[d] || 0) + 1;
     }
-    document.querySelectorAll(".world-btn").forEach((btn) => {
-      const worldId = btn.dataset.world;
-      const world = state.allWorlds[worldId];
-      const isActive = worldId === state.activeWorldId;
+    document.querySelectorAll(".preset-btn").forEach((btn) => {
+      const presetId = btn.dataset.world;
+      const world = state.allPresets[presetId];
+      const isActive = presetId === state.activePresetId;
       btn.classList.toggle("active", isActive);
-      btn.classList.toggle("modified", isActive && state.worldModified);
+      btn.classList.toggle("modified", isActive && state.presetModified);
       if (isActive && world && !world.builtIn) {
-        btn.style.setProperty("--custom-world-color", world.color);
+        btn.style.setProperty("--custom-preset-color", world.color);
         btn.classList.add("custom-color");
       } else {
-        btn.style.removeProperty("--custom-world-color");
+        btn.style.removeProperty("--custom-preset-color");
         btn.classList.remove("custom-color");
       }
-      const domain = WORLD_DOMAIN_MAP[worldId];
+      const domain = PRESET_DOMAIN_MAP[presetId];
       const count = domain ? domainCounts[domain] || 0 : 0;
-      const label = world?.label || worldId;
-      const shortLabel = WORLD_SHORT_LABELS[worldId] || label;
-      const icon = WORLD_ICONS[worldId] || state.worldPrefs[worldId]?.icon;
+      const label = world?.label || presetId;
+      const shortLabel = PRESET_SHORT_LABELS[presetId] || label;
+      const icon = PRESET_ICONS[presetId] || state.presetPrefs[presetId]?.icon;
       let html = "";
       if (icon) {
-        html = `<span class="world-btn-icon">${icon}</span><span class="world-btn-label">${escapeHtml(shortLabel)}</span>`;
+        html = `<span class="preset-btn-icon">${icon}</span><span class="preset-btn-label">${escapeHtml(shortLabel)}</span>`;
       } else {
-        html = `<span class="world-btn-label">${escapeHtml(shortLabel)}</span>`;
+        html = `<span class="preset-btn-label">${escapeHtml(shortLabel)}</span>`;
       }
       if (count > 0) {
-        html += ` <span class="world-btn-count">${count}</span>`;
+        html += ` <span class="preset-btn-count">${count}</span>`;
       }
       btn.innerHTML = html;
       btn.title = label;
     });
   }
-  function saveCurrentAsWorld(name) {
+  function saveCurrentAsPreset(name) {
     const id = "custom_" + Date.now();
     const config = captureCurrentConfig();
     const world = {
@@ -3139,101 +3160,101 @@
       builtIn: false,
       config
     };
-    state.allWorlds[id] = world;
-    const maxOrder = Math.max(0, ...Object.values(state.worldPrefs).map((p) => p.order ?? 0));
-    state.worldPrefs[id] = {
+    state.allPresets[id] = world;
+    const maxOrder = Math.max(0, ...Object.values(state.presetPrefs).map((p) => p.order ?? 0));
+    state.presetPrefs[id] = {
       visible: true,
       order: maxOrder + 1,
       icon: _autoDetectIcon(name, world)
     };
-    saveWorlds();
-    saveWorldPrefs();
-    state.activeWorldId = id;
-    state.worldModified = false;
-    renderWorldsBar();
+    savePresets();
+    savePresetPrefs();
+    state.activePresetId = id;
+    state.presetModified = false;
+    renderPresetsBar();
     saveStateToURL();
   }
-  function deleteWorld(worldId) {
-    const world = state.allWorlds[worldId];
+  function deletePreset(presetId) {
+    const world = state.allPresets[presetId];
     if (!world || world.permanent) return;
     if (world.builtIn) {
-      const removed = _getRemovedWorlds();
-      if (!removed.includes(worldId)) removed.push(worldId);
+      const removed = _getRemovedPresets();
+      if (!removed.includes(presetId)) removed.push(presetId);
       localStorage.setItem("tm_removed_worlds", JSON.stringify(removed));
     }
-    delete state.allWorlds[worldId];
-    delete state.worldPrefs[worldId];
-    saveWorlds();
-    saveWorldPrefs();
-    if (localStorage.getItem("tm_default_world") === worldId) {
+    delete state.allPresets[presetId];
+    delete state.presetPrefs[presetId];
+    savePresets();
+    savePresetPrefs();
+    if (localStorage.getItem("tm_default_world") === presetId) {
       localStorage.removeItem("tm_default_world");
     }
-    renderWorldsBar();
-    if (state.activeWorldId === worldId) {
-      switchWorld("all");
+    renderPresetsBar();
+    if (state.activePresetId === presetId) {
+      switchPreset("all");
     }
   }
-  var WORLD_SHORT_LABELS = { entertainment: "Ent." };
-  function renderWorldsBar() {
-    const bar = document.getElementById("worlds-bar");
-    const shareBtn = document.getElementById("world-share-btn");
-    bar.querySelectorAll(".world-btn").forEach((b) => b.remove());
-    const visibleEntries = _getVisibleWorldEntries();
+  var PRESET_SHORT_LABELS = { entertainment: "Ent." };
+  function renderPresetsBar() {
+    const bar = document.getElementById("presets-bar");
+    const shareBtn = document.getElementById("preset-share-btn");
+    bar.querySelectorAll(".preset-btn").forEach((b) => b.remove());
+    const visibleEntries = _getVisiblePresetEntries();
     for (const [id, world] of visibleEntries) {
       const btn = document.createElement("button");
-      btn.className = "world-btn";
+      btn.className = "preset-btn";
       btn.dataset.world = id;
       btn.dataset.color = world.color;
-      const icon = WORLD_ICONS[id] || state.worldPrefs[id]?.icon;
-      const shortLabel = WORLD_SHORT_LABELS[id] || world.label;
+      const icon = PRESET_ICONS[id] || state.presetPrefs[id]?.icon;
+      const shortLabel = PRESET_SHORT_LABELS[id] || world.label;
       if (icon) {
-        btn.innerHTML = `<span class="world-btn-icon">${icon}</span><span class="world-btn-label">${escapeHtml(shortLabel)}</span>`;
+        btn.innerHTML = `<span class="preset-btn-icon">${icon}</span><span class="preset-btn-label">${escapeHtml(shortLabel)}</span>`;
       } else {
-        btn.innerHTML = `<span class="world-btn-label">${escapeHtml(shortLabel)}</span>`;
+        btn.innerHTML = `<span class="preset-btn-label">${escapeHtml(shortLabel)}</span>`;
       }
       btn.title = world.label;
       btn.addEventListener("click", () => {
-        stopWorldTour();
-        switchWorld(id);
+        stopPresetTour();
+        switchPreset(id);
       });
       bar.insertBefore(btn, shareBtn);
     }
-    updateWorldsBar();
-    updateWorldsBarOverflow();
+    updatePresetsBar();
+    updatePresetsBarOverflow();
   }
-  // === World Tour: Auto-cycling world presets for first-time visitors ===
-  var WORLD_TOUR_SEQUENCE = ["bright_side", "sports", "curious", "entertainment", "conflict", "travel"];
-  var WORLD_TOUR_INTERVAL = 5000;
-  var _worldTourTimer = null;
-  var _worldTourIdx = 0;
-  var _worldTourActive = false;
+  // === Preset Tour: Auto-cycling presets for first-time visitors ===
+  var PRESET_TOUR_SEQUENCE = ["bright_side", "sports", "curious", "entertainment", "conflict", "travel"];
+  var PRESET_TOUR_INTERVAL = 5000;
+  var _presetTourTimer = null;
+  var _presetTourIdx = 0;
+  var _presetTourActive = false;
   var _isFirstVisitForTour = false;
   function captureFirstVisitFlag() {
     _isFirstVisitForTour = !localStorage.getItem("tm_world_tour_seen") && !localStorage.getItem("tm_last_visit") && !localStorage.getItem("tm_default_world") && !window.location.hash;
   }
-  function replayWorldTour() {
-    if (_worldTourActive) stopWorldTour();
-    if (_worldTourTimer) { clearInterval(_worldTourTimer); _worldTourTimer = null; }
+  function replayPresetTour() {
+    if (_presetTourActive) stopPresetTour();
+    if (_presetTourTimer) { clearInterval(_presetTourTimer); _presetTourTimer = null; }
     _isFirstVisitForTour = true;
-    _worldTourActive = false;
-    startWorldTour();
+    _presetTourActive = false;
+    startPresetTour();
   }
-  function startWorldTour() {
-    if (_worldTourTimer) { clearInterval(_worldTourTimer); _worldTourTimer = null; }
+  function startPresetTour() {
+    if (_presetTourTimer) { clearInterval(_presetTourTimer); _presetTourTimer = null; }
     if (!_isFirstVisitForTour) return;
-    _worldTourActive = true;
-    _worldTourIdx = 0;
-    _showTourWorld(_worldTourIdx);
-    _worldTourTimer = setInterval(() => {
-      _worldTourIdx++;
-      if (_worldTourIdx >= WORLD_TOUR_SEQUENCE.length) {
-        _worldTourIdx = 0;
+    _presetTourActive = true;
+    _presetTourIdx = 0;
+    _showTourPreset(_presetTourIdx);
+    _presetTourTimer = setInterval(() => {
+      _presetTourIdx++;
+      if (_presetTourIdx >= PRESET_TOUR_SEQUENCE.length) {
+        _presetTourIdx = 0;
       }
-      _transitionTourWorld(_worldTourIdx);
-    }, WORLD_TOUR_INTERVAL);
+      _transitionTourPreset(_presetTourIdx);
+    }, PRESET_TOUR_INTERVAL);
     var stopEvents = ["click", "scroll", "keydown", "touchstart", "wheel"];
     function onInteraction() {
-      stopWorldTour();
+      stopPresetTour();
       for (var ev of stopEvents) {
         document.removeEventListener(ev, onInteraction, true);
       }
@@ -3242,21 +3263,21 @@
       document.addEventListener(ev, onInteraction, true);
     }
   }
-  function stopWorldTour() {
-    if (!_worldTourActive) return;
-    _worldTourActive = false;
-    if (_worldTourTimer) {
-      clearInterval(_worldTourTimer);
-      _worldTourTimer = null;
+  function stopPresetTour() {
+    if (!_presetTourActive) return;
+    _presetTourActive = false;
+    if (_presetTourTimer) {
+      clearInterval(_presetTourTimer);
+      _presetTourTimer = null;
     }
     localStorage.setItem("tm_world_tour_seen", "1");
-    var overlay = document.getElementById("world-tour-overlay");
+    var overlay = document.getElementById("preset-tour-overlay");
     if (overlay) {
       overlay.classList.remove("visible");
       overlay.classList.add("fading");
     }
     // Show welcome questionnaire for first-time visitors after tour ends
-    if (_shouldShowWorldPicker()) {
+    if (_shouldShowPresetPicker()) {
       setTimeout(() => _showWelcomeDialog(), 600);
     } else {
       // Fire deferred onboarding after tour ends
@@ -3269,12 +3290,12 @@
       }
     }
   }
-  function _showTourWorld(idx) {
-    var worldId = WORLD_TOUR_SEQUENCE[idx];
-    var world = state.allWorlds[worldId];
+  function _showTourPreset(idx) {
+    var presetId = PRESET_TOUR_SEQUENCE[idx];
+    var world = state.allPresets[presetId];
     if (!world) return;
-    var icon = WORLD_ICONS[worldId] || "";
-    var overlay = document.getElementById("world-tour-overlay");
+    var icon = PRESET_ICONS[presetId] || "";
+    var overlay = document.getElementById("preset-tour-overlay");
     if (!overlay) return;
     var tourIcon = overlay.querySelector(".tour-icon");
     var tourName = overlay.querySelector(".tour-name");
@@ -3282,21 +3303,21 @@
     if (tourName) tourName.textContent = world.label;
     overlay.classList.add("visible");
     overlay.classList.remove("fading");
-    switchWorld(worldId);
+    switchPreset(presetId);
   }
-  function _transitionTourWorld(idx) {
-    var overlay = document.getElementById("world-tour-overlay");
+  function _transitionTourPreset(idx) {
+    var overlay = document.getElementById("preset-tour-overlay");
     if (!overlay) return;
     overlay.classList.add("fading");
     overlay.classList.remove("visible");
     setTimeout(() => {
-      if (!_worldTourActive) return;
-      _showTourWorld(idx);
+      if (!_presetTourActive) return;
+      _showTourPreset(idx);
     }, 400);
   }
 
-  // === World Picker: First-visit world selector ===
-  var WORLD_PICKER_DESCRIPTIONS = {
+  // === Preset Picker: First-visit preset selector ===
+  var PRESET_PICKER_DESCRIPTIONS = {
     bright_side: "Uplifting and feel-good stories",
     sports: "Live scores, transfers, tournaments",
     entertainment: "Film, music, celebrity, awards",
@@ -3311,33 +3332,33 @@
     health: "Disease, outbreaks, medical research",
     all: "Everything, unfiltered"
   };
-  var _worldPickerSelection = null;
+  var _presetPickerSelection = null;
   var _pickerOverlayClickRef = null;
-  function showWorldPicker() {
-    var dialog = document.getElementById("world-picker-dialog");
-    var grid = document.getElementById("world-picker-grid");
+  function showPresetPicker() {
+    var dialog = document.getElementById("preset-picker-dialog");
+    var grid = document.getElementById("preset-picker-grid");
     if (!dialog || !grid) return;
     grid.innerHTML = "";
-    // Start with current visible worlds or all built-in worlds
-    var savedVisible = _loadVisibleWorlds();
+    // Start with current visible presets or all built-in presets
+    var savedVisible = _loadVisiblePresets();
     var builtInIds = Object.keys(WORLD_PRESETS);
-    _worldPickerSelection = {};
+    _presetPickerSelection = {};
     for (var i = 0; i < builtInIds.length; i++) {
       var id = builtInIds[i];
-      _worldPickerSelection[id] = savedVisible ? savedVisible.indexOf(id) !== -1 : true;
+      _presetPickerSelection[id] = savedVisible ? savedVisible.indexOf(id) !== -1 : true;
     }
     for (var j = 0; j < builtInIds.length; j++) {
       var wid = builtInIds[j];
       var world = WORLD_PRESETS[wid];
       if (!world) continue;
-      var icon = WORLD_ICONS[wid] || "";
-      var desc = WORLD_PICKER_DESCRIPTIONS[wid] || "";
+      var icon = PRESET_ICONS[wid] || "";
+      var desc = PRESET_PICKER_DESCRIPTIONS[wid] || "";
       var card = document.createElement("div");
-      card.className = "world-picker-card" + (_worldPickerSelection[wid] ? " selected" : " deselected");
+      card.className = "preset-picker-card" + (_presetPickerSelection[wid] ? " selected" : " deselected");
       card.dataset.world = wid;
-      card.style.setProperty("--world-picker-color", world.color);
-      card.innerHTML = '<span class="world-picker-card-icon">' + icon + "</span>" + '<div class="world-picker-card-info">' + '<span class="world-picker-card-name">' + escapeHtml(world.label) + "</span>" + '<span class="world-picker-card-desc">' + escapeHtml(desc) + "</span>" + "</div>" + '<span class="world-picker-check">\u2713</span>';
-      card.addEventListener("click", _worldPickerToggle);
+      card.style.setProperty("--preset-picker-color", world.color);
+      card.innerHTML = '<span class="preset-picker-card-icon">' + icon + "</span>" + '<div class="preset-picker-card-info">' + '<span class="preset-picker-card-name">' + escapeHtml(world.label) + "</span>" + '<span class="preset-picker-card-desc">' + escapeHtml(desc) + "</span>" + "</div>" + '<span class="preset-picker-check">\u2713</span>';
+      card.addEventListener("click", _presetPickerToggle);
       grid.appendChild(card);
     }
     dialog.classList.add("visible");
@@ -3348,16 +3369,16 @@
     }
     _pickerOverlayClickRef = function(e) {
       if (e.target === dialog) {
-        confirmWorldPicker();
+        confirmPresetPicker();
       }
     };
     dialog.addEventListener("click", _pickerOverlayClickRef);
   }
-  function _worldPickerToggle(e) {
+  function _presetPickerToggle(e) {
     var card = e.currentTarget;
     var wid = card.dataset.world;
-    _worldPickerSelection[wid] = !_worldPickerSelection[wid];
-    if (_worldPickerSelection[wid]) {
+    _presetPickerSelection[wid] = !_presetPickerSelection[wid];
+    if (_presetPickerSelection[wid]) {
       card.classList.add("selected");
       card.classList.remove("deselected");
     } else {
@@ -3365,8 +3386,8 @@
       card.classList.add("deselected");
     }
   }
-  function closeWorldPicker() {
-    var dialog = document.getElementById("world-picker-dialog");
+  function closePresetPicker() {
+    var dialog = document.getElementById("preset-picker-dialog");
     if (dialog) {
       dialog.classList.remove("visible");
       // Remove overlay click listener to prevent leak (Fix #2)
@@ -3376,14 +3397,14 @@
       }
     }
   }
-  function confirmWorldPicker() {
-    if (!_worldPickerSelection) { closeWorldPicker(); return; }
+  function confirmPresetPicker() {
+    if (!_presetPickerSelection) { closePresetPicker(); return; }
     var selected = [];
     var builtInIds = Object.keys(WORLD_PRESETS);
     var allSelected = true;
     for (var i = 0; i < builtInIds.length; i++) {
       var id = builtInIds[i];
-      if (_worldPickerSelection[id]) {
+      if (_presetPickerSelection[id]) {
         selected.push(id);
       } else {
         allSelected = false;
@@ -3400,15 +3421,15 @@
     } else {
       localStorage.setItem("tm_visible_worlds", JSON.stringify(selected));
     }
-    // Apply visibility to worldPrefs
-    _applyVisibleWorldsToPrefs();
-    renderWorldsBar();
-    // If current world was hidden, switch to first visible or news
-    if (state.activeWorldId !== "all" && selected.indexOf(state.activeWorldId) === -1) {
-      switchWorld(selected[0] || "all");
+    // Apply visibility to presetPrefs
+    _applyVisiblePresetsToPrefs();
+    renderPresetsBar();
+    // If current preset was hidden, switch to first visible or news
+    if (state.activePresetId !== "all" && selected.indexOf(state.activePresetId) === -1) {
+      switchPreset(selected[0] || "all");
     }
-    closeWorldPicker();
-    _worldPickerSelection = null;
+    closePresetPicker();
+    _presetPickerSelection = null;
     // Deferred onboarding: show hint + mobile sheet peek on first visit (Fix #1)
     // This fires regardless of how the picker was dismissed (Done, Escape, or click-outside)
     if (_isFirstVisitForTour) {
@@ -3421,7 +3442,7 @@
       }
     }
   }
-  function _loadVisibleWorlds() {
+  function _loadVisiblePresets() {
     try {
       var raw = localStorage.getItem("tm_visible_worlds");
       if (!raw) return null;
@@ -3430,23 +3451,23 @@
     } catch (e) {}
     return null;
   }
-  function _applyVisibleWorldsToPrefs() {
-    var visible = _loadVisibleWorlds();
-    for (var id in state.worldPrefs) {
+  function _applyVisiblePresetsToPrefs() {
+    var visible = _loadVisiblePresets();
+    for (var id in state.presetPrefs) {
       if (WORLD_PRESETS[id]) {
-        state.worldPrefs[id].visible = visible ? visible.indexOf(id) !== -1 : true;
+        state.presetPrefs[id].visible = visible ? visible.indexOf(id) !== -1 : true;
       }
     }
-    saveWorldPrefs();
+    savePresetPrefs();
   }
-  function _syncVisibleWorldsFromPrefs() {
-    // Sync worldPrefs visibility back to tm_visible_worlds
+  function _syncVisiblePresetsFromPrefs() {
+    // Sync presetPrefs visibility back to tm_visible_worlds
     var visible = [];
     var allVisible = true;
     var builtInIds = Object.keys(WORLD_PRESETS);
     for (var i = 0; i < builtInIds.length; i++) {
       var id = builtInIds[i];
-      if (state.worldPrefs[id]?.visible !== false) {
+      if (state.presetPrefs[id]?.visible !== false) {
         visible.push(id);
       } else {
         allVisible = false;
@@ -3458,8 +3479,8 @@
       localStorage.setItem("tm_visible_worlds", JSON.stringify(visible));
     }
   }
-  function _shouldShowWorldPicker() {
-    // Show if first visit (tour just finished) AND no saved visible worlds preference
+  function _shouldShowPresetPicker() {
+    // Show if first visit (tour just finished) AND no saved visible presets preference
     return _isFirstVisitForTour && !localStorage.getItem("tm_visible_worlds");
   }
 
@@ -3472,11 +3493,11 @@
     _welcomeDialogInit = true;
     dialog.querySelectorAll(".welcome-card").forEach(function(card) {
       card.addEventListener("click", function() {
-        var worldId = card.dataset.world;
+        var presetId = card.dataset.world;
         dialog.classList.remove("visible");
-        if (worldId && state.allWorlds[worldId]) {
-          switchWorld(worldId);
-          localStorage.setItem("tm_default_world", worldId);
+        if (presetId && state.allPresets[presetId]) {
+          switchPreset(presetId);
+          localStorage.setItem("tm_default_world", presetId);
         }
         showOnboardingHint();
         if (_isMobile() && !localStorage.getItem("thisminute-onboarded")) {
@@ -3495,89 +3516,89 @@
     });
   }
 
-  function toggleWorldsPanel() {
-    const panel = document.getElementById("worlds-panel");
+  function togglePresetsPanel() {
+    const panel = document.getElementById("presets-panel");
     panel.classList.toggle("visible");
     if (panel.classList.contains("visible")) {
-      renderWorldsPanelContents();
+      renderPresetsPanelContents();
     }
   }
-  function closeWorldsPanel() {
-    document.getElementById("worlds-panel").classList.remove("visible");
+  function closePresetsPanel() {
+    document.getElementById("presets-panel").classList.remove("visible");
   }
-  function renderWorldsPanelContents() {
-    const listContainer = document.getElementById("worlds-panel-list");
+  function renderPresetsPanelContents() {
+    const listContainer = document.getElementById("presets-panel-list");
     listContainer.innerHTML = "";
-    const sorted = Object.entries(state.allWorlds).sort((a, b) => (state.worldPrefs[a[0]]?.order ?? 99) - (state.worldPrefs[b[0]]?.order ?? 99));
+    const sorted = Object.entries(state.allPresets).sort((a, b) => (state.presetPrefs[a[0]]?.order ?? 99) - (state.presetPrefs[b[0]]?.order ?? 99));
     let lastBuiltIn = -1;
     sorted.forEach(([_, w], i) => {
       if (w.builtIn) lastBuiltIn = i;
     });
-    const defaultWorldId = _resolveWorldAlias(localStorage.getItem("tm_default_world"));
+    const defaultPresetId = _resolvePresetAlias(localStorage.getItem("tm_default_world"));
     sorted.forEach(([id, world], idx) => {
-      const pref = state.worldPrefs[id] || {};
+      const pref = state.presetPrefs[id] || {};
       const isVisible = pref.visible !== false;
-      const isActive = id === state.activeWorldId;
-      const isDefault = id === defaultWorldId;
+      const isActive = id === state.activePresetId;
+      const isDefault = id === defaultPresetId;
       const hasOverride = world.builtIn && !!pref.configOverride;
       const item = document.createElement("div");
-      item.className = "world-panel-item" + (isActive ? " active-world" : "") + (!isVisible ? " hidden-world" : "");
+      item.className = "preset-panel-item" + (isActive ? " active-preset" : "") + (!isVisible ? " hidden-preset" : "");
       const eye = document.createElement("button");
-      eye.className = "world-panel-eye";
+      eye.className = "preset-panel-eye";
       eye.innerHTML = isVisible ? "&#x1F441;" : "&#x1F441;&#x200D;&#x1F5E8;";
       eye.title = isVisible ? "Hide from bar" : "Show in bar";
       eye.style.opacity = isVisible ? "0.7" : "0.3";
       eye.addEventListener("click", (e) => {
         e.stopPropagation();
-        if (!state.worldPrefs[id]) state.worldPrefs[id] = { visible: true, order: idx };
-        state.worldPrefs[id].visible = !isVisible;
-        saveWorldPrefs();
-        _syncVisibleWorldsFromPrefs();
-        renderWorldsBar();
-        renderWorldsPanelContents();
+        if (!state.presetPrefs[id]) state.presetPrefs[id] = { visible: true, order: idx };
+        state.presetPrefs[id].visible = !isVisible;
+        savePresetPrefs();
+        _syncVisiblePresetsFromPrefs();
+        renderPresetsBar();
+        renderPresetsPanelContents();
       });
       item.appendChild(eye);
       const dot = document.createElement("span");
-      dot.className = "world-panel-color";
+      dot.className = "preset-panel-color";
       dot.style.background = world.color;
       item.appendChild(dot);
-      const icon = WORLD_ICONS[id] || pref.icon;
+      const icon = PRESET_ICONS[id] || pref.icon;
       const info = document.createElement("div");
-      info.className = "world-panel-info";
+      info.className = "preset-panel-info";
       const labelEl = document.createElement("span");
-      labelEl.className = "world-panel-label";
+      labelEl.className = "preset-panel-label";
       labelEl.textContent = (icon ? icon + " " : "") + world.label;
       info.appendChild(labelEl);
       const desc = document.createElement("span");
-      desc.className = "world-panel-desc";
+      desc.className = "preset-panel-desc";
       const effectiveConfig = world.builtIn && pref.configOverride || world.config;
       desc.textContent = _describeConfig(effectiveConfig, world.feedTags);
       info.appendChild(desc);
-      if (isActive && state.worldModified) {
+      if (isActive && state.presetModified) {
         const updateBtn = document.createElement("button");
-        updateBtn.className = "world-panel-update";
+        updateBtn.className = "preset-panel-update";
         updateBtn.textContent = "Update";
         updateBtn.addEventListener("click", (e) => {
           e.stopPropagation();
-          updateWorldConfig(id);
-          renderWorldsPanelContents();
+          updatePresetConfig(id);
+          renderPresetsPanelContents();
         });
         info.appendChild(updateBtn);
       }
       if (hasOverride) {
         const resetBtn = document.createElement("button");
-        resetBtn.className = "world-panel-reset";
+        resetBtn.className = "preset-panel-reset";
         resetBtn.textContent = "Reset";
         resetBtn.addEventListener("click", (e) => {
           e.stopPropagation();
-          resetWorldConfig(id);
-          renderWorldsPanelContents();
+          resetPresetConfig(id);
+          renderPresetsPanelContents();
         });
         info.appendChild(resetBtn);
       }
       item.appendChild(info);
       const star = document.createElement("button");
-      star.className = "world-panel-star" + (isDefault ? " active" : "");
+      star.className = "preset-panel-star" + (isDefault ? " active" : "");
       star.innerHTML = isDefault ? "&#x2605;" : "&#x2606;";
       star.title = isDefault ? "Remove as default" : "Set as default";
       star.addEventListener("click", (e) => {
@@ -3587,27 +3608,20 @@
         } else {
           localStorage.setItem("tm_default_world", id);
         }
-        renderWorldsPanelContents();
+        renderPresetsPanelContents();
       });
       item.appendChild(star);
       const share = document.createElement("button");
-      share.className = "world-panel-share";
+      share.className = "preset-panel-share";
       share.innerHTML = "&#x1F517;";
       share.title = "Copy link";
       share.addEventListener("click", (e) => {
         e.stopPropagation();
-        const url = generatePresetURL(id);
-        navigator.clipboard.writeText(url).then(() => {
-          share.textContent = "\u2713";
-          setTimeout(() => {
-            share.innerHTML = "&#x1F517;";
-          }, 1200);
-        }).catch(() => {
-        });
+        _copyToClipboard(share, generatePresetURL(id), "&#x1F517;");
       });
       item.appendChild(share);
       const arrows = document.createElement("span");
-      arrows.className = "world-panel-arrows";
+      arrows.className = "preset-panel-arrows";
       const upBtn = document.createElement("button");
       upBtn.innerHTML = "&#x25B2;";
       upBtn.title = "Move up";
@@ -3616,12 +3630,12 @@
         e.stopPropagation();
         if (idx === 0) return;
         const prevId = sorted[idx - 1][0];
-        const tmp = state.worldPrefs[id].order;
-        state.worldPrefs[id].order = state.worldPrefs[prevId].order;
-        state.worldPrefs[prevId].order = tmp;
-        saveWorldPrefs();
-        renderWorldsBar();
-        renderWorldsPanelContents();
+        const tmp = state.presetPrefs[id].order;
+        state.presetPrefs[id].order = state.presetPrefs[prevId].order;
+        state.presetPrefs[prevId].order = tmp;
+        savePresetPrefs();
+        renderPresetsBar();
+        renderPresetsPanelContents();
       });
       const downBtn = document.createElement("button");
       downBtn.innerHTML = "&#x25BC;";
@@ -3631,74 +3645,74 @@
         e.stopPropagation();
         if (idx === sorted.length - 1) return;
         const nextId = sorted[idx + 1][0];
-        const tmp = state.worldPrefs[id].order;
-        state.worldPrefs[id].order = state.worldPrefs[nextId].order;
-        state.worldPrefs[nextId].order = tmp;
-        saveWorldPrefs();
-        renderWorldsBar();
-        renderWorldsPanelContents();
+        const tmp = state.presetPrefs[id].order;
+        state.presetPrefs[id].order = state.presetPrefs[nextId].order;
+        state.presetPrefs[nextId].order = tmp;
+        savePresetPrefs();
+        renderPresetsBar();
+        renderPresetsPanelContents();
       });
       arrows.appendChild(upBtn);
       arrows.appendChild(downBtn);
       item.appendChild(arrows);
       if (!world.builtIn) {
         const edit = document.createElement("button");
-        edit.className = "world-panel-edit";
+        edit.className = "preset-panel-edit";
         edit.innerHTML = "&#x270E;";
         edit.title = "Rename";
         edit.addEventListener("click", (e) => {
           e.stopPropagation();
-          showSaveWorldDialog(id);
+          showSavePresetDialog(id);
         });
         item.appendChild(edit);
       }
       if (!world.permanent) {
         const del = document.createElement("button");
-        del.className = "world-panel-delete";
+        del.className = "preset-panel-delete";
         del.innerHTML = "&times;";
         del.addEventListener("click", (e) => {
           e.stopPropagation();
-          deleteWorld(id);
-          renderWorldsPanelContents();
+          deletePreset(id);
+          renderPresetsPanelContents();
         });
         item.appendChild(del);
       }
       item.addEventListener("click", () => {
-        switchWorld(id);
-        closeWorldsPanel();
+        switchPreset(id);
+        closePresetsPanel();
       });
       listContainer.appendChild(item);
       if (idx === lastBuiltIn && lastBuiltIn < sorted.length - 1) {
         const sep = document.createElement("div");
-        sep.className = "world-panel-separator";
+        sep.className = "preset-panel-separator";
         listContainer.appendChild(sep);
       }
     });
-    const removed = _getRemovedWorlds();
+    const removed = _getRemovedPresets();
     if (removed.length > 0) {
       const restore = document.createElement("button");
-      restore.className = "world-panel-restore";
+      restore.className = "preset-panel-restore";
       restore.textContent = "Restore default presets";
       restore.addEventListener("click", (e) => {
         e.stopPropagation();
         localStorage.removeItem("tm_removed_worlds");
-        loadWorlds();
-        renderWorldsBar();
-        renderWorldsPanelContents();
+        loadPresets();
+        renderPresetsBar();
+        renderPresetsPanelContents();
       });
       listContainer.appendChild(restore);
     }
   }
-  function showSaveWorldDialog(editId) {
-    closeWorldsPanel();
-    _editingWorldId = editId || null;
-    const dialog = document.getElementById("world-save-dialog");
-    const input = document.getElementById("world-save-name");
+  function showSavePresetDialog(editId) {
+    closePresetsPanel();
+    _editingPresetId = editId || null;
+    const dialog = document.getElementById("preset-save-dialog");
+    const input = document.getElementById("preset-save-name");
     const heading = dialog.querySelector("h3");
-    const confirmBtn = document.getElementById("world-save-confirm");
-    if (_editingWorldId && state.allWorlds[_editingWorldId]) {
+    const confirmBtn = document.getElementById("preset-save-confirm");
+    if (_editingPresetId && state.allPresets[_editingPresetId]) {
       heading.textContent = "Rename Preset";
-      input.value = state.allWorlds[_editingWorldId].label;
+      input.value = state.allPresets[_editingPresetId].label;
       confirmBtn.textContent = "Rename";
     } else {
       heading.textContent = "Save Preset";
@@ -3709,17 +3723,17 @@
     input.focus();
     input.select();
   }
-  function closeSaveWorldDialog() {
-    _editingWorldId = null;
-    document.getElementById("world-save-dialog").classList.remove("visible");
+  function closeSavePresetDialog() {
+    _editingPresetId = null;
+    document.getElementById("preset-save-dialog").classList.remove("visible");
   }
-  function confirmSaveWorld() {
-    const input = document.getElementById("world-save-name");
+  function confirmSavePreset() {
+    const input = document.getElementById("preset-save-name");
     const name = input.value.trim();
     if (!name) return;
     const nameLower = name.toLowerCase();
-    const isDuplicate = Object.entries(state.allWorlds).some(
-      ([wid, w]) => w.label.toLowerCase() === nameLower && wid !== _editingWorldId
+    const isDuplicate = Object.entries(state.allPresets).some(
+      ([wid, w]) => w.label.toLowerCase() === nameLower && wid !== _editingPresetId
     );
     if (isDuplicate) {
       input.classList.add("input-error");
@@ -3730,19 +3744,19 @@
       }, 2e3);
       return;
     }
-    if (_editingWorldId && state.allWorlds[_editingWorldId]) {
-      const world = state.allWorlds[_editingWorldId];
+    if (_editingPresetId && state.allPresets[_editingPresetId]) {
+      const world = state.allPresets[_editingPresetId];
       world.label = name;
-      if (state.worldPrefs[_editingWorldId]) {
-        state.worldPrefs[_editingWorldId].icon = _autoDetectIcon(name, world);
+      if (state.presetPrefs[_editingPresetId]) {
+        state.presetPrefs[_editingPresetId].icon = _autoDetectIcon(name, world);
       }
-      saveWorlds();
-      saveWorldPrefs();
-      renderWorldsBar();
+      savePresets();
+      savePresetPrefs();
+      renderPresetsBar();
     } else {
-      saveCurrentAsWorld(name);
+      saveCurrentAsPreset(name);
     }
-    closeSaveWorldDialog();
+    closeSavePresetDialog();
   }
   state.sourceCounts = [];
   async function loadSources() {
@@ -3809,7 +3823,7 @@
     state.excludedSources.delete(name);
     if (state.activeSources.has(name)) state.activeSources.delete(name);
     else state.activeSources.add(name);
-    markWorldModified();
+    markPresetModified();
     updateFilterDrawerToggle();
     updateSourcesIndicator();
     applyFilters();
@@ -3818,7 +3832,7 @@
     state.activeSources.delete(name);
     if (state.excludedSources.has(name)) state.excludedSources.delete(name);
     else state.excludedSources.add(name);
-    markWorldModified();
+    markPresetModified();
     updateFilterDrawerToggle();
     updateSourcesIndicator();
     applyFilters();
@@ -3830,7 +3844,7 @@
       const chips = state._filterState && state._filterState.sourceCounts.length ? state._filterState.sourceCounts : state.sourceCounts;
       for (const s of chips) state.excludedSources.add(s.source);
     }
-    markWorldModified();
+    markPresetModified();
     updateFilterDrawerToggle();
     updateSourcesIndicator();
     applyFilters();
@@ -3844,7 +3858,7 @@
         if (counts[name] > 0) state.excludedConcepts.add(name);
       }
     }
-    markWorldModified();
+    markPresetModified();
     updateFilterDrawerToggle();
     applyFilters();
   }
@@ -3870,7 +3884,7 @@
   function updateStoryList(features) {
     const container = document.getElementById("story-list");
     if (!features || features.length === 0) {
-      container.innerHTML = '<div class="loading">No stories match your filters<br><small style="color:#484f58">Try clearing some filters or switching worlds</small></div>';
+      container.innerHTML = '<div class="loading">No stories match your filters<br><small style="color:#484f58">Try clearing some filters or switching presets</small></div>';
       return;
     }
     const now = Date.now();
@@ -4043,22 +4057,13 @@
       const item = container.querySelector(`.event-item[data-event-id="${state.expandedEventId}"]`);
       if (item) _renderEventStories(item, state.expandedEventStories, events.find((e) => e.id === state.expandedEventId));
     }
-    container.querySelectorAll(".event-item .feedback-btn").forEach((btn) => {
-      btn.addEventListener("click", (e) => {
-        e.stopPropagation();
-        openFeedbackDialog({ type: btn.dataset.fbType, id: parseInt(btn.dataset.fbId), title: btn.dataset.fbTitle });
-      });
-    });
+    _wireFeedbackButtons(container);
     container.querySelectorAll(".event-share-btn").forEach((btn) => {
       btn.addEventListener("click", (e) => {
         e.stopPropagation();
-        const evId = btn.dataset.eventId;
         const url = new URL(window.location.origin);
-        url.searchParams.set("event", evId);
-        navigator.clipboard.writeText(url.toString()).then(() => {
-          btn.textContent = "\u2713";
-          setTimeout(() => { btn.innerHTML = "&#128279;"; }, 1500);
-        }).catch(() => {});
+        url.searchParams.set("event", btn.dataset.eventId);
+        _copyToClipboard(btn, url.toString());
       });
     });
     container.querySelectorAll(".event-item").forEach((item) => {
@@ -4209,7 +4214,7 @@
         localStorage.setItem("tm_narr_counts", JSON.stringify(counts));
       } catch {
       }
-      updateWorldsBar();
+      updatePresetsBar();
       if (state.geojsonData.features.length > 0) applyFilters();
       if (state._pendingSituationId && state.narrativesData.some((n) => n.id === state._pendingSituationId)) {
         state.activeNarrativeId = state._pendingSituationId;
@@ -4302,16 +4307,9 @@
     container.querySelectorAll(".situation-share-btn").forEach((btn) => {
       btn.addEventListener("click", (e) => {
         e.stopPropagation();
-        const sitId = btn.dataset.sitId;
         const url = new URL(window.location.origin);
-        url.searchParams.set("sit", sitId);
-        navigator.clipboard.writeText(url.toString()).then(() => {
-          btn.textContent = "\u2713";
-          setTimeout(() => {
-            btn.innerHTML = "&#128279;";
-          }, 1500);
-        }).catch(() => {
-        });
+        url.searchParams.set("sit", btn.dataset.sitId);
+        _copyToClipboard(btn, url.toString());
       });
     });
     container.querySelectorAll(".situation-event-locate").forEach((btn) => {
@@ -4322,12 +4320,7 @@
         if (!isNaN(lat) && !isNaN(lon)) state.map.flyTo({ center: [lon, lat], zoom: 6, duration: 1200 });
       });
     });
-    container.querySelectorAll(".situation-item .feedback-btn").forEach((btn) => {
-      btn.addEventListener("click", (e) => {
-        e.stopPropagation();
-        openFeedbackDialog({ type: btn.dataset.fbType, id: parseInt(btn.dataset.fbId), title: btn.dataset.fbTitle });
-      });
-    });
+    _wireFeedbackButtons(container);
     container.querySelectorAll(".situation-item").forEach((item) => {
       item.addEventListener("click", (e) => {
         if (e.target.tagName === "A" || e.target.classList.contains("situation-share-btn") || e.target.classList.contains("situation-event-locate") || e.target.classList.contains("feedback-btn")) return;
@@ -4818,58 +4811,58 @@
     activeList.scrollTop = 0;
     saveStateToURL();
   }
-  async function loadWorldOverview() {
+  async function loadPresetOverview() {
     try {
       const resp = await fetch("/api/world-overview");
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-      state.worldOverview = await resp.json();
-      renderWorldOverview();
+      state.presetOverview = await resp.json();
+      renderPresetOverview();
     } catch (err) {
-      console.error("Failed to load world overview:", err);
+      console.error("Failed to load preset overview:", err);
     }
   }
-  function renderWorldOverview() {
-    const bar = document.getElementById("world-overview-bar");
-    if (!state.worldOverview || !state.worldOverview.summary) {
+  function renderPresetOverview() {
+    const bar = document.getElementById("preset-overview-bar");
+    if (!state.presetOverview || !state.presetOverview.summary) {
       bar.classList.remove("visible");
       return;
     }
-    const worldId = state.activeWorldId || "all";
-    const domain = _getWorldDomain(worldId);
+    const presetId = state.activePresetId || "all";
+    const domain = _getPresetDomain(presetId);
     if (domain) {
       const domainNarrs = (state.narrativesData || []).filter((n) => (n.domain || "news") === domain);
       if (domainNarrs.length > 0) {
         const topNames = domainNarrs.slice(0, 3).map((n) => n.title).join(" \xB7 ");
         const extra = domainNarrs.length > 3 ? ` +${domainNarrs.length - 3} more` : "";
-        bar.querySelector(".world-overview-text").textContent = topNames + extra;
+        bar.querySelector(".preset-overview-text").textContent = topNames + extra;
       } else {
-        bar.querySelector(".world-overview-text").textContent = "Situations will appear as stories accumulate";
+        bar.querySelector(".preset-overview-text").textContent = "Situations will appear as stories accumulate";
       }
-    } else if (worldId === "all" || !worldId) {
-      bar.querySelector(".world-overview-text").textContent = state.worldOverview.summary;
+    } else if (presetId === "all" || !presetId) {
+      bar.querySelector(".preset-overview-text").textContent = state.presetOverview.summary;
     } else {
-      /* Worlds without a narrative domain (planet, travel, etc.) — hide generic summary */
+      /* Presets without a narrative domain (planet, travel, etc.) — hide generic summary */
       bar.classList.remove("visible");
       return;
     }
-    const label = bar.querySelector(".world-overview-label");
+    const label = bar.querySelector(".preset-overview-label");
     if (label) {
-      var w = state.allWorlds[worldId];
+      var w = state.allPresets[presetId];
       label.style.color = w ? w.color : "#58a6ff";
     }
     bar.classList.add("visible");
   }
-  function _worldShareCopied(btn) {
+  function _presetShareCopied(btn) {
     btn.textContent = "\u2713";
     btn.classList.add("copied");
     btn.title = "Copied!";
     setTimeout(() => {
       btn.innerHTML = "&#x1F517;";
       btn.classList.remove("copied");
-      btn.title = "Share this world";
+      btn.title = "Share this preset";
     }, 1500);
   }
-  function _worldShareFallback(btn, url) {
+  function _presetShareFallback(btn, url) {
     const ta = document.createElement("textarea");
     ta.value = url;
     ta.style.position = "fixed";
@@ -4878,7 +4871,7 @@
     ta.select();
     try {
       document.execCommand("copy");
-      _worldShareCopied(btn);
+      _presetShareCopied(btn);
     } catch (e) {
     }
     document.body.removeChild(ta);
@@ -4932,8 +4925,8 @@
   function _updateLegendColors() {
     var legendEl = document.getElementById("map-legend");
     if (!legendEl) return;
-    var activeWorld = state.allWorlds[state.activeWorldId];
-    var worldRGB = activeWorld && activeWorld.color ? _hexToRGB(activeWorld.color) : null;
+    var activePreset = state.allPresets[state.activePresetId];
+    var presetRGB = activePreset && activePreset.color ? _hexToRGB(activePreset.color) : null;
     var theme = state.dotColorTheme || "domain";
     var wt = 0.35;
     legendEl.querySelectorAll(".legend-item").forEach(function(item) {
@@ -4941,11 +4934,11 @@
       var dot = item.querySelector(".legend-dot");
       if (!dot || !domain) return;
       var domRGB = _domainRGB[domain] || _fallbackRGB;
-      if (worldRGB && (theme === "domain" || theme === "classic")) {
+      if (presetRGB && (theme === "domain" || theme === "classic")) {
         dot.style.background = _rgbToHex(
-          domRGB[0] + (worldRGB[0] - domRGB[0]) * wt,
-          domRGB[1] + (worldRGB[1] - domRGB[1]) * wt,
-          domRGB[2] + (worldRGB[2] - domRGB[2]) * wt
+          domRGB[0] + (presetRGB[0] - domRGB[0]) * wt,
+          domRGB[1] + (presetRGB[1] - domRGB[1]) * wt,
+          domRGB[2] + (presetRGB[2] - domRGB[2]) * wt
         );
       } else {
         dot.style.background = DOMAIN_COLORS[domain] || "#484f58";
@@ -5005,13 +4998,13 @@
   }
   function saveStateToURL() {
     const params = new URLSearchParams();
-    if (state.activeWorldId && state.activeWorldId !== "bright_side") params.set("world", state.activeWorldId);
-    const world = state.allWorlds[state.activeWorldId];
-    const worldFeedTagSources = world && world.feedTags ? new Set(sourcesForTags(world.feedTags)) : null;
+    if (state.activePresetId && state.activePresetId !== "bright_side") params.set("world", state.activePresetId);
+    const world = state.allPresets[state.activePresetId];
+    const presetFeedTagSources = world && world.feedTags ? new Set(sourcesForTags(world.feedTags)) : null;
     if (state.activeConcepts.size > 0) params.set("in", [...state.activeConcepts].join(","));
     if (state.excludedConcepts.size > 0) params.set("ex", [...state.excludedConcepts].join(","));
     if (state.activeSources.size > 0) {
-      if (!worldFeedTagSources || state.activeSources.size !== worldFeedTagSources.size || [...state.activeSources].some((s) => !worldFeedTagSources.has(s))) {
+      if (!presetFeedTagSources || state.activeSources.size !== presetFeedTagSources.size || [...state.activeSources].some((s) => !presetFeedTagSources.has(s))) {
         params.set("src", [...state.activeSources].join(","));
       }
     }
@@ -5050,98 +5043,98 @@
       } else {
         document.getElementById("filter-time").value = "24";
       }
-      const defaultWorldId = _resolveWorldAlias(localStorage.getItem("tm_default_world")) || state.activeWorldId;
-      if (defaultWorldId && state.allWorlds[defaultWorldId] && defaultWorldId !== "all") {
-        const w = state.allWorlds[defaultWorldId];
+      const defaultPresetId = _resolvePresetAlias(localStorage.getItem("tm_default_world")) || state.activePresetId;
+      if (defaultPresetId && state.allPresets[defaultPresetId] && defaultPresetId !== "all") {
+        const w = state.allPresets[defaultPresetId];
         if (w.feedTags && w.feedTags.length > 0) {
-          applyWorldConfig(w.config);
+          applyPresetConfig(w.config);
           if (state._feedTagsReady) {
             state._feedTagsReady.then(() => {
-              const effectiveConfig = w.builtIn && state.worldPrefs[defaultWorldId]?.configOverride || w.config;
-              applyWorldConfig(effectiveConfig, w.keywords, w.feedTags);
+              const effectiveConfig = w.builtIn && state.presetPrefs[defaultPresetId]?.configOverride || w.config;
+              applyPresetConfig(effectiveConfig, w.keywords, w.feedTags);
               applyFilters();
             });
           }
         } else if (w.keywords && w.keywords.length > 0) {
-          state._pendingWorldId = defaultWorldId;
-          applyWorldConfig(w.config);
+          state._pendingPresetId = defaultPresetId;
+          applyPresetConfig(w.config);
         } else {
-          const effectiveConfig = w.builtIn && state.worldPrefs[defaultWorldId]?.configOverride || w.config;
-          applyWorldConfig(effectiveConfig, w.keywords, w.feedTags);
+          const effectiveConfig = w.builtIn && state.presetPrefs[defaultPresetId]?.configOverride || w.config;
+          applyPresetConfig(effectiveConfig, w.keywords, w.feedTags);
         }
-        updateWorldsBar();
+        updatePresetsBar();
       }
       return;
     }
     localStorage.setItem("tm_last_visit", Date.now().toString());
     const params = new URLSearchParams(hash);
     if (params.has("world")) {
-      const worldId = _resolveWorldAlias(params.get("world"));
-      if (state.allWorlds[worldId]) {
-        const w = state.allWorlds[worldId];
+      const presetId = _resolvePresetAlias(params.get("world"));
+      if (state.allPresets[presetId]) {
+        const w = state.allPresets[presetId];
         if (w.keywords && w.keywords.length > 0) {
-          state._pendingWorldId = worldId;
-          state.activeWorldId = worldId;
-          applyWorldConfig(w.config);
-          state.worldModified = false;
-          updateWorldsBar();
+          state._pendingPresetId = presetId;
+          state.activePresetId = presetId;
+          applyPresetConfig(w.config);
+          state.presetModified = false;
+          updatePresetsBar();
         } else if (w.feedTags && w.feedTags.length > 0) {
-          state.activeWorldId = worldId;
-          applyWorldConfig(w.config);
-          state.worldModified = false;
-          updateWorldsBar();
+          state.activePresetId = presetId;
+          applyPresetConfig(w.config);
+          state.presetModified = false;
+          updatePresetsBar();
           if (state._feedTagsReady) {
             state._feedTagsReady.then(() => {
-              applyWorldConfig(w.config, w.keywords, w.feedTags);
+              applyPresetConfig(w.config, w.keywords, w.feedTags);
               applyFilters();
             });
           }
         } else {
-          applyWorldConfig(w.config, w.keywords, w.feedTags);
-          state.activeWorldId = worldId;
-          state.worldModified = false;
-          updateWorldsBar();
+          applyPresetConfig(w.config, w.keywords, w.feedTags);
+          state.activePresetId = presetId;
+          state.presetModified = false;
+          updatePresetsBar();
         }
       }
     }
     if (params.has("in")) {
       params.get("in").split(",").forEach((c) => state.activeConcepts.add(c.trim()));
-      if (params.has("world")) state.worldModified = true;
+      if (params.has("world")) state.presetModified = true;
     }
     if (params.has("ex")) {
       params.get("ex").split(",").forEach((c) => state.excludedConcepts.add(c.trim()));
-      if (params.has("world")) state.worldModified = true;
+      if (params.has("world")) state.presetModified = true;
     }
     if (params.has("src")) {
       params.get("src").split(",").forEach((s) => state.activeSources.add(s.trim()));
-      if (params.has("world")) state.worldModified = true;
+      if (params.has("world")) state.presetModified = true;
     }
     if (params.has("xsrc")) {
       params.get("xsrc").split(",").forEach((s) => state.excludedSources.add(s.trim()));
-      if (params.has("world")) state.worldModified = true;
+      if (params.has("world")) state.presetModified = true;
     }
     if (params.has("origin")) {
       state.activeOrigins = new Set(params.get("origin").split(",").map((s) => s.trim()));
       document.querySelectorAll(".origin-btn").forEach((btn) => {
         btn.classList.toggle("active", state.activeOrigins.has(btn.dataset.origin));
       });
-      if (params.has("world")) state.worldModified = true;
+      if (params.has("world")) state.presetModified = true;
     }
     if (params.has("bs")) {
       state.brightSideMode = true;
-      if (params.has("world")) state.worldModified = true;
+      if (params.has("world")) state.presetModified = true;
     }
     if (params.has("cur")) {
       state.curiousMode = true;
-      if (params.has("world")) state.worldModified = true;
+      if (params.has("world")) state.presetModified = true;
     }
     if (params.has("q")) {
       document.getElementById("search-box").value = params.get("q");
-      if (params.has("world")) state.worldModified = true;
+      if (params.has("world")) state.presetModified = true;
     }
     if (params.has("t")) {
       document.getElementById("filter-time").value = params.get("t");
-      if (params.has("world")) state.worldModified = true;
+      if (params.has("world")) state.presetModified = true;
     }
     if (params.has("sit")) {
       state._pendingSituationId = parseInt(params.get("sit"));
@@ -5160,7 +5153,7 @@
         zoom: parseFloat(params.get("z"))
       };
     }
-    if (state.worldModified) updateWorldsBar();
+    if (state.presetModified) updatePresetsBar();
   }
   document.addEventListener("DOMContentLoaded", async () => {
     applyInitialTheme();
@@ -5168,8 +5161,8 @@
     initMobileMapControls();
     initInfoPanelSwipe(closeInfoPanel);
     loadFeedTags();
-    loadWorlds();
-    renderWorldsBar();
+    loadPresets();
+    renderPresetsBar();
     captureFirstVisitFlag();
     loadStateFromURL();
     initMap();
@@ -5235,14 +5228,14 @@
           state.activeOrigins.add(origin);
           btn.classList.add("active");
         }
-        markWorldModified();
+        markPresetModified();
         updateFilterDrawerToggle();
         applyFilters();
       });
     });
     document.getElementById("btn-topics-all").addEventListener("click", () => setAllTopics("all"));
     document.getElementById("btn-topics-none").addEventListener("click", () => setAllTopics("none"));
-    document.getElementById("world-overview-bar").addEventListener("click", toggleWorldOverview);
+    document.getElementById("preset-overview-bar").addEventListener("click", togglePresetOverview);
     document.getElementById("sidebar-toggle").addEventListener("click", toggleSidebar);
     document.getElementById("labels-toggle").addEventListener("click", toggleMapLabels);
     document.getElementById("globe-toggle").addEventListener("click", toggleGlobe);
@@ -5266,7 +5259,7 @@
         state.activeConcepts.clear();
         concepts.forEach((c) => state.activeConcepts.add(c));
         applyFilters();
-        markWorldModified();
+        markPresetModified();
       });
       item.addEventListener("mouseenter", () => {
         if (!state.map || !state.map.getLayer("cloud-points")) return;
@@ -5296,32 +5289,23 @@
       state.activeConcepts.clear();
       state.activeConcepts.add(tag.dataset.concept);
       applyFilters();
-      markWorldModified();
+      markPresetModified();
     });
     document.getElementById("theme-toggle").addEventListener("click", toggleTheme);
     document.getElementById("share-view-btn").addEventListener("click", () => {
-      const btn = document.getElementById("share-view-btn");
-      navigator.clipboard.writeText(window.location.href).then(() => {
-        btn.textContent = "\u2713";
-        btn.classList.add("copied");
-        setTimeout(() => {
-          btn.innerHTML = "&#128279;";
-          btn.classList.remove("copied");
-        }, 1500);
-      }).catch(() => {
-      });
+      _copyToClipboard(document.getElementById("share-view-btn"), window.location.href);
     });
-    document.getElementById("world-share-btn").addEventListener("click", () => {
-      const btn = document.getElementById("world-share-btn");
+    document.getElementById("preset-share-btn").addEventListener("click", () => {
+      const btn = document.getElementById("preset-share-btn");
       const url = window.location.href;
       if (navigator.clipboard && navigator.clipboard.writeText) {
         navigator.clipboard.writeText(url).then(() => {
-          _worldShareCopied(btn);
+          _presetShareCopied(btn);
         }).catch(() => {
-          _worldShareFallback(btn, url);
+          _presetShareFallback(btn, url);
         });
       } else {
-        _worldShareFallback(btn, url);
+        _presetShareFallback(btn, url);
       }
     });
     document.getElementById("menu-btn").addEventListener("click", (e) => {
@@ -5332,9 +5316,9 @@
       document.getElementById("main-menu").classList.remove("visible");
       document.getElementById("shortcuts-overlay").classList.add("visible");
     });
-    document.getElementById("menu-pick-worlds").addEventListener("click", () => {
+    document.getElementById("menu-pick-presets").addEventListener("click", () => {
       document.getElementById("main-menu").classList.remove("visible");
-      showWorldPicker();
+      showPresetPicker();
     });
     document.getElementById("menu-feeds").addEventListener("click", () => {
       document.getElementById("main-menu").classList.remove("visible");
@@ -5342,7 +5326,7 @@
     });
     document.getElementById("menu-replay-tour").addEventListener("click", () => {
       document.getElementById("main-menu").classList.remove("visible");
-      replayWorldTour();
+      replayPresetTour();
     });
     document.getElementById("menu-about").addEventListener("click", () => {
       document.getElementById("main-menu").classList.remove("visible");
@@ -5391,17 +5375,17 @@
         _clearSourceSearch();
       }
     });
-    document.getElementById("worlds-bar").addEventListener("scroll", updateWorldsBarOverflow);
-    document.getElementById("worlds-more-btn").addEventListener("click", toggleWorldsPanel);
-    document.getElementById("worlds-panel-close").addEventListener("click", closeWorldsPanel);
-    document.getElementById("worlds-save-btn").addEventListener("click", () => showSaveWorldDialog());
-    document.getElementById("world-save-cancel").addEventListener("click", closeSaveWorldDialog);
-    document.getElementById("world-save-confirm").addEventListener("click", confirmSaveWorld);
-    document.getElementById("world-save-name").addEventListener("keydown", (e) => {
-      if (e.key === "Enter") confirmSaveWorld();
+    document.getElementById("presets-bar").addEventListener("scroll", updatePresetsBarOverflow);
+    document.getElementById("presets-more-btn").addEventListener("click", togglePresetsPanel);
+    document.getElementById("presets-panel-close").addEventListener("click", closePresetsPanel);
+    document.getElementById("presets-save-btn").addEventListener("click", () => showSavePresetDialog());
+    document.getElementById("preset-save-cancel").addEventListener("click", closeSavePresetDialog);
+    document.getElementById("preset-save-confirm").addEventListener("click", confirmSavePreset);
+    document.getElementById("preset-save-name").addEventListener("keydown", (e) => {
+      if (e.key === "Enter") confirmSavePreset();
     });
-    document.getElementById("world-picker-done").addEventListener("click", () => {
-      confirmWorldPicker();
+    document.getElementById("preset-picker-done").addEventListener("click", () => {
+      confirmPresetPicker();
     });
     document.getElementById("user-feeds-close").addEventListener("click", closeUserFeedsDialog);
     document.getElementById("user-feed-add-btn").addEventListener("click", _addUserFeed);
@@ -5423,9 +5407,9 @@
       if (e.target.id === "feedback-dialog") closeFeedbackDialog();
     });
     document.addEventListener("click", (e) => {
-      const panel = document.getElementById("worlds-panel");
+      const panel = document.getElementById("presets-panel");
       if (!panel.classList.contains("visible")) return;
-      const moreBtn = document.getElementById("worlds-more-btn");
+      const moreBtn = document.getElementById("presets-more-btn");
       if (!panel.contains(e.target) && e.target !== moreBtn) {
         panel.classList.remove("visible");
       }
@@ -5455,9 +5439,9 @@
           showOnboardingHint();
           return;
         }
-        const worldPickerDialog = document.getElementById("world-picker-dialog");
-        if (worldPickerDialog && worldPickerDialog.classList.contains("visible")) {
-          confirmWorldPicker();
+        const presetPickerDialog = document.getElementById("preset-picker-dialog");
+        if (presetPickerDialog && presetPickerDialog.classList.contains("visible")) {
+          confirmPresetPicker();
           return;
         }
         const aboutDialog = document.getElementById("about-dialog");
@@ -5480,14 +5464,14 @@
           closeFeedbackDialog();
           return;
         }
-        const worldsPanel = document.getElementById("worlds-panel");
-        if (worldsPanel.classList.contains("visible")) {
-          worldsPanel.classList.remove("visible");
+        const presetsPanel = document.getElementById("presets-panel");
+        if (presetsPanel.classList.contains("visible")) {
+          presetsPanel.classList.remove("visible");
           return;
         }
-        const saveDialog = document.getElementById("world-save-dialog");
+        const saveDialog = document.getElementById("preset-save-dialog");
         if (saveDialog.classList.contains("visible")) {
-          closeSaveWorldDialog();
+          closeSavePresetDialog();
           return;
         }
         const dotThemeMenu = document.getElementById("dot-theme-menu");
@@ -5532,11 +5516,11 @@
         if (e.key === "l") toggleTheme();
         if (e.key === "m") toggleMapLabels();
         if (e.key === "w") {
-          const visibleIds = _getVisibleWorldEntries().map(([id]) => id);
+          const visibleIds = _getVisiblePresetEntries().map(([id]) => id);
           if (visibleIds.length === 0) return;
-          const currentIdx = visibleIds.indexOf(state.activeWorldId);
+          const currentIdx = visibleIds.indexOf(state.activePresetId);
           const nextIdx = (currentIdx + 1) % visibleIds.length;
-          switchWorld(visibleIds[nextIdx]);
+          switchPreset(visibleIds[nextIdx]);
         }
         if (e.key === "e") {
           switchView(state.currentView === "events" ? "narratives" : "events");
@@ -5581,14 +5565,14 @@
       }
       applyFilters();
     });
-    if (!state.activeWorldId) switchWorld("all");
+    if (!state.activePresetId) switchPreset("all");
     setInterval(loadEvents, EVENTS_INTERVAL);
-    setInterval(loadWorldOverview, EVENTS_INTERVAL);
+    setInterval(loadPresetOverview, EVENTS_INTERVAL);
     setInterval(loadNarratives, NARRATIVES_INTERVAL);
     setInterval(pollUpdates, POLL_INTERVAL);
     setInterval(updateFreshnessIndicator, 1e4);
     setInterval(() => {
-      document.querySelectorAll("[data-time]").forEach((el) => {
+      document.querySelectorAll("[data-time]:not(.tb-option)").forEach((el) => {
         const iso = el.dataset.time;
         if (iso) el.textContent = formatTime(iso);
       });
@@ -5677,7 +5661,7 @@
           target_id: _feedbackTarget ? _feedbackTarget.id : null,
           target_title: _feedbackTarget ? _feedbackTarget.title : null,
           message,
-          context: { world: state.activeWorldId },
+          context: { world: state.activePresetId },
           browser_hash: _getBrowserHash()
         })
       });

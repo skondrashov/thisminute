@@ -7,10 +7,18 @@ import re
 
 import feedparser
 
-from .config import FEEDS, REQUEST_TIMEOUT
+from .config import FEEDS, REQUEST_TIMEOUT, ARXIV_MAX_PER_CYCLE, BIORXIV_MAX_PER_CYCLE
 from .database import get_connection, get_feed_state, update_feed_state
 
 logger = logging.getLogger(__name__)
+
+# Per-source story caps (source display name -> max stories per cycle)
+_SOURCE_CAPS = {
+    "arXiv AI": ARXIV_MAX_PER_CYCLE,
+    "arXiv CS": ARXIV_MAX_PER_CYCLE,
+    "bioRxiv": BIORXIV_MAX_PER_CYCLE,
+    "medRxiv": BIORXIV_MAX_PER_CYCLE,
+}
 
 # Strip HTML tags from summaries
 _TAG_RE = re.compile(r"<[^>]+>")
@@ -171,6 +179,12 @@ def scrape_feed(feed_config: dict) -> list[dict]:
             "scraped_at": datetime.now(timezone.utc).isoformat(),
             "image_url": _extract_image_url(entry),
         })
+
+    # Enforce per-source caps for high-volume preprint feeds
+    cap = _SOURCE_CAPS.get(source)
+    if cap and len(stories) > cap:
+        logger.info("Capping %s from %d to %d stories", source, len(stories), cap)
+        stories = stories[:cap]
 
     logger.info("Scraped %d entries from %s", len(stories), source)
     return stories

@@ -320,8 +320,16 @@ def _parse_launch(launch: dict, now: str) -> Optional[dict]:
     elif status_abbrev == "Failure":
         sentiment = "negative"
 
+    # Use payload name as title to avoid "Falcon 9 Block 5 | ..." repetition
+    if "|" in name:
+        payload_name = name.split("|", 1)[1].strip()
+        rocket_name = name.split("|", 1)[0].strip()
+        display_title = "%s (%s)" % (payload_name, rocket_name)
+    else:
+        display_title = name
+
     story = {
-        "title": name,
+        "title": display_title,
         "url": url,
         "summary": summary,
         "source": "Launch Library",

@@ -272,7 +272,16 @@ FIELD SPECIFICATIONS
     Return null if you cannot assess. Most news scores 1-4. Reserve 6+ for genuinely
     quirky or delightful stories that would make someone smile or say "huh, neat."
 
-16. "wikipedia_events" — array of 0-3 strings (Wikipedia article titles)
+16. "translated_title" — string or null
+    If the story title is NOT in English, provide a natural English translation.
+    If the title IS already in English, return null.
+    The translation should read like a native English headline — not a word-for-word translation.
+    Examples:
+      "Terremoto de magnitud 6.2 sacude el sur de México" → "Magnitude 6.2 earthquake strikes southern Mexico"
+      "Macron annonce un plan de relance pour l'Afrique" → "Macron announces recovery plan for Africa"
+      "President Biden signs new bill" → null (already English)
+
+17. "wikipedia_events" — array of 0-3 strings (Wikipedia article titles)
     Map this story to Wikipedia articles about the EVENT or TOPIC it covers.
     Use the exact Wikipedia article title (as it appears in the URL/page title).
     - Prefer specific event articles: "2025-2026 Israel-Hamas war", "2025 Turkish invasion of Syria"
@@ -308,7 +317,8 @@ If you cannot confidently extract a field, use reasonable defaults:
 - location_type: "terrestrial" (when in doubt, default to this)
 - search_keywords: at least 3 keywords
 - bright_side: null (when in doubt, null is safer than a low score)
-- human_interest_score: null (when in doubt, null is safer than a low score)"""
+- human_interest_score: null (when in doubt, null is safer than a low score)
+- translated_title: null (only provide when the original title is NOT in English)"""
 
 
 def _repair_json_array(text: str) -> Optional[list[dict]]:
@@ -662,6 +672,7 @@ def extract_stories_batch(
                 extraction.setdefault("wikipedia_events", [])
                 extraction.setdefault("bright_side", None)
                 extraction.setdefault("human_interest_score", None)
+                extraction.setdefault("translated_title", None)
                 # Normalize registry_event_id: strip "R" prefix if present
                 reg_id = extraction.get("registry_event_id")
                 if isinstance(reg_id, str) and reg_id.startswith("R"):

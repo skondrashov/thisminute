@@ -68,6 +68,25 @@ FEEDS = [
     {"url": "https://feeds.bbci.co.uk/news/world/latin_america/rss.xml", "source": "BBC Latin America", "tags": ["news"]},
     {"url": "https://feeds.bbci.co.uk/news/world/middle_east/rss.xml", "source": "BBC Middle East", "tags": ["news"]},
 
+    # === AFRICA ===
+    {"url": "https://www.jeuneafrique.com/feed/", "source": "Jeune Afrique", "tags": ["news"], "lang": "fr"},
+    {"url": "https://punchng.com/feed/", "source": "Punch Nigeria", "tags": ["news"]},
+    {"url": "https://nation.africa/feed", "source": "Nation Africa", "tags": ["news"]},
+
+    # === CAUCASUS & CENTRAL ASIA ===
+    {"url": "https://oc-media.org/feed/", "source": "OC Media", "tags": ["news"]},
+    {"url": "https://astanatimes.com/feed/", "source": "Astana Times", "tags": ["news"]},
+
+    # === LATIN AMERICA (non-English) ===
+    {"url": "https://www.eluniversal.com.mx/rss.xml", "source": "El Universal", "tags": ["news"], "lang": "es"},
+    {"url": "https://www.eltiempo.com/rss/portada.xml", "source": "El Tiempo", "tags": ["news"], "lang": "es"},
+    {"url": "https://www.prensalibre.com/feed/", "source": "Prensa Libre", "tags": ["news"], "lang": "es"},
+
+    # === ASIA-PACIFIC ===
+    {"url": "https://en.yna.co.kr/RSS/news.xml", "source": "Yonhap", "tags": ["news"]},
+    {"url": "https://www.rappler.com/feed/", "source": "Rappler", "tags": ["news"]},
+    {"url": "https://www.jamaicaobserver.com/feed/", "source": "Jamaica Observer", "tags": ["news"]},
+
     # === SCIENCE & ENVIRONMENT ===
     {"url": "https://www.theguardian.com/science/rss", "source": "Guardian Science", "tags": ["science"]},
     {"url": "https://www.theguardian.com/environment/rss", "source": "Guardian Env", "tags": ["science"]},
@@ -274,6 +293,12 @@ FRONTEND_POLL_SECONDS = 60
 USER_FEED_MAX = int(os.environ.get("USER_FEED_MAX", "20"))
 USER_FEED_MAX_STORIES = int(os.environ.get("USER_FEED_MAX_STORIES", "50"))
 USER_FEED_TOTAL_MAX_STORIES = int(os.environ.get("USER_FEED_TOTAL_MAX_STORIES", "500"))
+
+# Per-source story caps — prevents academic preprint feeds from dominating
+# science/tech/health worlds. These are interesting for search but shouldn't
+# flood the map with ungeocodable paper titles.
+ARXIV_MAX_PER_CYCLE = int(os.environ.get("ARXIV_MAX_PER_CYCLE", "20"))
+BIORXIV_MAX_PER_CYCLE = int(os.environ.get("BIORXIV_MAX_PER_CYCLE", "20"))
 
 # LLM analysis (optional)
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")

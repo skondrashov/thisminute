@@ -4,13 +4,13 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>thisminute — global news, live</title>
-    <meta name="description" content="Real-time global news map. Every story gets a dot. 95 sources, 13 world views. You decide what matters.">
+    <meta name="description" content="Real-time global news map. Every story gets a dot. 95 sources, 13 presets. You decide what matters.">
     <link rel="canonical" href="https://thisminute.org">
 
     <!-- Open Graph -->
     <meta property="og:type" content="website">
     <meta property="og:title" content="thisminute — global news, live">
-    <meta property="og:description" content="Real-time global news map. Every story gets a dot. 95 sources, 13 world views. You decide what matters.">
+    <meta property="og:description" content="Real-time global news map. Every story gets a dot. 95 sources, 13 presets. You decide what matters.">
     <meta property="og:url" content="https://thisminute.org">
     <meta property="og:site_name" content="thisminute">
     <meta property="og:image" content="https://thisminute.org/static/og-image.png">
@@ -21,7 +21,7 @@
     <!-- Twitter Card -->
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="thisminute — global news, live">
-    <meta name="twitter:description" content="Real-time global news map. Every story gets a dot. 95 sources, 13 world views. You decide what matters.">
+    <meta name="twitter:description" content="Real-time global news map. Every story gets a dot. 95 sources, 13 presets. You decide what matters.">
     <meta name="twitter:image" content="https://thisminute.org/static/og-image.png">
 
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%230d1117'/%3E%3Ctext x='16' y='24' text-anchor='middle' font-family='system-ui,sans-serif' font-weight='800' font-size='22' fill='%23f0f6fc'%3Et%3C/text%3E%3Ccircle cx='26' cy='6' r='4' fill='%23e64436'/%3E%3C/svg%3E">
@@ -35,9 +35,9 @@
     <div id="sidebar" role="navigation" aria-label="News filters and situations">
         <div id="mobile-bar">
             <span class="mobile-bar-stats"><span id="mobile-stat-showing">--</span> stories<span id="mobile-filter-dot" class="mobile-filter-dot"></span></span>
-            <span class="mobile-bar-world">
-                <span class="mobile-bar-world-dot"></span>
-                <span id="mobile-world-name">News</span>
+            <span class="mobile-bar-preset">
+                <span class="mobile-bar-preset-dot"></span>
+                <span id="mobile-preset-name">News</span>
             </span>
             <button id="mobile-menu-btn" title="Open menu">&#9776;</button>
         </div>
@@ -49,7 +49,7 @@
             <button id="menu-btn" title="Menu">&#8942;</button>
             <div id="main-menu">
                 <button class="menu-item" id="menu-shortcuts"><span class="menu-icon">?</span> Keyboard shortcuts</button>
-                <button class="menu-item" id="menu-pick-worlds"><span class="menu-icon">&#127760;</span> Pick worlds</button>
+                <button class="menu-item" id="menu-pick-presets"><span class="menu-icon">&#127760;</span> Pick presets</button>
                 <button class="menu-item" id="menu-feeds"><span class="menu-icon">+</span> My feeds</button>
                 <button class="menu-item" id="menu-feedback"><span class="menu-icon">&#9873;</span> Send feedback</button>
                 <button class="menu-item" id="menu-replay-tour"><span class="menu-icon">&#9654;</span> Replay tour</button>
@@ -75,39 +75,39 @@
             <button class="chip-section-toggle" id="source-chips-toggle">Show all &#9662;</button>
         </div>
 
-        <div id="world-overview-bar">
-            <span class="world-overview-label">world</span>
-            <span class="world-overview-text"></span>
+        <div id="preset-overview-bar">
+            <span class="preset-overview-label">preset</span>
+            <span class="preset-overview-text"></span>
         </div>
 
-        <div class="worlds-bar-wrapper">
-        <div id="worlds-bar">
-            <button class="world-btn active" data-world="bright_side" title="Bright Side"><span class="world-btn-icon">&#x2728;</span><span class="world-btn-label">Bright Side</span></button>
-            <button class="world-btn" data-world="sports" title="Sports"><span class="world-btn-icon">&#x26BD;</span><span class="world-btn-label">Sports</span></button>
-            <button class="world-btn" data-world="entertainment" title="Entertainment"><span class="world-btn-icon">&#x1F3AC;</span><span class="world-btn-label">Ent.</span></button>
-            <button class="world-btn" data-world="curious" title="Curious"><span class="world-btn-icon">&#x1F9E9;</span><span class="world-btn-label">Curious</span></button>
-            <button class="world-btn" data-world="science" title="Science"><span class="world-btn-icon">&#x1F52C;</span><span class="world-btn-label">Science</span></button>
-            <button class="world-btn" data-world="tech" title="Tech"><span class="world-btn-icon">&#x1F4BB;</span><span class="world-btn-label">Tech</span></button>
-            <button class="world-btn" data-world="markets" title="Markets"><span class="world-btn-icon">&#x1F4C8;</span><span class="world-btn-label">Markets</span></button>
-            <button class="world-btn" data-world="planet" title="Planet"><span class="world-btn-icon">&#x1F30D;</span><span class="world-btn-label">Planet</span></button>
-            <button class="world-btn" data-world="conflict" title="Conflict"><span class="world-btn-icon">&#x2694;&#xFE0F;</span><span class="world-btn-label">Conflict</span></button>
-            <button class="world-btn" data-world="travel" title="Travel"><span class="world-btn-icon">&#x2708;&#xFE0F;</span><span class="world-btn-label">Travel</span></button>
-            <button class="world-btn" data-world="power" title="Power"><span class="world-btn-icon">&#x1F3DB;&#xFE0F;</span><span class="world-btn-label">Power</span></button>
-            <button class="world-btn" data-world="health" title="Health"><span class="world-btn-icon">&#x1F3E5;</span><span class="world-btn-label">Health</span></button>
-            <button class="world-btn" data-world="all" title="All"><span class="world-btn-icon">&#x25C9;</span><span class="world-btn-label">All</span></button>
-            <button id="world-share-btn" title="Share this world" aria-label="Share this world">&#x1F517;</button>
-            <button id="worlds-more-btn" title="Manage filter presets">&#9881;</button>
+        <div class="presets-bar-wrapper">
+        <div id="presets-bar">
+            <button class="preset-btn active" data-world="bright_side" title="Bright Side"><span class="preset-btn-icon">&#x2728;</span><span class="preset-btn-label">Bright Side</span></button>
+            <button class="preset-btn" data-world="sports" title="Sports"><span class="preset-btn-icon">&#x26BD;</span><span class="preset-btn-label">Sports</span></button>
+            <button class="preset-btn" data-world="entertainment" title="Entertainment"><span class="preset-btn-icon">&#x1F3AC;</span><span class="preset-btn-label">Ent.</span></button>
+            <button class="preset-btn" data-world="curious" title="Curious"><span class="preset-btn-icon">&#x1F9E9;</span><span class="preset-btn-label">Curious</span></button>
+            <button class="preset-btn" data-world="science" title="Science"><span class="preset-btn-icon">&#x1F52C;</span><span class="preset-btn-label">Science</span></button>
+            <button class="preset-btn" data-world="tech" title="Tech"><span class="preset-btn-icon">&#x1F4BB;</span><span class="preset-btn-label">Tech</span></button>
+            <button class="preset-btn" data-world="markets" title="Markets"><span class="preset-btn-icon">&#x1F4C8;</span><span class="preset-btn-label">Markets</span></button>
+            <button class="preset-btn" data-world="planet" title="Planet"><span class="preset-btn-icon">&#x1F30D;</span><span class="preset-btn-label">Planet</span></button>
+            <button class="preset-btn" data-world="conflict" title="Conflict"><span class="preset-btn-icon">&#x2694;&#xFE0F;</span><span class="preset-btn-label">Conflict</span></button>
+            <button class="preset-btn" data-world="travel" title="Travel"><span class="preset-btn-icon">&#x2708;&#xFE0F;</span><span class="preset-btn-label">Travel</span></button>
+            <button class="preset-btn" data-world="power" title="Power"><span class="preset-btn-icon">&#x1F3DB;&#xFE0F;</span><span class="preset-btn-label">Power</span></button>
+            <button class="preset-btn" data-world="health" title="Health"><span class="preset-btn-icon">&#x1F3E5;</span><span class="preset-btn-label">Health</span></button>
+            <button class="preset-btn" data-world="all" title="All"><span class="preset-btn-icon">&#x25C9;</span><span class="preset-btn-label">All</span></button>
+            <button id="preset-share-btn" title="Share this preset" aria-label="Share this preset">&#x1F517;</button>
+            <button id="presets-more-btn" title="Manage filter presets">&#9881;</button>
         </div>
         <div id="filter-status"></div>
 
-        <div id="worlds-panel">
-            <div class="worlds-panel-header">
+        <div id="presets-panel">
+            <div class="presets-panel-header">
                 <span>Presets</span>
-                <button id="worlds-panel-close">&times;</button>
+                <button id="presets-panel-close">&times;</button>
             </div>
-            <div id="worlds-panel-list"></div>
-            <div class="worlds-panel-actions">
-                <button id="worlds-save-btn">Save current filters as preset...</button>
+            <div id="presets-panel-list"></div>
+            <div class="presets-panel-actions">
+                <button id="presets-save-btn">Save current filters as preset...</button>
             </div>
         </div>
         </div>
@@ -224,7 +224,7 @@
             <div class="shortcut-row"><span class="shortcut-key">s</span><span class="shortcut-desc">Toggle sidebar</span></div>
             <div class="shortcut-row"><span class="shortcut-key">g</span><span class="shortcut-desc">Toggle globe/flat map</span></div>
             <div class="shortcut-row"><span class="shortcut-key">l</span><span class="shortcut-desc">Toggle light/dark mode</span></div>
-            <div class="shortcut-row"><span class="shortcut-key">w</span><span class="shortcut-desc">Cycle worlds</span></div>
+            <div class="shortcut-row"><span class="shortcut-key">w</span><span class="shortcut-desc">Cycle presets</span></div>
             <div class="shortcut-row"><span class="shortcut-key">e</span><span class="shortcut-desc">Toggle Situations/Events</span></div>
             <div class="shortcut-row"><span class="shortcut-key">j / k</span><span class="shortcut-desc">Navigate situations/events</span></div>
             <div class="shortcut-row"><span class="shortcut-key">r</span><span class="shortcut-desc">Refresh all data</span></div>
@@ -235,14 +235,14 @@
         </div>
     </div>
 
-    <div id="world-save-dialog" class="modal-overlay">
+    <div id="preset-save-dialog" class="modal-overlay">
         <div class="modal-panel">
             <h3>Save Preset</h3>
-            <input type="text" id="world-save-name" placeholder="My Preset" maxlength="24" />
+            <input type="text" id="preset-save-name" placeholder="My Preset" maxlength="24" />
             <p class="modal-hint">Saves your current filters as a one-click preset in the bar above.</p>
             <div class="modal-actions">
-                <button id="world-save-cancel">Cancel</button>
-                <button id="world-save-confirm">Save</button>
+                <button id="preset-save-cancel">Cancel</button>
+                <button id="preset-save-confirm">Save</button>
             </div>
         </div>
     </div>
@@ -252,12 +252,12 @@
             <h3>How thisminute works</h3>
             <div style="font-size: 13px; line-height: 1.6; color: var(--text-secondary); max-height: 70vh; overflow-y: auto; padding-right: 8px;">
                 <p><strong>Sources.</strong> Every 15 minutes, thisminute scrapes ~100 RSS feeds (BBC, Reuters, ESPN, Variety, etc.) plus 13 structured data APIs (USGS earthquakes, NOAA weather, WHO disease alerts, and more). Stories are placed on the map by location.</p>
-                <p><strong>Worlds.</strong> Each world preset filters stories by source type. Sports shows stories from sports feeds. Markets shows business feeds. Planet shows weather/earthquake APIs. The "All" world is unfiltered.</p>
+                <p><strong>Presets.</strong> Each preset filters stories by source type. Sports shows stories from sports feeds. Markets shows business feeds. Planet shows weather/earthquake APIs. The "All" preset is unfiltered.</p>
                 <p><strong>Situations.</strong> An AI (Claude) groups related stories into events, then synthesizes ongoing situations per domain: news, sports, entertainment, positive, and curious. Each domain has its own prompt tuned for what a "situation" means in that context.</p>
-                <p><strong>Bright Side.</strong> The AI scores every story on a "bright side" scale. The Bright Side world shows stories that are genuinely positive — not "the silver lining of a war," but actually good news.</p>
+                <p><strong>Bright Side.</strong> The AI scores every story on a "bright side" scale. The Bright Side preset shows stories that are genuinely positive — not "the silver lining of a war," but actually good news.</p>
                 <p><strong>Curious.</strong> Stories are scored on quirkiness and surprise. High scores go to unusual, delightful, "wait really?" stories. War, tragedy, and routine celebrity news score low, even if they're dramatic.</p>
                 <p><strong>Limitations.</strong> Categorization is imperfect. A story about an SNL sketch set in Iran might get geocoded to Iran instead of NYC. A mainstream entertainment story might sneak into Curious. We're continuously improving the scoring and welcome feedback.</p>
-                <p><strong>Philosophy.</strong> Anti-curation. You decide what to see, not editors. The map is the filter. Every story gets a dot. Worlds are lenses, not editorial choices.</p>
+                <p><strong>Philosophy.</strong> Anti-curation. You decide what to see, not editors. The map is the filter. Every story gets a dot. Presets are lenses, not editorial choices.</p>
             </div>
             <button class="modal-close" onclick="document.getElementById('about-dialog').classList.remove('visible')">&times;</button>
         </div>
@@ -308,13 +308,13 @@
         </div>
     </div>
 
-    <div id="world-picker-dialog" class="modal-overlay">
-        <div class="modal-panel world-picker-panel">
-            <h3>Pick your worlds</h3>
-            <p class="world-picker-subtitle">Choose the worlds that appear in your bar. You can change this anytime from the gear menu.</p>
-            <div id="world-picker-grid"></div>
+    <div id="preset-picker-dialog" class="modal-overlay">
+        <div class="modal-panel preset-picker-panel">
+            <h3>Pick your presets</h3>
+            <p class="preset-picker-subtitle">Choose the presets that appear in your bar. You can change this anytime from the gear menu.</p>
+            <div id="preset-picker-grid"></div>
             <div class="modal-actions">
-                <button id="world-picker-done">Done</button>
+                <button id="preset-picker-done">Done</button>
             </div>
         </div>
     </div>
@@ -370,7 +370,7 @@
             <span class="tb-arrow">&#9662;</span>
             <div id="time-badge-menu"></div>
         </div>
-        <div id="world-tour-overlay"><div class="world-tour-label"><span class="tour-icon"></span><span class="tour-name"></span><span class="tour-hint">click anywhere to explore</span></div></div>
+        <div id="preset-tour-overlay"><div class="preset-tour-label"><span class="tour-icon"></span><span class="tour-name"></span><span class="tour-hint">click anywhere to explore</span></div></div>
         <div id="map-reticle"></div>
         <div id="map-preview"></div>
         <div id="mobile-map-controls">

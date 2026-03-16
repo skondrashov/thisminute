@@ -292,6 +292,11 @@ def init_db(db_path: Optional[Path] = None) -> None:
         conn.execute("ALTER TABLE story_extractions ADD COLUMN human_interest_score INTEGER DEFAULT NULL")
     except sqlite3.OperationalError:
         pass
+    # Migrate: add translated_title to story_extractions (for non-English feeds)
+    try:
+        conn.execute("ALTER TABLE story_extractions ADD COLUMN translated_title TEXT DEFAULT NULL")
+    except sqlite3.OperationalError:
+        pass
     # Migrate: deduplicate existing stories with same title+source, keeping newest
     try:
         dupes = conn.execute("""
@@ -921,8 +926,8 @@ def store_extraction(
             primary_action, event_signature, location_type, search_keywords,
             is_opinion, extracted_at, registry_event_id,
             bright_side_score, bright_side_category, bright_side_headline,
-            human_interest_score)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            human_interest_score, translated_title)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
         (
             story_id,
             json.dumps(extraction),
@@ -940,6 +945,7 @@ def store_extraction(
             bs_category,
             bs_headline,
             hi_score,
+            extraction.get("translated_title"),
         ),
     )
 

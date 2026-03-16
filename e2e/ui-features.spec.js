@@ -1,62 +1,62 @@
 import { test, expect } from "@playwright/test";
 
-test.describe("world bar", () => {
+test.describe("preset bar", () => {
 
-    test("positive is the default world", async ({ page }) => {
+    test("positive is the default preset", async ({ page }) => {
         await page.goto("/");
         await page.waitForLoadState("networkidle");
 
-        const activeBtn = page.locator(".world-btn.active");
+        const activeBtn = page.locator(".preset-btn.active");
         await expect(activeBtn).toHaveAttribute("data-world", "positive");
     });
 
-    test("world bar renders worlds", async ({ page }) => {
+    test("preset bar renders presets", async ({ page }) => {
         await page.goto("/");
         await page.waitForLoadState("networkidle");
         // Wait for dynamic render
-        await page.waitForFunction(() => document.querySelectorAll(".world-btn").length >= 5, { timeout: 10000 });
+        await page.waitForFunction(() => document.querySelectorAll(".preset-btn").length >= 5, { timeout: 10000 });
 
-        const count = await page.locator(".world-btn").count();
+        const count = await page.locator(".preset-btn").count();
         expect(count).toBeGreaterThanOrEqual(5);
     });
 
-    test("positive is the active world on load", async ({ page }) => {
+    test("positive is the active preset on load", async ({ page }) => {
         await page.goto("/");
         await page.waitForLoadState("networkidle");
-        await page.waitForFunction(() => document.querySelectorAll(".world-btn").length >= 5, { timeout: 10000 });
+        await page.waitForFunction(() => document.querySelectorAll(".preset-btn").length >= 5, { timeout: 10000 });
 
-        const activeWorld = await page.locator(".world-btn.active").getAttribute("data-world");
+        const activeWorld = await page.locator(".preset-btn.active").getAttribute("data-world");
         expect(activeWorld).toBe("positive");
     });
 
-    test("world bar contains both positive and news", async ({ page }) => {
+    test("preset bar contains both positive and news", async ({ page }) => {
         await page.goto("/");
         await page.waitForLoadState("networkidle");
-        await page.waitForFunction(() => document.querySelectorAll(".world-btn").length >= 5, { timeout: 10000 });
+        await page.waitForFunction(() => document.querySelectorAll(".preset-btn").length >= 5, { timeout: 10000 });
 
-        const worlds = await page.locator(".world-btn").evaluateAll(btns => btns.map(b => b.dataset.world));
+        const worlds = await page.locator(".preset-btn").evaluateAll(btns => btns.map(b => b.dataset.world));
         expect(worlds).toContain("positive");
         expect(worlds).toContain("news");
     });
 
-    test("clicking a world switches active state", async ({ page }) => {
+    test("clicking a preset switches active state", async ({ page }) => {
         await page.goto("/");
         await page.waitForLoadState("networkidle");
 
         // Click Sports
-        await page.locator('.world-btn[data-world="sports"]').click();
+        await page.locator('.preset-btn[data-world="sports"]').click();
         await page.waitForTimeout(300);
 
-        await expect(page.locator('.world-btn[data-world="sports"]')).toHaveClass(/active/);
-        await expect(page.locator('.world-btn[data-world="positive"]')).not.toHaveClass(/active/);
+        await expect(page.locator('.preset-btn[data-world="sports"]')).toHaveClass(/active/);
+        await expect(page.locator('.preset-btn[data-world="positive"]')).not.toHaveClass(/active/);
     });
 
-    test("world bar wraps on desktop (no horizontal scroll)", async ({ page }) => {
+    test("preset bar wraps on desktop (no horizontal scroll)", async ({ page }) => {
         await page.goto("/");
         await page.waitForLoadState("networkidle");
 
         const overflow = await page.evaluate(() => {
-            return window.getComputedStyle(document.getElementById("worlds-bar")).flexWrap;
+            return window.getComputedStyle(document.getElementById("presets-bar")).flexWrap;
         });
         expect(overflow).toBe("wrap");
     });
@@ -249,23 +249,23 @@ test.describe("menu", () => {
         await expect(page.locator("#menu-replay-tour")).toBeVisible();
     });
 
-    test("menu has pick worlds option", async ({ page }) => {
+    test("menu has pick presets option", async ({ page }) => {
         await page.goto("/");
         await page.waitForLoadState("networkidle");
 
         await page.locator("#menu-btn").click();
-        await expect(page.locator("#menu-pick-worlds")).toBeVisible();
+        await expect(page.locator("#menu-pick-presets")).toBeVisible();
     });
 
-    test("pick worlds opens world picker dialog", async ({ page }) => {
+    test("pick presets opens preset picker dialog", async ({ page }) => {
         await page.goto("/");
         await page.waitForLoadState("networkidle");
 
         await page.locator("#menu-btn").click();
-        await page.locator("#menu-pick-worlds").click();
+        await page.locator("#menu-pick-presets").click();
         await page.waitForTimeout(300);
 
-        await expect(page.locator("#world-picker-dialog")).toHaveClass(/visible/);
+        await expect(page.locator("#preset-picker-dialog")).toHaveClass(/visible/);
     });
 });
 
@@ -280,7 +280,7 @@ test.describe("welcome dialog", () => {
         await expect(cards).toHaveCount(6);
     });
 
-    test("welcome cards have correct worlds", async ({ page }) => {
+    test("welcome cards have correct presets", async ({ page }) => {
         await page.goto("/");
         await page.waitForLoadState("networkidle");
 
@@ -296,21 +296,21 @@ test.describe("welcome dialog", () => {
     });
 });
 
-test.describe("world switching colors", () => {
+test.describe("preset switching colors", () => {
 
-    test("switching worlds changes legend dot tint", async ({ page }) => {
+    test("switching presets changes legend dot tint", async ({ page }) => {
         await page.goto("/");
         await page.waitForLoadState("networkidle");
         await page.waitForFunction(() => document.querySelectorAll(".legend-dot").length > 0, { timeout: 10000 });
 
-        // Get legend dot color in Positive world
+        // Get legend dot color in Positive preset
         const posColor = await page.evaluate(() => {
             const dot = document.querySelector(".legend-dot");
             return dot ? dot.style.background : "";
         });
 
         // Switch to Sports
-        await page.locator('.world-btn[data-world="sports"]').click();
+        await page.locator('.preset-btn[data-world="sports"]').click();
         await page.waitForTimeout(500);
 
         const sportsColor = await page.evaluate(() => {
@@ -318,29 +318,29 @@ test.describe("world switching colors", () => {
             return dot ? dot.style.background : "";
         });
 
-        // Colors should be different (different world tints)
+        // Colors should be different (different preset tints)
         expect(posColor).not.toBe(sportsColor);
     });
 });
 
 test.describe("no errors during new feature interactions", () => {
 
-    test("no console errors during world switching and time changes", async ({ page }) => {
+    test("no console errors during preset switching and time changes", async ({ page }) => {
         const errors = [];
         page.on("pageerror", (err) => errors.push(err.message));
 
         await page.goto("/");
         await page.waitForLoadState("networkidle");
 
-        // Wait for worlds bar to render
-        await page.waitForFunction(() => document.querySelectorAll(".world-btn").length >= 5, { timeout: 15000 });
+        // Wait for presets bar to render
+        await page.waitForFunction(() => document.querySelectorAll(".preset-btn").length >= 5, { timeout: 15000 });
 
-        // Switch to a world with more stories first
-        await page.locator('.world-btn[data-world="sports"]').click();
+        // Switch presets
+        await page.locator('.preset-btn[data-world="sports"]').click();
         await page.waitForTimeout(500);
-        await page.locator('.world-btn[data-world="curious"]').click();
+        await page.locator('.preset-btn[data-world="curious"]').click();
         await page.waitForTimeout(500);
-        await page.locator('.world-btn[data-world="positive"]').click();
+        await page.locator('.preset-btn[data-world="positive"]').click();
         await page.waitForTimeout(500);
 
         // Open time badge and select

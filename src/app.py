@@ -398,7 +398,7 @@ async def api_stories(
             f"""SELECT se.story_id, se.location_type, se.search_keywords, se.severity,
                        se.primary_action, se.topics, se.is_opinion, se.registry_event_id,
                        se.bright_side_score, se.bright_side_category, se.bright_side_headline,
-                       se.human_interest_score
+                       se.human_interest_score, se.translated_title
                 FROM story_extractions se WHERE se.story_id IN ({placeholders})""",
             story_ids,
         ).fetchall()
@@ -470,6 +470,7 @@ async def api_stories(
                 "narrative_ids": narrative_link_map.get(s["id"], []),
                 "search_keywords": _parse_keywords(ext.get("search_keywords")),
                 "image_url": s.get("image_url"),
+                "translated_title": ext.get("translated_title"),
             },
         })
 

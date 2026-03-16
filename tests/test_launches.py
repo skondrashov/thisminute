@@ -236,7 +236,7 @@ def test_story_dict_shape():
     s = stories[0]
 
     # Required story fields
-    assert s["title"] == "Falcon 9 Block 5 | Starlink Group 12-3"
+    assert s["title"] == "Starlink Group 12-3 (Falcon 9 Block 5)"
     assert s["url"] == "https://ll.thespacedevs.com/2.3.0/launch/1/"
     assert len(s["summary"]) > 0
     assert s["source"] == "Launch Library"
