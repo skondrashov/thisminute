@@ -2014,7 +2014,7 @@ mark {
 /* Sidebar toggle */
 #sidebar-toggle {
     position: absolute;
-    left: 400px;
+    left: 440px;
     top: 50%;
     transform: translateY(-50%);
     z-index: 1001;
@@ -2039,7 +2039,7 @@ mark {
 }
 
 body.sidebar-collapsed #sidebar {
-    margin-left: -400px;
+    margin-left: -440px;
 }
 
 body.sidebar-collapsed #sidebar-toggle {

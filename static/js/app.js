@@ -1698,29 +1698,65 @@
   }
   var _introSpinActive = false;
   function _startIntroSpin() {
-    if (_isFirstVisitForTour) return; // tour handles first-timers
     if (state.currentProjection !== "globe") return;
     _introSpinActive = true;
-    var startLon = Math.random() * 360 - 180;
-    var targetLon = startLon + 120 + Math.random() * 60; // spin 120-180 degrees
-    var targetLat = (Math.random() * 60) - 10; // land between -10 and 50
-    var startZoom = 1.0;
-    var endZoom = 1.8;
-    var duration = 3000;
-    var start = performance.now();
+    // Target: user's saved position, or a pleasant default
+    var target = state._pendingMapView;
+    var targetLon = target ? target.lon : 20 + Math.random() * 40;
+    var targetLat = target ? target.lat : 15 + Math.random() * 25;
+    var targetZoom = target ? target.zoom : (_isFirstVisitForTour ? 1.8 : 2.2);
+    if (target) state._pendingMapView = null; // consume it — we'll land there ourselves
+    // Start: random longitude, calculate spin to arrive at target
+    var startLon = targetLon - 400 - Math.random() * 200; // spin 400-600 degrees to reach target
+    var startLat = 0;
+    var startZoom = 0.05;
+    // Overshoot zoom then settle (breathe effect)
+    var midZoom = Math.min(targetZoom + 1.2, 4.5); // overshoot
+    var endZoom = targetZoom;
+    // Spin: calculate initial velocity and friction so we land near targetLon
+    // With friction f, total distance = v0 / (1 - f). Solve for v0:
+    var totalSpin = targetLon - startLon;
+    var spinFriction = 0.982;
+    var spinVelocity = totalSpin * (1 - spinFriction); // v0 = distance * (1 - friction)
+    // Timing
+    var zoomInDuration = 3000;
+    var zoomOutDuration = 2000;
+    var totalZoomDuration = zoomInDuration + zoomOutDuration;
+    var zoomStart = performance.now();
+    var lon = startLon;
+    var lat = startLat;
+    state.map.jumpTo({ center: [lon, lat], zoom: startZoom });
     function frame(now) {
       if (!_introSpinActive) return;
-      var t = Math.min(1, (now - start) / duration);
-      var ease = 1 - Math.pow(1 - t, 3); // cubic ease-out (decelerates)
-      var lon = startLon + (targetLon - startLon) * ease;
-      var lat = targetLat * ease;
-      var zoom = startZoom + (endZoom - startZoom) * ease;
+      var elapsed = now - zoomStart;
+      var zoom;
+      if (elapsed < zoomInDuration) {
+        var t = elapsed / zoomInDuration;
+        var ease = 1 - Math.pow(1 - t, 3.5);
+        zoom = startZoom + (midZoom - startZoom) * ease;
+      } else {
+        var t2 = Math.min(1, (elapsed - zoomInDuration) / zoomOutDuration);
+        var ease2 = t2 * t2 * (3 - 2 * t2); // smoothstep
+        zoom = midZoom + (endZoom - midZoom) * ease2;
+      }
+      // Spin with friction — converges toward targetLon
+      lon += spinVelocity;
+      spinVelocity *= spinFriction;
+      // Latitude eases toward target
+      var latT = Math.min(1, elapsed / (zoomInDuration * 0.8));
+      var latEase = 1 - Math.pow(1 - latT, 4);
+      lat = startLat + (targetLat - startLat) * latEase;
       state.map.jumpTo({ center: [lon, lat], zoom: zoom });
-      if (t < 1) requestAnimationFrame(frame);
-      else _introSpinActive = false;
+      var zoomDone = elapsed >= totalZoomDuration;
+      if (!zoomDone || spinVelocity > 0.005) {
+        requestAnimationFrame(frame);
+      } else {
+        // Snap to exact target at the end
+        state.map.jumpTo({ center: [targetLon, targetLat], zoom: endZoom });
+        _introSpinActive = false;
+      }
     }
     requestAnimationFrame(frame);
-    // Stop on any interaction
     var stopEvents = ["click", "mousedown", "touchstart", "wheel"];
     function stopSpin() {
       _introSpinActive = false;
@@ -1746,9 +1782,9 @@
     let _autoRotate = !_prefersReducedMotion;
     let _rotateId = null;
     function startAutoRotate() {
-      if (_rotateId || !_autoRotate) return;
+      if (_rotateId || !_autoRotate || _introSpinActive) return;
       _rotateId = setInterval(() => {
-        if (!_autoRotate || state.currentProjection !== "globe") {
+        if (!_autoRotate || state.currentProjection !== "globe" || _introSpinActive) {
           stopAutoRotate();
           return;
         }
@@ -1923,7 +1959,7 @@
       state.map.jumpTo({ center: [state._pendingMapView.lon, state._pendingMapView.lat], zoom: state._pendingMapView.zoom });
       state._pendingMapView = null;
     }
-    _introSpinActive = false; // stop spin once data is loaded
+    // Don't kill intro spin here — let it finish naturally or stop on user interaction
     startWorldTour();
     if (!_worldTourActive) {
       showOnboardingHint();
@@ -2202,7 +2238,7 @@
       panelStories.innerHTML = headerHtml + '<div class="loading">Loading stories...</div>';
       panel.classList.add("visible");
       if (state.map && window.innerWidth > 768) {
-        state.map.easeTo({ padding: { right: 370 }, duration: 300 });
+        state.map.easeTo({ padding: { right: 420 }, duration: 400 });
       }
       return;
     }
@@ -2235,7 +2271,7 @@
     renderWithSort();
     panel.classList.add("visible");
     if (state.map && window.innerWidth > 768) {
-      state.map.easeTo({ padding: { right: 370 }, duration: 300 });
+      state.map.easeTo({ padding: { right: 420 }, duration: 400 });
     }
   }
   function closeInfoPanel() {
@@ -2250,7 +2286,7 @@
       document.querySelectorAll(".feed-btn").forEach((b) => b.classList.remove("active"));
     }
     if (state.map && window.innerWidth > 768) {
-      state.map.easeTo({ padding: { right: 0 }, duration: 300 });
+      state.map.easeTo({ padding: { right: 0 }, duration: 400 });
     }
     clearLocationFilter();
   }
@@ -4393,6 +4429,9 @@
     if (!features.length || !state.map) return;
     const coords = features.map((f) => f.geometry.coordinates).filter((c) => c[0] !== 0 || c[1] !== 0);
     if (coords.length === 0) return;
+    // Don't fly to outliers — if less than 20% of features have coords, skip the flyTo
+    // (avoids flying to Iran for a Harry Styles situation with 1 geocoded outlier)
+    if (coords.length < features.length * 0.2 && coords.length <= 2) return;
     if (coords.length === 1) {
       state.map.flyTo({ center: coords[0], zoom: 5, duration: 1200 });
     } else {
@@ -5008,7 +5047,7 @@
       } else {
         document.getElementById("filter-time").value = "24";
       }
-      const defaultWorldId = _resolveWorldAlias(localStorage.getItem("tm_default_world"));
+      const defaultWorldId = _resolveWorldAlias(localStorage.getItem("tm_default_world")) || state.activeWorldId;
       if (defaultWorldId && state.allWorlds[defaultWorldId] && defaultWorldId !== "all") {
         const w = state.allWorlds[defaultWorldId];
         if (w.feedTags && w.feedTags.length > 0) {
