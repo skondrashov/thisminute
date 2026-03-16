@@ -12,7 +12,7 @@ thisminute.org shows what's happening in the world right now, plotted on a map. 
 2. ~~**First-use experience overhaul**~~ — DONE. Auto-cycling world presets, "pick your worlds" first-visit selector (now welcome questionnaire with 6 personality cards), prominent world bar. Welcome questionnaire replaces world picker for first-visit flow.
 3. ~~**Shareable world preset URLs + share button**~~ — DONE (v119). Share button in world bar.
 4. ~~**SEO/social shareability verification**~~ — DONE (v119). OG image, meta tags, robots.txt, sitemap.xml.
-5. **Domain distribution endpoint** — `/api/stats/domain-distribution` for monitoring content balance.
+5. ~~**Domain distribution endpoint**~~ — DONE. `/api/stats/domain-distribution` with feed tag, source type, positive/curious proxy, and narrative/event domain breakdowns.
 
 ### Completed Priorities
 
@@ -92,7 +92,7 @@ thisminute should work for ANY interest, not just hard news. The next major effo
 - [x] "Pick your worlds" first-visit selector — implemented as welcome questionnaire (6 personality cards, replaces world picker in first-visit flow)
 - [x] Prominent world bar redesign (icon+label buttons, 12 unique domain-colored active states, hover lift, flex-wrap on desktop)
 - [x] SEO/social shareability (OG image 1200x630, meta description, canonical link, twitter:card summary_large_image, dynamic OG for deep links, robots.txt, sitemap.xml)
-- [ ] Domain distribution endpoint (`/api/stats/domain-distribution`)
+- [x] Domain distribution endpoint (`/api/stats/domain-distribution`) — monitoring endpoint for content balance across domains, feed tags, source types
 - [x] Dominance-tinted dot colors (white/gray base, tints toward dominant domain — replaces misleading HSL blending)
 - [x] Full color overhaul (Tech=hot pink, Curious=orange, Markets=dark teal — no more collisions)
 - [x] Map dot color themes (5 themes: domain, classic, mono, heat, neon — palette button + popup menu)
