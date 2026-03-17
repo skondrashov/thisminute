@@ -248,6 +248,21 @@
   var NARRATIVES_INTERVAL = 3e5;
   var BRIGHT_SIDE_MIN_SCORE = 4;
   var CURIOUS_MIN_SCORE = 7;
+  // Topics that veto stories from Bright Side / Curious even if scores are high
+  var _VETO_TOPICS = new Set([
+    "war", "iran-war", "iraq-war", "civil-war", "airstrike", "airstrikes",
+    "bombing", "missile-strike", "military-operation", "invasion",
+    "terrorism", "terrorist-attack", "mass-shooting", "shooting",
+    "murder", "homicide", "assassination", "genocide", "massacre",
+    "death-toll", "casualties", "killed", "fatalities",
+    "drug-trafficking", "drug-cartel", "kidnapping", "hostage"
+  ]);
+  function _hasVetoTopic(concepts) {
+    for (var i = 0; i < concepts.length; i++) {
+      if (_VETO_TOPICS.has(concepts[i])) return true;
+    }
+    return false;
+  }
   var _VISITED_KEY = "thisminute-visited";
   var _VISITED_MAX = 500;
   var TOPIC_DOMAIN_RULES = [
@@ -1589,10 +1604,12 @@
         if (state.brightSideMode) {
           const score = p.bright_side_score;
           if (!score || parseInt(score) < BRIGHT_SIDE_MIN_SCORE) continue;
+          if (_hasVetoTopic(concepts)) continue;
         }
         if (state.curiousMode) {
           const hiScore = p.human_interest_score;
           if (!hiScore || parseInt(hiScore) < CURIOUS_MIN_SCORE) continue;
+          if (_hasVetoTopic(concepts)) continue;
         }
         if (state.excludedConcepts.size > 0) {
           if (concepts.length === 0) continue;
