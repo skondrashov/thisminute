@@ -71,18 +71,19 @@ FEEDS = [
     # === AFRICA ===
     {"url": "https://www.jeuneafrique.com/feed/", "source": "Jeune Afrique", "tags": ["news"], "lang": "fr"},
     {"url": "https://punchng.com/feed/", "source": "Punch Nigeria", "tags": ["news"]},
-    {"url": "https://nation.africa/feed", "source": "Nation Africa", "tags": ["news"]},
+    {"url": "https://allafrica.com/tools/headlines/rdf/latest/headlines.rdf", "source": "AllAfrica", "tags": ["news"]},
+    # Nation Africa — 403 blocks scrapers, removed 2026-03-16
 
     # === CAUCASUS & CENTRAL ASIA ===
     {"url": "https://oc-media.org/feed/", "source": "OC Media", "tags": ["news"]},
     {"url": "https://astanatimes.com/feed/", "source": "Astana Times", "tags": ["news"]},
 
-    # === LATIN AMERICA (non-English) ===
-    {"url": "https://www.eluniversal.com.mx/rss.xml", "source": "El Universal", "tags": ["news"], "lang": "es"},
-    {"url": "https://www.eltiempo.com/rss/portada.xml", "source": "El Tiempo", "tags": ["news"], "lang": "es"},
+    # === LATIN AMERICA ===
     {"url": "https://www.prensalibre.com/feed/", "source": "Prensa Libre", "tags": ["news"], "lang": "es"},
+    # El Universal (MX) — no public RSS, removed 2026-03-16
+    # El Tiempo (CO) — no public RSS, removed 2026-03-16
 
-    # === ASIA-PACIFIC ===
+    # === ASIA-PACIFIC & CARIBBEAN ===
     {"url": "https://en.yna.co.kr/RSS/news.xml", "source": "Yonhap", "tags": ["news"]},
     {"url": "https://www.rappler.com/feed/", "source": "Rappler", "tags": ["news"]},
     {"url": "https://www.jamaicaobserver.com/feed/", "source": "Jamaica Observer", "tags": ["news"]},

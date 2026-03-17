@@ -236,8 +236,8 @@ def test_new_feeds_present():
     assert "Jeune Afrique" in sources
     assert "OC Media" in sources
     assert "Punch Nigeria" in sources
-    assert "El Universal" in sources
-    assert "El Tiempo" in sources
+    assert "AllAfrica" in sources
+    assert "Prensa Libre" in sources
     assert "Rappler" in sources
     assert "Yonhap" in sources
     assert "Astana Times" in sources
@@ -248,7 +248,7 @@ def test_non_english_feeds_have_lang_tag():
     for feed in FEEDS:
         if feed["source"] in ("Jeune Afrique",):
             assert feed.get("lang") == "fr", f"{feed['source']} should be lang=fr"
-        if feed["source"] in ("El Universal", "El Tiempo", "Prensa Libre"):
+        if feed["source"] in ("Prensa Libre",):
             assert feed.get("lang") == "es", f"{feed['source']} should be lang=es"
 
 
@@ -257,11 +257,12 @@ def test_new_feeds_in_tag_map():
     assert "Jeune Afrique" in FEED_TAG_MAP
     assert "OC Media" in FEED_TAG_MAP
     assert "Rappler" in FEED_TAG_MAP
+    assert "AllAfrica" in FEED_TAG_MAP
 
 
 def test_total_feed_count():
-    """Total feed count increased from 95 to 106."""
-    assert len(FEEDS) >= 106
+    """Total feed count increased from 95."""
+    assert len(FEEDS) >= 103
 
 
 # --- Curious domain prompt ---
