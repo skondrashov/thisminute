@@ -105,6 +105,20 @@ _CITIES = [
     "Scotland", "Wales", "Northern Ireland", "England",
 ]
 
+# Institutions, venues, and landmarks that are meaningful locations in news
+_INSTITUTIONS = [
+    # Research
+    "MIT", "CERN", "NIH", "CDC", "Stanford", "Harvard", "Caltech",
+    "Johns Hopkins", "Max Planck", "Pasteur Institute",
+    # Entertainment venues
+    "Dolby Theatre", "Madison Square Garden", "Wembley Stadium",
+    "O2 Arena", "Coachella", "Sundance",
+    # Sports venues
+    "Augusta National", "Old Trafford", "Camp Nou", "Maracana", "MCG",
+    # Tech
+    "Cupertino", "Menlo Park", "Redmond",
+]
+
 # Additional multi-word location patterns
 _REGIONS = [
     "Middle East", "Southeast Asia", "Central Asia", "East Africa",
@@ -221,7 +235,7 @@ def _build_pattern(names: list[str]) -> re.Pattern:
 
 
 # Pre-compile patterns
-_ALL_LOCATIONS = _COUNTRIES + _CITIES + _REGIONS
+_ALL_LOCATIONS = _COUNTRIES + _CITIES + _INSTITUTIONS + _REGIONS
 _LOCATION_PATTERN = _build_pattern(_ALL_LOCATIONS)
 _COUNTRY_SET = set(_COUNTRIES)
 _CITY_SET = set(_CITIES)

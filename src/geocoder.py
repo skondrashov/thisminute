@@ -89,6 +89,40 @@ _HARDCODED = {
     "Jenin": {"lat": 32.4607, "lon": 35.3027, "display_name": "Jenin, Palestinian Territories"},
     "Nablus": {"lat": 32.2211, "lon": 35.2544, "display_name": "Nablus, Palestinian Territories"},
     "Ramallah": {"lat": 31.9038, "lon": 35.2034, "display_name": "Ramallah, Palestinian Territories"},
+    # Research institutions
+    "MIT": {"lat": 42.3601, "lon": -71.0942, "display_name": "MIT, Cambridge, Massachusetts, US"},
+    "Stanford": {"lat": 37.4275, "lon": -122.1697, "display_name": "Stanford University, California, US"},
+    "CERN": {"lat": 46.2330, "lon": 6.0557, "display_name": "CERN, Geneva, Switzerland"},
+    "NIH": {"lat": 39.0003, "lon": -77.1056, "display_name": "NIH, Bethesda, Maryland, US"},
+    "CDC": {"lat": 33.7990, "lon": -84.3281, "display_name": "CDC, Atlanta, Georgia, US"},
+    "Johns Hopkins": {"lat": 39.3299, "lon": -76.6205, "display_name": "Johns Hopkins, Baltimore, Maryland, US"},
+    "Oxford": {"lat": 51.7520, "lon": -1.2577, "display_name": "Oxford, England, UK"},
+    "Cambridge": {"lat": 52.2053, "lon": 0.1218, "display_name": "Cambridge, England, UK"},
+    "Harvard": {"lat": 42.3770, "lon": -71.1167, "display_name": "Harvard University, Cambridge, Massachusetts, US"},
+    "Caltech": {"lat": 34.1377, "lon": -118.1253, "display_name": "Caltech, Pasadena, California, US"},
+    "Max Planck": {"lat": 48.1406, "lon": 11.5779, "display_name": "Max Planck Society, Munich, Germany"},
+    "WHO": {"lat": 46.2339, "lon": 6.1344, "display_name": "WHO, Geneva, Switzerland"},
+    "Pasteur Institute": {"lat": 48.8401, "lon": 2.3116, "display_name": "Pasteur Institute, Paris, France"},
+    # Entertainment venues
+    "Dolby Theatre": {"lat": 34.1022, "lon": -118.3409, "display_name": "Dolby Theatre, Hollywood, US"},
+    "Madison Square Garden": {"lat": 40.7505, "lon": -73.9934, "display_name": "Madison Square Garden, New York, US"},
+    "Wembley": {"lat": 51.5560, "lon": -0.2795, "display_name": "Wembley Stadium, London, UK"},
+    "Wembley Stadium": {"lat": 51.5560, "lon": -0.2795, "display_name": "Wembley Stadium, London, UK"},
+    "O2 Arena": {"lat": 51.5030, "lon": 0.0032, "display_name": "O2 Arena, London, UK"},
+    "Cannes": {"lat": 43.5528, "lon": 7.0174, "display_name": "Cannes, France"},
+    "Sundance": {"lat": 40.5212, "lon": -111.4799, "display_name": "Sundance, Park City, Utah, US"},
+    "Coachella": {"lat": 33.6803, "lon": -116.1739, "display_name": "Coachella, Indio, California, US"},
+    # Tech campuses
+    "Cupertino": {"lat": 37.3230, "lon": -122.0322, "display_name": "Cupertino, California, US"},
+    "Menlo Park": {"lat": 37.4530, "lon": -122.1817, "display_name": "Menlo Park, California, US"},
+    "Redmond": {"lat": 47.6740, "lon": -122.1215, "display_name": "Redmond, Washington, US"},
+    # Sports venues
+    "Augusta National": {"lat": 33.5030, "lon": -82.0230, "display_name": "Augusta National Golf Club, Georgia, US"},
+    "Lord's": {"lat": 51.5294, "lon": -0.1727, "display_name": "Lord's Cricket Ground, London, UK"},
+    "Old Trafford": {"lat": 53.4631, "lon": -2.2913, "display_name": "Old Trafford, Manchester, UK"},
+    "Camp Nou": {"lat": 41.3809, "lon": 2.1228, "display_name": "Camp Nou, Barcelona, Spain"},
+    "Maracana": {"lat": -22.9121, "lon": -43.2302, "display_name": "Maracana Stadium, Rio de Janeiro, Brazil"},
+    "MCG": {"lat": -37.8200, "lon": 144.9834, "display_name": "Melbourne Cricket Ground, Melbourne, Australia"},
 }
 
 
@@ -138,19 +172,34 @@ def geocode_location(location_name: str) -> Optional[dict]:
     conn = get_connection()
     cached = get_cached_geocode(conn, location_name)
     if cached is not None:
-        conn.close()
+        # Re-try stale null results (older than 7 days) in case of transient errors
         if cached["lat"] is None:
-            return None  # Previously failed lookup
-        return {
-            "lat": cached["lat"],
-            "lon": cached["lon"],
-            "display_name": cached["display_name"],
-            "importance": cached["importance"],
-            "bbox_south": cached.get("bbox_south"),
-            "bbox_north": cached.get("bbox_north"),
-            "bbox_west": cached.get("bbox_west"),
-            "bbox_east": cached.get("bbox_east"),
-        }
+            cached_at = cached.get("cached_at", "")
+            try:
+                from datetime import datetime, timezone
+                age_days = (datetime.now(timezone.utc) - datetime.fromisoformat(cached_at)).days
+                if age_days < 7:
+                    conn.close()
+                    return None  # Recent failure, trust the cache
+                # Stale null — fall through to re-query Nominatim
+                conn.execute("DELETE FROM geocode_cache WHERE location_name = ?", (location_name,))
+                conn.commit()
+                logger.debug("Retrying stale null geocode for: %s (cached %d days ago)", location_name, age_days)
+            except (ValueError, TypeError):
+                conn.close()
+                return None  # Can't parse date, trust the cache
+        else:
+            conn.close()
+            return {
+                "lat": cached["lat"],
+                "lon": cached["lon"],
+                "display_name": cached["display_name"],
+                "importance": cached["importance"],
+                "bbox_south": cached.get("bbox_south"),
+                "bbox_north": cached.get("bbox_north"),
+                "bbox_west": cached.get("bbox_west"),
+                "bbox_east": cached.get("bbox_east"),
+            }
 
     # Not cached — query Nominatim
     _rate_limit()

@@ -31,6 +31,70 @@ from .registry_manager import maintain_registry
 
 logger = logging.getLogger(__name__)
 
+# Role priority for LLM-extracted locations (prefer event_location over mentioned)
+_ROLE_PRIORITY = {"event_location": 0, "origin": 1, "destination": 2, "mentioned": 3}
+
+
+def _geocode_from_extractions(conn, limit: int = 200) -> int:
+    """Geocode stories that have LLM-extracted locations but no lat/lon.
+
+    After LLM extraction, many stories have locations in their extraction_json
+    that the NER gazetteer missed (institutions, venues, neighborhoods).
+    This pass uses those LLM locations to fill geocoding gaps.
+
+    Returns count of newly geocoded stories.
+    """
+    import json
+
+    rows = conn.execute(
+        """SELECT s.id, se.extraction_json
+           FROM stories s
+           JOIN story_extractions se ON se.story_id = s.id
+           WHERE s.lat IS NULL
+             AND se.location_type = 'terrestrial'
+           ORDER BY s.id DESC
+           LIMIT ?""",
+        (limit,),
+    ).fetchall()
+
+    if not rows:
+        return 0
+
+    geocoded = 0
+    for row in rows:
+        try:
+            extraction = json.loads(row["extraction_json"])
+        except (json.JSONDecodeError, TypeError):
+            continue
+
+        locations = extraction.get("locations") or []
+        if not locations:
+            continue
+
+        # Sort by role priority: event_location first
+        locations.sort(key=lambda loc: _ROLE_PRIORITY.get(loc.get("role", "mentioned"), 3))
+
+        for loc in locations:
+            name = loc.get("name", "").strip()
+            if not name or len(name) < 2:
+                continue
+
+            geo = geocode_location(name)
+            if geo:
+                conn.execute(
+                    """UPDATE stories
+                       SET lat = ?, lon = ?, location_name = ?, geocode_confidence = ?
+                       WHERE id = ?""",
+                    (geo["lat"], geo["lon"], name, geo.get("importance", 0.5), row["id"]),
+                )
+                geocoded += 1
+                break  # Stop at first successful geocode for this story
+
+    if geocoded > 0:
+        conn.commit()
+
+    return geocoded
+
 
 def process_story(story: dict) -> dict:
     """Run NER, geocoding, and categorization on a single story.
@@ -229,6 +293,14 @@ def run_pipeline() -> dict:
         backfill_count = enrich_stories(conn)
         logger.info("LLM backfill: %d pending stories enriched in %.1fs",
                      backfill_count, (datetime.now(timezone.utc) - t0).total_seconds())
+
+        # Geocode from LLM-extracted locations (catches stories NER missed)
+        if extraction_count > 0 or backfill_count > 0:
+            t0 = datetime.now(timezone.utc)
+            llm_geo_count = _geocode_from_extractions(conn)
+            if llm_geo_count > 0:
+                logger.info("LLM geocoding: %d stories geocoded from extractions in %.1fs",
+                            llm_geo_count, (datetime.now(timezone.utc) - t0).total_seconds())
 
         # Semantic clustering using event signatures
         t0 = datetime.now(timezone.utc)

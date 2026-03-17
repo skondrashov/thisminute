@@ -116,8 +116,8 @@ FEEDS = [
     {"url": "https://feeds.bbci.co.uk/news/business/rss.xml", "source": "BBC Business", "tags": ["business"]},
     {"url": "https://www.theguardian.com/business/rss", "source": "Guardian Business", "tags": ["business"]},
     {"url": "https://rss.nytimes.com/services/xml/rss/nyt/Business.xml", "source": "NYT Business", "tags": ["business"]},
-    {"url": "https://www.coindesk.com/arc/outboundfeeds/rss/", "source": "CoinDesk", "tags": ["business", "tech"]},
-    {"url": "https://decrypt.co/feed", "source": "Decrypt", "tags": ["business", "tech"]},
+    {"url": "https://www.coindesk.com/arc/outboundfeeds/rss/", "source": "CoinDesk", "tags": ["business"]},
+    {"url": "https://decrypt.co/feed", "source": "Decrypt", "tags": ["business"]},
 
     # === SPORTS ===
     {"url": "https://feeds.bbci.co.uk/sport/rss.xml", "source": "BBC Sport", "tags": ["sports"]},
@@ -161,7 +161,7 @@ FEEDS = [
     {"url": "https://www.nme.com/feed", "source": "NME", "tags": ["entertainment"]},
     {"url": "https://www.soompi.com/feed", "source": "Soompi", "tags": ["entertainment"]},
     {"url": "https://www.bollywoodhungama.com/feed/", "source": "Bollywood Hungama", "tags": ["entertainment"]},
-    {"url": "https://feeds.ign.com/ign/all", "source": "IGN", "tags": ["entertainment", "tech"]},
+    {"url": "https://feeds.ign.com/ign/all", "source": "IGN", "tags": ["entertainment"]},
     # Dead feeds investigated but not added (2026-03-11):
     # Entertainment Weekly (ew.com/feed/) — 404
 

@@ -295,3 +295,66 @@ def test_extraction_prompt_has_translated_title():
     from src.llm_extractor import SYSTEM_PROMPT
     assert "translated_title" in SYSTEM_PROMPT
     assert "English translation" in SYSTEM_PROMPT or "NOT in English" in SYSTEM_PROMPT
+
+
+# --- LLM-based geocoding ---
+
+def test_geocode_from_extractions_function_exists():
+    """Pipeline has _geocode_from_extractions function."""
+    from src.pipeline import _geocode_from_extractions
+    assert callable(_geocode_from_extractions)
+
+
+def test_geocode_from_extractions_skips_already_geocoded():
+    """Stories with lat/lon are not re-geocoded."""
+    from src.pipeline import _geocode_from_extractions
+
+    conn = sqlite3.connect(":memory:")
+    conn.row_factory = sqlite3.Row
+    conn.executescript("""
+        CREATE TABLE stories (id INTEGER PRIMARY KEY, title TEXT, url TEXT, summary TEXT,
+            source TEXT, scraped_at TEXT, lat REAL, lon REAL, location_name TEXT,
+            geocode_confidence REAL, extraction_status TEXT, concepts TEXT, sentiment TEXT, category TEXT);
+        CREATE TABLE story_extractions (story_id INTEGER PRIMARY KEY, extraction_json TEXT NOT NULL,
+            location_type TEXT DEFAULT 'terrestrial');
+    """)
+    # Story WITH lat/lon — should not be touched
+    conn.execute("INSERT INTO stories VALUES (1, 'Test', 'http://x', '', 'BBC', '2026-03-16', 51.5, -0.1, 'London', 0.9, 'done', '[]', 'neutral', 'news')")
+    conn.execute("INSERT INTO story_extractions VALUES (1, '{\"locations\": [{\"name\": \"Paris\", \"role\": \"event_location\"}]}', 'terrestrial')")
+    conn.commit()
+
+    result = _geocode_from_extractions(conn)
+    assert result == 0  # Nothing to geocode
+    conn.close()
+
+
+def test_geocode_from_extractions_processes_ungeolocated():
+    """Stories without lat/lon get geocoded from LLM locations."""
+    from src.pipeline import _geocode_from_extractions
+    from unittest.mock import patch
+
+    conn = sqlite3.connect(":memory:")
+    conn.row_factory = sqlite3.Row
+    conn.executescript("""
+        CREATE TABLE stories (id INTEGER PRIMARY KEY, title TEXT, url TEXT, summary TEXT,
+            source TEXT, scraped_at TEXT, lat REAL, lon REAL, location_name TEXT,
+            geocode_confidence REAL, extraction_status TEXT, concepts TEXT, sentiment TEXT, category TEXT);
+        CREATE TABLE story_extractions (story_id INTEGER PRIMARY KEY, extraction_json TEXT NOT NULL,
+            location_type TEXT DEFAULT 'terrestrial');
+    """)
+    # Story WITHOUT lat/lon
+    conn.execute("INSERT INTO stories VALUES (1, 'CERN discovery', 'http://x', '', 'BBC', '2026-03-16', NULL, NULL, NULL, NULL, 'done', '[]', 'neutral', 'science')")
+    conn.execute("""INSERT INTO story_extractions VALUES (1, '{"locations": [{"name": "Geneva", "role": "event_location"}]}', 'terrestrial')""")
+    conn.commit()
+
+    # Mock geocode_location to return a result
+    with patch("src.pipeline.geocode_location") as mock_geo:
+        mock_geo.return_value = {"lat": 46.2, "lon": 6.15, "importance": 0.8}
+        result = _geocode_from_extractions(conn)
+
+    assert result == 1
+    row = conn.execute("SELECT lat, lon, location_name FROM stories WHERE id = 1").fetchone()
+    assert row["lat"] == 46.2
+    assert row["lon"] == 6.15
+    assert row["location_name"] == "Geneva"
+    conn.close()
