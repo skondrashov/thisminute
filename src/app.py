@@ -187,7 +187,7 @@ async def lifespan(app: FastAPI):
         yield
         scheduler.stop()
     else:
-        logger.info("Scheduler disabled via THISMINUTE_DISABLE_SCHEDULER")
+        logging.getLogger("app").info("Scheduler disabled via THISMINUTE_DISABLE_SCHEDULER")
         yield
 
 
