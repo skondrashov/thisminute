@@ -1,0 +1,17 @@
+[Unit]
+Description=thisminute pipeline daemon (scraper + LLM extraction + narratives)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=thisminute
+Group=thisminute
+WorkingDirectory=/opt/thisminute
+EnvironmentFile=-/opt/thisminute/.env
+ExecStart=/opt/thisminute/venv/bin/python -m src.pipeline_daemon
+Restart=always
+RestartSec=30s
+Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=multi-user.target

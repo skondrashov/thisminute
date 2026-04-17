@@ -4,6 +4,7 @@ import colorsys
 import ipaddress
 import json
 import logging
+import os
 import re as _re
 import socket
 import time as _time
@@ -175,11 +176,19 @@ def _check_global_budget(conn, table: str, limit: int) -> bool:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Start scheduler on startup, stop on shutdown."""
+    """Start scheduler on startup, stop on shutdown.
+
+    Set THISMINUTE_DISABLE_SCHEDULER=1 to skip the in-process scheduler
+    (used when the pipeline runs as a standalone systemd service).
+    """
     init_db()
-    scheduler.start()
-    yield
-    scheduler.stop()
+    if os.environ.get("THISMINUTE_DISABLE_SCHEDULER", "0").lower() not in ("1", "true", "yes"):
+        scheduler.start()
+        yield
+        scheduler.stop()
+    else:
+        logger.info("Scheduler disabled via THISMINUTE_DISABLE_SCHEDULER")
+        yield
 
 
 app = FastAPI(title="thisminute", lifespan=lifespan)

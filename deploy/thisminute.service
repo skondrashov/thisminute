@@ -10,6 +10,7 @@ ExecStart=/opt/thisminute/venv/bin/uvicorn src.app:app --host 0.0.0.0 --port 800
 Restart=always
 RestartSec=5
 Environment=PYTHONUNBUFFERED=1
+Environment=THISMINUTE_DISABLE_SCHEDULER=1
 
 [Install]
 WantedBy=multi-user.target

@@ -203,7 +203,12 @@ def _process_geojson_features(features):
             if not title:
                 continue
 
-            url = props.get("url", "") or props.get("link", "")
+            raw_url = props.get("url", "") or props.get("link", "")
+            # GDACS GeoJSON returns url as a dict with geometry/report/details keys
+            if isinstance(raw_url, dict):
+                url = raw_url.get("report") or raw_url.get("details") or ""
+            else:
+                url = raw_url
             if not url:
                 continue
 

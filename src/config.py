@@ -58,7 +58,8 @@ FEEDS = [
     # East African removed - malformed XML
 
     # === LATIN AMERICA ===
-    {"url": "https://en.mercopress.com/rss", "source": "MercoPress", "tags": ["news"]},
+    # MercoPress disabled 2026-04-16: SSL CERTIFICATE_VERIFY_FAILED
+    # {"url": "https://en.mercopress.com/rss", "source": "MercoPress", "tags": ["news"]},
 
     # === REGIONAL ===
     {"url": "https://www.theguardian.com/us-news/rss", "source": "Guardian US", "tags": ["news"]},
@@ -271,11 +272,11 @@ SOURCE_ENABLED = {
     "noaa": os.environ.get("SOURCE_NOAA_ENABLED", "true").lower() != "false",
     "eonet": os.environ.get("SOURCE_EONET_ENABLED", "true").lower() != "false",
     "gdacs": os.environ.get("SOURCE_GDACS_ENABLED", "true").lower() != "false",
-    "reliefweb": os.environ.get("SOURCE_RELIEFWEB_ENABLED", "true").lower() != "false",
-    "who": os.environ.get("SOURCE_WHO_ENABLED", "true").lower() != "false",
+    "reliefweb": os.environ.get("SOURCE_RELIEFWEB_ENABLED", "false").lower() != "false",  # 2026-04-16: HTTP 410 Gone
+    "who": os.environ.get("SOURCE_WHO_ENABLED", "false").lower() != "false",  # 2026-04-16: HTTP 404 Not Found
     "launches": os.environ.get("SOURCE_LAUNCHES_ENABLED", "true").lower() != "false",
-    "openaq": os.environ.get("SOURCE_OPENAQ_ENABLED", "true").lower() != "false",
-    "travel": os.environ.get("SOURCE_TRAVEL_ENABLED", "true").lower() != "false",
+    "openaq": os.environ.get("SOURCE_OPENAQ_ENABLED", "false").lower() != "false",  # 2026-04-16: HTTP 410 Gone (v2 API sunset)
+    "travel": os.environ.get("SOURCE_TRAVEL_ENABLED", "false").lower() != "false",  # 2026-04-16: XML endpoint redirects to 404 page
     "firms": os.environ.get("SOURCE_FIRMS_ENABLED", "true").lower() != "false",
     "meteoalarm": os.environ.get("SOURCE_METEOALARM_ENABLED", "true").lower() != "false",
     "acled": os.environ.get("SOURCE_ACLED_ENABLED", "true").lower() != "false",
