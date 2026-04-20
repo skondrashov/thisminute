@@ -2012,13 +2012,16 @@
     addMapInteractions(state.map, "");
     setMapLabelsVisible(false);
     showLoadingBar();
-    const quickStoriesP = loadAll(300);
+    // Phase 1: instant map dots from last hour
+    await fetchCloudData(1);
+    // Phase 2: full 24h data + metadata
+    const storiesP = loadAll(null, 24);
     const conceptsP = loadConcepts();
     const sourcesP = loadSources();
     const eventsP = loadEvents();
     const overviewP = loadPresetOverview();
     const narrativesP = loadNarratives();
-    await Promise.allSettled([quickStoriesP, conceptsP, sourcesP, eventsP, overviewP, narrativesP]);
+    await Promise.allSettled([storiesP, conceptsP, sourcesP, eventsP, overviewP, narrativesP]);
     hideLoadingBar();
     if (state._pendingMapView && state.map) {
       _introSpinActive = false;
@@ -2036,7 +2039,11 @@
         }, 2e3);
       }
     }
-    loadRemainingStories();
+    // Phase 3: if time filter wants more than 24h, expand in background
+    var filterHours = parseFloat(document.getElementById("filter-time").value) || 0;
+    if (filterHours === 0 || filterHours > 24) {
+      _expandTimeRange(filterHours);
+    }
   }
   function showOnboardingHint() {
     if (localStorage.getItem("thisminute-onboarded")) return;
@@ -2583,9 +2590,11 @@
     el.innerHTML = parts.map(function(t, i) { return (i > 0 ? '<span class="fs-dot"></span>' : "") + '<span class="fs-item">' + escapeHtml(t) + "</span>"; }).join("");
     el.classList.add("visible");
   }
-  async function fetchCloudData() {
+  async function fetchCloudData(hours) {
     try {
-      const resp = await fetch("/api/stories/clouds");
+      const params = new URLSearchParams();
+      if (hours) params.set("hours", String(hours));
+      const resp = await fetch("/api/stories/clouds?" + params.toString());
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
       state.cloudData = await resp.json();
       const now = Date.now();
@@ -2599,38 +2608,49 @@
       console.error("Failed to load cloud data:", err);
     }
   }
-  async function fetchStories(since, limit) {
+  async function fetchStories(since, limit, hours) {
     const params = new URLSearchParams();
     if (since) params.set("since", since);
     if (limit) params.set("limit", String(limit));
+    if (hours) params.set("hours", String(hours));
     const resp = await fetch(`/api/stories?${params.toString()}`);
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
     return await resp.json();
   }
-  async function loadAll(limit) {
+  state._loadedHours = 0;
+  async function loadAll(limit, hours) {
     try {
-      const data = await fetchStories(null, limit);
+      const data = await fetchStories(null, limit, hours);
       state.geojsonData = data;
       state.lastFetchTime = (/* @__PURE__ */ new Date()).toISOString();
       state._lastDataUpdate = Date.now();
-      if (!limit) fetchCloudData();
+      await fetchCloudData(hours);
       updateStats();
       applyFilters();
+      if (hours) state._loadedHours = hours;
     } catch (err) {
       console.error("Failed to load stories:", err);
     }
   }
-  async function loadRemainingStories() {
+  async function loadRemainingStories(hours) {
     try {
-      const data = await fetchStories();
+      const data = await fetchStories(null, null, hours);
       state.geojsonData = data;
       state._lastDataUpdate = Date.now();
-      fetchCloudData();
+      await fetchCloudData(hours);
       updateStats();
       applyFilters();
+      state._loadedHours = hours || Infinity;
     } catch (err) {
       console.error("Failed to load remaining stories:", err);
     }
+  }
+  function _expandTimeRange(hours) {
+    if (state._expandingRange) return;
+    state._expandingRange = true;
+    loadRemainingStories(hours || null).then(function() {
+      state._expandingRange = false;
+    });
   }
   async function pollUpdates() {
     if (!state.lastFetchTime) return;
@@ -2790,7 +2810,7 @@
   }
   function clearAllFilters() {
     document.getElementById("search-box").value = "";
-    document.getElementById("filter-time").value = "";
+    document.getElementById("filter-time").value = "24";
     const opinionCheckbox = document.getElementById("filter-opinion");
     if (opinionCheckbox) opinionCheckbox.checked = false;
     if (state.activeNarrativeId) {
@@ -3059,7 +3079,7 @@
     }
     if (world.permanent) {
       document.getElementById("search-box").value = "";
-      document.getElementById("filter-time").value = "";
+      document.getElementById("filter-time").value = "24";
       const opinionCheckbox = document.getElementById("filter-opinion");
       if (opinionCheckbox) opinionCheckbox.checked = false;
       if (state.activeNarrativeId) {
@@ -5071,16 +5091,8 @@
   function loadStateFromURL() {
     const hash = window.location.hash.slice(1);
     if (!hash) {
-      const lastVisit = parseInt(localStorage.getItem("tm_last_visit") || "0");
-      const hoursSinceVisit = lastVisit ? (Date.now() - lastVisit) / 36e5 : 999;
       localStorage.setItem("tm_last_visit", Date.now().toString());
-      if (hoursSinceVisit > 168) {
-        document.getElementById("filter-time").value = "";
-      } else if (hoursSinceVisit > 24) {
-        document.getElementById("filter-time").value = "168";
-      } else {
-        document.getElementById("filter-time").value = "24";
-      }
+      document.getElementById("filter-time").value = "24";
       const defaultPresetId = _resolvePresetAlias(localStorage.getItem("tm_default_world")) || state.activePresetId;
       if (defaultPresetId && state.allPresets[defaultPresetId] && defaultPresetId !== "all") {
         const w = state.allPresets[defaultPresetId];
@@ -5221,6 +5233,10 @@
       searchBox.focus();
     });
     document.getElementById("filter-time").addEventListener("change", () => {
+      var hours = parseFloat(document.getElementById("filter-time").value) || 0;
+      if ((hours === 0 || hours > state._loadedHours) && state._loadedHours < Infinity) {
+        _expandTimeRange(hours);
+      }
       applyFilters();
     });
     document.getElementById("filter-opinion").addEventListener("change", () => {

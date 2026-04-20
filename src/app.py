@@ -377,8 +377,12 @@ async def api_stories(
     exclude: Optional[str] = Query(None, description="Comma-separated concept names to exclude"),
     search: Optional[str] = Query(None, description="Text search in title/summary"),
     limit: int = Query(2000, ge=1, le=5000),
+    hours: Optional[int] = Query(None, ge=1, le=720, description="Hours lookback window"),
 ):
     """Return stories as GeoJSON FeatureCollection."""
+    if hours and not since:
+        since = (datetime.now(timezone.utc) - timedelta(hours=hours)).isoformat()
+
     # Serve cached response for the default (no-filter) query
     is_default = not since and not source and not category and not concepts and not exclude and not search and limit == 2000
     is_quick = not since and not source and not category and not concepts and not exclude and not search and limit == 300
@@ -528,12 +532,16 @@ async def api_stories_clouds(
     exclude: Optional[str] = Query(None),
     search: Optional[str] = Query(None),
     limit: int = Query(500, ge=1, le=2000),
+    hours: Optional[int] = Query(None, ge=1, le=720, description="Hours lookback window"),
 ):
     """Return multi-point GeoJSON for confidence cloud rendering.
 
     Each story is expanded into one Point per NER entity, with radius_km
     reflecting location specificity (city=tight, country=wide).
     """
+    if hours and not since:
+        since = (datetime.now(timezone.utc) - timedelta(hours=hours)).isoformat()
+
     is_default = not since and not source and not category and not concepts and not exclude and not search and limit == 500
     cached = is_default and _clouds_cache.get()
     if cached:
