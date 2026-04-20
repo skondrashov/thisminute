@@ -31,6 +31,8 @@ CREATE TABLE IF NOT EXISTS stories (
 CREATE INDEX IF NOT EXISTS idx_stories_scraped_at ON stories(scraped_at);
 CREATE INDEX IF NOT EXISTS idx_stories_source ON stories(source);
 CREATE INDEX IF NOT EXISTS idx_stories_category ON stories(category);
+CREATE INDEX IF NOT EXISTS idx_stories_extraction_status ON stories(extraction_status);
+
 
 CREATE TABLE IF NOT EXISTS geocode_cache (
     location_name TEXT PRIMARY KEY,

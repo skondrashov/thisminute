@@ -572,16 +572,31 @@
   /** Shared clipboard-copy with checkmark animation. */
   function _copyToClipboard(btn, url, originalIcon) {
     originalIcon = originalIcon || "&#128279;";
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(url).then(() => {
-        btn.textContent = "\u2713";
-        if (btn.classList) btn.classList.add("copied");
-        setTimeout(() => {
-          btn.innerHTML = originalIcon;
-          if (btn.classList) btn.classList.remove("copied");
-        }, 1500);
-      }).catch(() => {});
+    function onSuccess() {
+      btn.textContent = "\u2713";
+      if (btn.classList) btn.classList.add("copied");
+      setTimeout(() => {
+        btn.innerHTML = originalIcon;
+        if (btn.classList) btn.classList.remove("copied");
+      }, 1500);
     }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(url).then(onSuccess).catch(() => {
+        _clipboardFallback(url, onSuccess);
+      });
+    } else {
+      _clipboardFallback(url, onSuccess);
+    }
+  }
+  function _clipboardFallback(text, onSuccess) {
+    var ta = document.createElement("textarea");
+    ta.value = text;
+    ta.style.position = "fixed";
+    ta.style.opacity = "0";
+    document.body.appendChild(ta);
+    ta.select();
+    try { document.execCommand("copy"); if (onSuccess) onSuccess(); } catch (e) {}
+    document.body.removeChild(ta);
   }
 
   /** Shared feedback-button wiring — call on any container with .feedback-btn elements. */
@@ -1735,7 +1750,9 @@
   state._pendingMapView = null;
   state.activeLocationFilter = null;
   state.lightMode = localStorage.getItem("thisminute-theme") === "light";
-  state.dotColorTheme = localStorage.getItem("tm_dot_theme") || "domain";
+  var _VALID_DOT_THEMES = ["domain", "classic", "mono", "heat", "neon"];
+  var _rawDotTheme = localStorage.getItem("tm_dot_theme");
+  state.dotColorTheme = _VALID_DOT_THEMES.indexOf(_rawDotTheme) !== -1 ? _rawDotTheme : "domain";
   function _markVisited(url) {
     if (!url || state._visitedStories.has(url)) return;
     state._visitedStories.add(url);
@@ -3746,7 +3763,7 @@
   }
   function confirmSavePreset() {
     const input = document.getElementById("preset-save-name");
-    const name = input.value.trim();
+    const name = input.value.trim().slice(0, 40);
     if (!name) return;
     const nameLower = name.toLowerCase();
     const isDuplicate = Object.entries(state.allPresets).some(
@@ -4965,17 +4982,21 @@
   function _updateLegendForTheme() {
     var legendEl = document.getElementById("map-legend");
     var heatLegend = document.getElementById("heat-legend");
+    var legendToggle = document.getElementById("legend-toggle");
     if (!legendEl) return;
     var theme = state.dotColorTheme || "domain";
     if (theme === "heat") {
       legendEl.style.display = "none";
+      if (legendToggle) legendToggle.style.display = "none";
       if (heatLegend) heatLegend.style.display = "";
     } else if (theme === "classic" || theme === "mono") {
       legendEl.style.display = "none";
+      if (legendToggle) legendToggle.style.display = "none";
       if (heatLegend) heatLegend.style.display = "none";
     } else {
       /* domain or neon */
       legendEl.style.display = "";
+      if (legendToggle) legendToggle.style.display = "";
       if (heatLegend) heatLegend.style.display = "none";
     }
   }
