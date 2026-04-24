@@ -259,13 +259,13 @@ def run_pipeline() -> dict:
                                 "UPDATE stories SET extraction_status = 'done' WHERE id = ?",
                                 (story_id,),
                             )
-                            conn.commit()
                         except Exception as ex:
                             logger.error("Failed to store pre-built extraction for story %d: %s", story_id, ex)
         except Exception as e:
             logger.error("Error processing story '%s': %s", story.get("title", "?"), e)
             continue
 
+    conn.commit()
     conn.close()
     logger.info("Scrape+process: %d scraped, %d new, %d geocoded in %.1fs",
                 len(raw_stories), new_count, geocoded_count,

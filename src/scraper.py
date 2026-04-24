@@ -141,6 +141,7 @@ def scrape_feed(feed_config: dict) -> list[dict]:
     if status == 304:
         logger.info("Feed %s not modified (304)", source)
         update_feed_state(conn, url, state.get("last_etag"), state.get("last_modified"))
+        conn.commit()
         conn.close()
         return []
 
@@ -153,6 +154,7 @@ def scrape_feed(feed_config: dict) -> list[dict]:
     new_etag = feed.get("etag")
     new_modified = feed.get("modified")
     update_feed_state(conn, url, new_etag, new_modified)
+    conn.commit()
     conn.close()
 
     stories = []

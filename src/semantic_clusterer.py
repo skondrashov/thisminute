@@ -724,7 +724,6 @@ def _create_event(conn, story: dict) -> int:
         "INSERT INTO event_stories (event_id, story_id, added_at) VALUES (?, ?, ?)",
         (event_id, story["id"], now),
     )
-    conn.commit()
     return event_id
 
 
@@ -833,7 +832,6 @@ def _assign_story_to_event(conn, story: dict, event_id: int) -> None:
             (story_time, json.dumps(merged_concepts), json.dumps(actors),
              new_severity, new_action, new_location, new_lat, new_lon, event_id),
         )
-    conn.commit()
 
 
 def _update_event_statuses(conn) -> None:
@@ -1159,6 +1157,8 @@ def cluster_new_stories(conn) -> dict:
     if no_sig_stories:
         logger.info("Skipping %d stories without event signatures (awaiting extraction)",
                      len(no_sig_stories))
+
+    conn.commit()
 
     # Update statuses
     _update_event_statuses(conn)

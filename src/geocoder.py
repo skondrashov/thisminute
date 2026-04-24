@@ -224,6 +224,7 @@ def geocode_location(location_name: str) -> Optional[dict]:
     if result is None:
         # Cache the null result so we don't re-query
         cache_geocode(conn, location_name, None, None)
+        conn.commit()
         logger.debug("No geocode result for '%s'", location_name)
         conn.close()
         return None
@@ -266,6 +267,7 @@ def geocode_location(location_name: str) -> Optional[dict]:
         geo["bbox_west"],
         geo["bbox_east"],
     )
+    conn.commit()
     conn.close()
 
     logger.info("Geocoded '%s' -> (%.4f, %.4f)", location_name, geo["lat"], geo["lon"])

@@ -1691,9 +1691,7 @@
         return searchTerms.every((term) => haystack.includes(term));
       });
     }
-    if (contentFiltering && storyIds && !presetDomain) {
-      narratives = narratives.filter((n) => n.filteredCount > 0);
-    }
+    narratives = narratives.filter((n) => n.filteredCount > 0);
     if (state.narrativeSortMode === "new") {
       narratives.sort((a, b) => new Date(b.last_updated || 0).getTime() - new Date(a.last_updated || 0).getTime());
     } else if (state.narrativeSortMode === "broadest") {

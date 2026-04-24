@@ -419,7 +419,6 @@ def insert_story(conn: sqlite3.Connection, story: dict) -> bool:
                 story.get("source_type", "reported"),
             ),
         )
-        conn.commit()
         return cursor.rowcount > 0
     except sqlite3.IntegrityError:
         return False
@@ -710,7 +709,6 @@ def update_feed_state(
            VALUES (?, ?, ?, ?)""",
         (feed_url, etag, modified, datetime.now(timezone.utc).isoformat()),
     )
-    conn.commit()
 
 
 # --- Geocode cache ---
@@ -754,7 +752,6 @@ def cache_geocode(
             bbox_east,
         ),
     )
-    conn.commit()
 
 
 # --- Events ---
@@ -1004,7 +1001,6 @@ def store_extraction(
             story_id,
         ),
     )
-    conn.commit()
 
 
 def get_story_extraction(conn: sqlite3.Connection, story_id: int) -> Optional[dict]:
@@ -1258,7 +1254,6 @@ def create_registry_event(
            VALUES (?, ?, 'active', 0, ?, ?, ?, ?, ?, ?)""",
         (registry_label, map_label, now, now, location, lat, lon, now),
     )
-    conn.commit()
     return cursor.lastrowid
 
 
@@ -1332,7 +1327,6 @@ def assign_story_to_registry(
                         (story["location_name"], story["lat"], story["lon"],
                          registry_event_id),
                     )
-    conn.commit()
 
 
 def update_registry_event(
@@ -1455,7 +1449,6 @@ def get_or_create_wiki_event(conn: sqlite3.Connection, article_title: str) -> in
            VALUES (?, ?, 'active', 0, ?, ?, ?)""",
         (article_title, article_title, now, now, now),
     )
-    conn.commit()
     return cursor.lastrowid
 
 
@@ -1479,7 +1472,6 @@ def assign_story_to_wiki_event(
         "UPDATE wiki_events SET story_count = ?, last_matched = ? WHERE id = ?",
         (count, now, wiki_event_id),
     )
-    conn.commit()
 
 
 def get_story_wiki_events(conn: sqlite3.Connection, story_id: int) -> list[dict]:

@@ -810,6 +810,8 @@ def enrich_stories(conn, story_ids: Optional[list[int]] = None) -> int:
         except Exception as e:
             logger.error("Failed to store extraction for story %d: %s", story["id"], e)
 
+    conn.commit()
+
     logger.info(
         "Registry: %d assigned to existing, %d new events created, %d wiki links",
         assigned_count, new_event_count, wiki_link_count,
