@@ -33,12 +33,12 @@
 8. 11 remaining `_cache["fetched_at"] = 0.0` in meteoalarm tests -- Backlog
 9. Curious world density at CURIOUS_MIN_SCORE=6 -- Monitor
 14. User feeds SSRF edge case tests missing -- Backlog
-15. 4 clipboard calls lack fallback -- Backlog
-16. Custom world names no length constraint -- Backlog
+15. ~~4 clipboard calls lack fallback~~ -- DONE (v130)
+16. ~~Custom world names no length constraint~~ -- DONE (v130, 40-char cap)
 17. Share button discoverability -- Monitor
 18. switchWorld async not awaited in tour -- Backlog
-19. Invalid tm_dot_theme shows menu with no active item -- Backlog
-20. Legend toggle dead button in classic/mono themes -- Backlog
+19. ~~Invalid tm_dot_theme shows menu with no active item~~ -- DONE (v130, validated against known IDs)
+20. ~~Legend toggle dead button in classic/mono themes~~ -- DONE (v130, toggle hidden with legend)
 21. Heat legend misleading at maxGroupSize=1 -- Backlog
 22. Tour + picker double onboarding wall -- Monitor
 
