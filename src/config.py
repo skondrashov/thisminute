@@ -45,21 +45,14 @@ FEEDS = [
     {"url": "https://africasacountry.com/feed", "source": "Africa Is a Country", "tags": ["news"]},
     {"url": "https://www.irishtimes.com/cmlink/news-1.1319192", "source": "Irish Times", "tags": ["news"]},
     {"url": "https://www.jpost.com/rss/rssfeedsfrontpage.aspx", "source": "Jerusalem Post", "tags": ["news"]},
-    # Al Arabiya RSS removed - malformed XML
 
     # === EAST & SOUTHEAST ASIA ===
     {"url": "https://www.scmp.com/rss/91/feed", "source": "South China Morning Post", "tags": ["news"]},
-    # NHK World and Korea Herald removed - malformed XML
     {"url": "https://www.straitstimes.com/news/asia/rss.xml", "source": "Straits Times", "tags": ["news"]},
     {"url": "https://www.bangkokpost.com/rss/data/topstories.xml", "source": "Bangkok Post", "tags": ["news"]},
 
     # === AFRICA ===
     {"url": "https://www.dailymaverick.co.za/dmrss/", "source": "Daily Maverick", "tags": ["news"]},
-    # East African removed - malformed XML
-
-    # === LATIN AMERICA ===
-    # MercoPress disabled 2026-04-16: SSL CERTIFICATE_VERIFY_FAILED
-    # {"url": "https://en.mercopress.com/rss", "source": "MercoPress", "tags": ["news"]},
 
     # === REGIONAL ===
     {"url": "https://www.theguardian.com/us-news/rss", "source": "Guardian US", "tags": ["news"]},
@@ -73,7 +66,6 @@ FEEDS = [
     {"url": "https://www.jeuneafrique.com/feed/", "source": "Jeune Afrique", "tags": ["news"], "lang": "fr"},
     {"url": "https://punchng.com/feed/", "source": "Punch Nigeria", "tags": ["news"]},
     {"url": "https://allafrica.com/tools/headlines/rdf/latest/headlines.rdf", "source": "AllAfrica", "tags": ["news"]},
-    # Nation Africa — 403 blocks scrapers, removed 2026-03-16
 
     # === CAUCASUS & CENTRAL ASIA ===
     {"url": "https://oc-media.org/feed/", "source": "OC Media", "tags": ["news"]},
@@ -81,8 +73,6 @@ FEEDS = [
 
     # === LATIN AMERICA ===
     {"url": "https://www.prensalibre.com/feed/", "source": "Prensa Libre", "tags": ["news"], "lang": "es"},
-    # El Universal (MX) — no public RSS, removed 2026-03-16
-    # El Tiempo (CO) — no public RSS, removed 2026-03-16
 
     # === ASIA-PACIFIC & CARIBBEAN ===
     {"url": "https://en.yna.co.kr/RSS/news.xml", "source": "Yonhap", "tags": ["news"]},
@@ -95,7 +85,6 @@ FEEDS = [
     {"url": "https://www.sciencedaily.com/rss/all.xml", "source": "ScienceDaily", "tags": ["science"]},
     {"url": "https://phys.org/rss-feed/", "source": "Phys.org", "tags": ["science"]},
     {"url": "https://www.space.com/feeds/all", "source": "Space.com", "tags": ["science"]},
-    # Preprint servers (added 2026-03-14, all verified returning valid RSS/RDF)
     {"url": "https://arxiv.org/rss/cs.AI", "source": "arXiv AI", "tags": ["science", "tech"]},
     {"url": "https://arxiv.org/rss/cs", "source": "arXiv CS", "tags": ["science", "tech"]},
     {"url": "https://connect.biorxiv.org/biorxiv_xml.php?subject=all", "source": "bioRxiv", "tags": ["science", "health"]},
@@ -124,7 +113,6 @@ FEEDS = [
     {"url": "https://feeds.bbci.co.uk/sport/rss.xml", "source": "BBC Sport", "tags": ["sports"]},
     {"url": "https://www.theguardian.com/sport/rss", "source": "Guardian Sport", "tags": ["sports"]},
     {"url": "https://rss.nytimes.com/services/xml/rss/nyt/Sports.xml", "source": "NYT Sports", "tags": ["sports"]},
-    # Dedicated sports feeds (added 2026-03-11, all verified returning valid RSS)
     {"url": "https://www.espn.com/espn/rss/news", "source": "ESPN", "tags": ["sports"]},
     {"url": "https://www.espn.com/espn/rss/nfl/news", "source": "ESPN NFL", "tags": ["sports"]},
     {"url": "https://www.espn.com/espn/rss/nba/news", "source": "ESPN NBA", "tags": ["sports"]},
@@ -142,8 +130,6 @@ FEEDS = [
     {"url": "https://sportstar.thehindu.com/feeder/default.rss", "source": "Sportstar", "tags": ["sports"]},
     {"url": "https://www.autosport.com/rss/feed/all", "source": "Autosport", "tags": ["sports"]},
     {"url": "https://www.rugbyworld.com/feed", "source": "Rugby World", "tags": ["sports"]},
-    # Dead feeds investigated but not added (2026-03-11):
-    # Goal.com — 404, Sports Illustrated — 404, The Athletic — 404, Cricbuzz — 404
 
     # === ENTERTAINMENT & CULTURE ===
     {"url": "https://feeds.bbci.co.uk/news/entertainment_and_arts/rss.xml", "source": "BBC Entertainment", "tags": ["entertainment"]},
@@ -152,7 +138,6 @@ FEEDS = [
     {"url": "https://www.theguardian.com/film/rss", "source": "Guardian Film", "tags": ["entertainment"]},
     {"url": "https://rss.nytimes.com/services/xml/rss/nyt/Arts.xml", "source": "NYT Arts", "tags": ["entertainment"]},
     {"url": "https://feeds.npr.org/1032/rss.xml", "source": "NPR Books", "tags": ["entertainment"]},
-    # Dedicated entertainment feeds (added 2026-03-11, all verified returning valid RSS)
     {"url": "https://variety.com/feed/", "source": "Variety", "tags": ["entertainment"]},
     {"url": "https://www.hollywoodreporter.com/feed/", "source": "Hollywood Reporter", "tags": ["entertainment"]},
     {"url": "https://deadline.com/feed/", "source": "Deadline", "tags": ["entertainment"]},
@@ -163,8 +148,6 @@ FEEDS = [
     {"url": "https://www.soompi.com/feed", "source": "Soompi", "tags": ["entertainment"]},
     {"url": "https://www.bollywoodhungama.com/feed/", "source": "Bollywood Hungama", "tags": ["entertainment"]},
     {"url": "https://feeds.ign.com/ign/all", "source": "IGN", "tags": ["entertainment"]},
-    # Dead feeds investigated but not added (2026-03-11):
-    # Entertainment Weekly (ew.com/feed/) — 404
 
     # === CURIOUS / ODDITIES ===
     {"url": "https://www.atlasobscura.com/feeds/latest", "source": "Atlas Obscura", "tags": ["positive", "entertainment"]},
@@ -174,8 +157,6 @@ FEEDS = [
     {"url": "https://www.goodnewsnetwork.org/feed/", "source": "Good News Network", "tags": ["positive"]},
     {"url": "https://www.positive.news/feed/", "source": "Positive News", "tags": ["positive"]},
     {"url": "https://reasonstobecheerful.world/feed/", "source": "Reasons to be Cheerful", "tags": ["positive"]},
-    # Euronews Good — consistently malformed XML, disabled 2026-03-12
-    # {"url": "https://www.euronews.com/rss?level=theme&name=my-europe", "source": "Euronews Good", "tags": ["positive"]},
     {"url": "https://thehappybroadcast.com/rss", "source": "Happy Broadcast", "tags": ["positive"]},
     {"url": "https://www.vox.com/rss/future-perfect/index.xml", "source": "Vox Future Perfect", "tags": ["positive"]},
 ]
@@ -263,25 +244,26 @@ JMA_CACHE_SECONDS = int(os.environ.get("JMA_CACHE_SECONDS", "900"))  # 15 min
 JMA_MAX_ALERTS = int(os.environ.get("JMA_MAX_ALERTS", "100"))
 JMA_TIMEOUT = int(os.environ.get("JMA_TIMEOUT", "10"))  # per-request timeout (seconds)
 
-# Data source toggles — set to False to disable ingestion.
-# Can be overridden by environment variables: SOURCE_RSS_ENABLED=false, etc.
+def _source_enabled(name: str, default: bool = True) -> bool:
+    return os.environ.get(f"SOURCE_{name.upper()}_ENABLED", str(default).lower()).lower() != "false"
+
 SOURCE_ENABLED = {
-    "rss": os.environ.get("SOURCE_RSS_ENABLED", "true").lower() != "false",
-    "gdelt": os.environ.get("SOURCE_GDELT_ENABLED", "true").lower() != "false",
-    "usgs": os.environ.get("SOURCE_USGS_ENABLED", "true").lower() != "false",
-    "noaa": os.environ.get("SOURCE_NOAA_ENABLED", "true").lower() != "false",
-    "eonet": os.environ.get("SOURCE_EONET_ENABLED", "true").lower() != "false",
-    "gdacs": os.environ.get("SOURCE_GDACS_ENABLED", "true").lower() != "false",
-    "reliefweb": os.environ.get("SOURCE_RELIEFWEB_ENABLED", "false").lower() != "false",  # 2026-04-16: HTTP 410 Gone
-    "who": os.environ.get("SOURCE_WHO_ENABLED", "false").lower() != "false",  # 2026-04-16: HTTP 404 Not Found
-    "launches": os.environ.get("SOURCE_LAUNCHES_ENABLED", "true").lower() != "false",
-    "openaq": os.environ.get("SOURCE_OPENAQ_ENABLED", "false").lower() != "false",  # 2026-04-16: HTTP 410 Gone (v2 API sunset)
-    "travel": os.environ.get("SOURCE_TRAVEL_ENABLED", "false").lower() != "false",  # 2026-04-16: XML endpoint redirects to 404 page
-    "firms": os.environ.get("SOURCE_FIRMS_ENABLED", "true").lower() != "false",
-    "meteoalarm": os.environ.get("SOURCE_METEOALARM_ENABLED", "true").lower() != "false",
-    "acled": os.environ.get("SOURCE_ACLED_ENABLED", "true").lower() != "false",
-    "jma": os.environ.get("SOURCE_JMA_ENABLED", "true").lower() != "false",
-    "user_feeds": os.environ.get("SOURCE_USER_FEEDS_ENABLED", "true").lower() != "false",
+    "rss": _source_enabled("rss"),
+    "gdelt": _source_enabled("gdelt"),
+    "usgs": _source_enabled("usgs"),
+    "noaa": _source_enabled("noaa"),
+    "eonet": _source_enabled("eonet"),
+    "gdacs": _source_enabled("gdacs"),
+    "reliefweb": _source_enabled("reliefweb", False),
+    "who": _source_enabled("who", False),
+    "launches": _source_enabled("launches"),
+    "openaq": _source_enabled("openaq", False),
+    "travel": _source_enabled("travel", False),
+    "firms": _source_enabled("firms"),
+    "meteoalarm": _source_enabled("meteoalarm"),
+    "acled": _source_enabled("acled"),
+    "jma": _source_enabled("jma"),
+    "user_feeds": _source_enabled("user_feeds"),
 }
 
 # Geocoder settings

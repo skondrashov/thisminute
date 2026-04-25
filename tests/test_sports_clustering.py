@@ -97,15 +97,14 @@ def test_f1_gp_variations():
 # --- Integration test with DB ---
 
 def test_sports_and_non_sports_event_detection_with_db():
-    """Test _is_sports_event detects sports events and rejects news events."""
-    from src.semantic_clusterer import _is_sports_event
+    """Test batch sports detection identifies sports events and rejects news events."""
+    from src.semantic_clusterer import _batch_check_sports_events
 
     with tempfile.TemporaryDirectory() as tmpdir:
         db_path = Path(tmpdir) / "test.db"
         init_db(db_path)
         conn = get_connection(db_path)
 
-        # Insert sports stories
         for i, source in enumerate(["ESPN", "BBC Sport", "Sky Sports"]):
             conn.execute(
                 """INSERT INTO stories (title, url, source, scraped_at)
@@ -128,9 +127,8 @@ def test_sports_and_non_sports_event_detection_with_db():
             )
         conn.commit()
 
-        assert _is_sports_event(conn, sports_event_id) is True
+        assert sports_event_id in _batch_check_sports_events(conn, [sports_event_id])
 
-        # Insert news stories
         for i, source in enumerate(["BBC World", "CNN", "Al Jazeera"]):
             conn.execute(
                 """INSERT INTO stories (title, url, source, scraped_at)
@@ -157,7 +155,7 @@ def test_sports_and_non_sports_event_detection_with_db():
             )
         conn.commit()
 
-        assert _is_sports_event(conn, news_event_id) is False
+        assert news_event_id not in _batch_check_sports_events(conn, [news_event_id])
 
         conn.close()
 

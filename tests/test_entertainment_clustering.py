@@ -170,15 +170,14 @@ def test_festival_variations():
 # --- Integration test with DB ---
 
 def test_entertainment_event_detection_with_db():
-    """Test that _is_entertainment_event correctly detects entertainment events from sources."""
-    from src.semantic_clusterer import _is_entertainment_event
+    """Test that batch entertainment detection correctly identifies entertainment events."""
+    from src.semantic_clusterer import _batch_check_entertainment_events
 
     with tempfile.TemporaryDirectory() as tmpdir:
         db_path = Path(tmpdir) / "test.db"
         init_db(db_path)
         conn = get_connection(db_path)
 
-        # Insert stories from entertainment sources
         for i, source in enumerate(["Variety", "Hollywood Reporter", "Deadline"]):
             conn.execute(
                 """INSERT INTO stories (title, url, source, scraped_at)
@@ -187,7 +186,6 @@ def test_entertainment_event_detection_with_db():
             )
         conn.commit()
 
-        # Create an event and assign the stories
         conn.execute(
             """INSERT INTO events (title, status, story_count, created_at, first_seen, last_updated)
                VALUES ('Test Entertainment Event', 'active', 3, datetime('now'), datetime('now'), datetime('now'))"""
@@ -202,20 +200,19 @@ def test_entertainment_event_detection_with_db():
             )
         conn.commit()
 
-        assert _is_entertainment_event(conn, event_id) is True
+        assert event_id in _batch_check_entertainment_events(conn, [event_id])
         conn.close()
 
 
 def test_non_entertainment_event_detection_with_db():
     """Test that news events are NOT detected as entertainment."""
-    from src.semantic_clusterer import _is_entertainment_event
+    from src.semantic_clusterer import _batch_check_entertainment_events
 
     with tempfile.TemporaryDirectory() as tmpdir:
         db_path = Path(tmpdir) / "test.db"
         init_db(db_path)
         conn = get_connection(db_path)
 
-        # Insert stories from news sources
         for i, source in enumerate(["BBC World", "CNN", "Al Jazeera"]):
             conn.execute(
                 """INSERT INTO stories (title, url, source, scraped_at)
@@ -238,7 +235,7 @@ def test_non_entertainment_event_detection_with_db():
             )
         conn.commit()
 
-        assert _is_entertainment_event(conn, event_id) is False
+        assert event_id not in _batch_check_entertainment_events(conn, [event_id])
         conn.close()
 
 

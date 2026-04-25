@@ -239,67 +239,40 @@ def init_db(db_path: Optional[Path] = None) -> None:
     """Initialize database schema."""
     conn = get_connection(db_path)
     conn.executescript(SCHEMA)
-    # Migrate: add bbox columns to geocode_cache if missing
-    for col in ("bbox_south", "bbox_north", "bbox_west", "bbox_east"):
+
+    _COLUMN_MIGRATIONS = [
+        ("geocode_cache", "bbox_south", "REAL"),
+        ("geocode_cache", "bbox_north", "REAL"),
+        ("geocode_cache", "bbox_west", "REAL"),
+        ("geocode_cache", "bbox_east", "REAL"),
+        ("stories", "sentiment", "TEXT DEFAULT NULL"),
+        ("stories", "extraction_status", "TEXT DEFAULT 'pending'"),
+        ("stories", "origin", "TEXT DEFAULT 'rss'"),
+        ("stories", "image_url", "TEXT DEFAULT NULL"),
+        ("stories", "source_type", "TEXT DEFAULT 'reported'"),
+        ("events", "severity", "TEXT"),
+        ("events", "primary_action", "TEXT"),
+        ("events", "affected_parties", "TEXT DEFAULT '[]'"),
+        ("events", "event_type", "TEXT"),
+        ("story_extractions", "location_type", "TEXT DEFAULT 'terrestrial'"),
+        ("story_extractions", "search_keywords", "TEXT DEFAULT '[]'"),
+        ("story_extractions", "is_opinion", "TEXT DEFAULT 0"),
+        ("story_extractions", "registry_event_id", "INTEGER"),
+        ("story_extractions", "bright_side_score", "TEXT DEFAULT NULL"),
+        ("story_extractions", "bright_side_category", "TEXT DEFAULT NULL"),
+        ("story_extractions", "bright_side_headline", "TEXT DEFAULT NULL"),
+        ("story_extractions", "human_interest_score", "INTEGER DEFAULT NULL"),
+        ("story_extractions", "translated_title", "TEXT DEFAULT NULL"),
+        ("narratives", "domain", "TEXT DEFAULT 'news'"),
+        ("user_feedback", "resolution_note", "TEXT DEFAULT ''"),
+    ]
+    for table, col, coltype in _COLUMN_MIGRATIONS:
         try:
-            conn.execute(f"ALTER TABLE geocode_cache ADD COLUMN {col} REAL")
-        except sqlite3.OperationalError:
-            pass  # column already exists
-    # Migrate: add sentiment column to stories if missing
-    try:
-        conn.execute("ALTER TABLE stories ADD COLUMN sentiment TEXT DEFAULT NULL")
-    except sqlite3.OperationalError:
-        pass  # column already exists
-    # Migrate: add extraction_status column to stories if missing
-    try:
-        conn.execute("ALTER TABLE stories ADD COLUMN extraction_status TEXT DEFAULT 'pending'")
-    except sqlite3.OperationalError:
-        pass
-    # Migrate: add new event columns if missing
-    for col, default in [
-        ("severity", None), ("primary_action", None),
-        ("affected_parties", "'[]'"), ("event_type", None),
-    ]:
-        try:
-            defstr = f" DEFAULT {default}" if default else ""
-            conn.execute(f"ALTER TABLE events ADD COLUMN {col} TEXT{defstr}")
-        except sqlite3.OperationalError:
-            pass
-    # Migrate: add new story_extractions columns if missing
-    for col, default in [
-        ("location_type", "'terrestrial'"), ("search_keywords", "'[]'"),
-        ("is_opinion", "0"),
-    ]:
-        try:
-            conn.execute(f"ALTER TABLE story_extractions ADD COLUMN {col} TEXT DEFAULT {default}")
+            conn.execute(f"ALTER TABLE {table} ADD COLUMN {col} {coltype}")
         except sqlite3.OperationalError:
             pass
-    # Migrate: add registry_event_id to story_extractions
-    try:
-        conn.execute("ALTER TABLE story_extractions ADD COLUMN registry_event_id INTEGER")
-    except sqlite3.OperationalError:
-        pass
-    # Migrate: add bright_side columns to story_extractions
-    for col, default in [
-        ("bright_side_score", "NULL"),
-        ("bright_side_category", "NULL"),
-        ("bright_side_headline", "NULL"),
-    ]:
-        try:
-            conn.execute(f"ALTER TABLE story_extractions ADD COLUMN {col} TEXT DEFAULT {default}")
-        except sqlite3.OperationalError:
-            pass
-    # Migrate: add human_interest_score to story_extractions
-    try:
-        conn.execute("ALTER TABLE story_extractions ADD COLUMN human_interest_score INTEGER DEFAULT NULL")
-    except sqlite3.OperationalError:
-        pass
-    # Migrate: add translated_title to story_extractions (for non-English feeds)
-    try:
-        conn.execute("ALTER TABLE story_extractions ADD COLUMN translated_title TEXT DEFAULT NULL")
-    except sqlite3.OperationalError:
-        pass
-    # Migrate: deduplicate existing stories with same title+source, keeping newest
+
+    # Deduplicate existing stories with same title+source, keeping newest
     try:
         dupes = conn.execute("""
             SELECT id FROM stories WHERE id NOT IN (
@@ -314,37 +287,18 @@ def init_db(db_path: Optional[Path] = None) -> None:
             conn.commit()
     except sqlite3.OperationalError:
         pass
-    # Migrate: add unique index on title+source
-    try:
-        conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_stories_title_source ON stories(title, source)")
-    except sqlite3.OperationalError:
-        pass
-    # Migrate: add origin column (rss/gdelt)
-    try:
-        conn.execute("ALTER TABLE stories ADD COLUMN origin TEXT DEFAULT 'rss'")
-    except sqlite3.OperationalError:
-        pass
-    # Migrate: add domain column to narratives
-    try:
-        conn.execute("ALTER TABLE narratives ADD COLUMN domain TEXT DEFAULT 'news'")
-    except sqlite3.OperationalError:
-        pass
-    # Migrate: add index on event_signature for fast clustering lookups
-    try:
-        conn.execute("CREATE INDEX IF NOT EXISTS idx_extractions_event_signature ON story_extractions(event_signature)")
-    except sqlite3.OperationalError:
-        pass
-    # Migrate: add image_url column to stories
-    try:
-        conn.execute("ALTER TABLE stories ADD COLUMN image_url TEXT DEFAULT NULL")
-    except sqlite3.OperationalError:
-        pass
-    # Migrate: add composite index for stories API query performance
-    try:
-        conn.execute("CREATE INDEX IF NOT EXISTS idx_stories_origin_scraped ON stories(origin, scraped_at DESC)")
-    except sqlite3.OperationalError:
-        pass
-    # Migrate: add user_feedback table
+
+    _INDEX_MIGRATIONS = [
+        "CREATE UNIQUE INDEX IF NOT EXISTS idx_stories_title_source ON stories(title, source)",
+        "CREATE INDEX IF NOT EXISTS idx_extractions_event_signature ON story_extractions(event_signature)",
+        "CREATE INDEX IF NOT EXISTS idx_stories_origin_scraped ON stories(origin, scraped_at DESC)",
+    ]
+    for sql in _INDEX_MIGRATIONS:
+        try:
+            conn.execute(sql)
+        except sqlite3.OperationalError:
+            pass
+
     conn.executescript("""
         CREATE TABLE IF NOT EXISTS user_feedback (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -361,18 +315,7 @@ def init_db(db_path: Optional[Path] = None) -> None:
         CREATE INDEX IF NOT EXISTS idx_user_feedback_status ON user_feedback(status);
         CREATE INDEX IF NOT EXISTS idx_user_feedback_type ON user_feedback(feedback_type);
     """)
-    # Migrate: add resolution_note column to user_feedback
-    try:
-        conn.execute("ALTER TABLE user_feedback ADD COLUMN resolution_note TEXT DEFAULT ''")
-        conn.commit()
-    except sqlite3.OperationalError:
-        pass
-    # Migrate: add source_type column to stories (reported vs inferred)
-    try:
-        conn.execute("ALTER TABLE stories ADD COLUMN source_type TEXT DEFAULT 'reported'")
-    except sqlite3.OperationalError:
-        pass
-    # Migrate: add user_feeds table for user-added RSS feeds
+
     conn.executescript("""
         CREATE TABLE IF NOT EXISTS user_feeds (
             id INTEGER PRIMARY KEY AUTOINCREMENT,

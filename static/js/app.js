@@ -568,6 +568,11 @@
     if (!text) return "";
     return text.length <= maxLen ? text : text.slice(0, maxLen) + "...";
   }
+  async function _fetchJson(url, options) {
+    var resp = await fetch(url, options);
+    if (!resp.ok) throw new Error("HTTP " + resp.status);
+    return resp.json();
+  }
 
   /** Shared clipboard-copy with checkmark animation. */
   function _copyToClipboard(btn, url, originalIcon) {
@@ -1764,25 +1769,20 @@
   function _startIntroSpin() {
     if (state.currentProjection !== "globe") return;
     _introSpinActive = true;
-    // Target: user's saved position, or a pleasant default
     var target = state._pendingMapView;
     var targetLon = target ? target.lon : 20 + Math.random() * 40;
     var targetLat = target ? target.lat : 15 + Math.random() * 25;
     var targetZoom = target ? target.zoom : (_isFirstVisitForTour ? 1.8 : 2.2);
-    if (target) state._pendingMapView = null; // consume it — we'll land there ourselves
-    // Start: random longitude, calculate spin to arrive at target
-    var startLon = targetLon - 400 - Math.random() * 200; // spin 400-600 degrees to reach target
+    if (target) state._pendingMapView = null;
+    var startLon = targetLon - 400 - Math.random() * 200;
     var startLat = 0;
     var startZoom = 0.05;
-    // Overshoot zoom then settle (breathe effect)
-    var midZoom = Math.min(targetZoom + 1.2, 4.5); // overshoot
+    var midZoom = Math.min(targetZoom + 1.2, 4.5);
     var endZoom = targetZoom;
-    // Spin: calculate initial velocity and friction so we land near targetLon
-    // With friction f, total distance = v0 / (1 - f). Solve for v0:
+    // v0 = distance * (1 - friction), total distance = v0 / (1 - f)
     var totalSpin = targetLon - startLon;
     var spinFriction = 0.982;
-    var spinVelocity = totalSpin * (1 - spinFriction); // v0 = distance * (1 - friction)
-    // Timing
+    var spinVelocity = totalSpin * (1 - spinFriction);
     var zoomInDuration = 3000;
     var zoomOutDuration = 2000;
     var totalZoomDuration = zoomInDuration + zoomOutDuration;
@@ -2592,9 +2592,7 @@
     try {
       const params = new URLSearchParams();
       if (hours) params.set("hours", String(hours));
-      const resp = await fetch("/api/stories/clouds?" + params.toString());
-      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-      state.cloudData = await resp.json();
+      state.cloudData = await _fetchJson("/api/stories/clouds?" + params.toString());
       const now = Date.now();
       for (const f of state.cloudData.features || []) {
         const t = f.properties.scraped_at ? new Date(f.properties.scraped_at).getTime() : 0;
@@ -2611,9 +2609,7 @@
     if (since) params.set("since", since);
     if (limit) params.set("limit", String(limit));
     if (hours) params.set("hours", String(hours));
-    const resp = await fetch(`/api/stories?${params.toString()}`);
-    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-    return await resp.json();
+    return _fetchJson("/api/stories?" + params.toString());
   }
   state._loadedHours = 0;
   async function loadAll(limit, hours) {
@@ -3813,9 +3809,7 @@
   state.sourceCounts = [];
   async function loadSources() {
     try {
-      const resp = await fetch("/api/sources");
-      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-      const data = await resp.json();
+      const data = await _fetchJson("/api/sources");
       if (data.counts) state.sourceCounts = data.counts;
     } catch (err) {
       console.error("Failed to load sources:", err);
@@ -3824,9 +3818,7 @@
   function loadFeedTags() {
     state._feedTagsReady = (async () => {
       try {
-        const resp = await fetch("/api/feed-tags");
-        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-        state.feedTagData = await resp.json();
+        state.feedTagData = await _fetchJson("/api/feed-tags");
       } catch (err) {
         console.error("Failed to load feed tags:", err);
       }
@@ -4159,9 +4151,7 @@
   }
   async function _fetchEventStories(eventId, eventItem, eventObj, lat, lon) {
     try {
-      const resp = await fetch(`/api/events/${eventId}`);
-      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-      const data = await resp.json();
+      const data = await _fetchJson("/api/events/" + eventId);
       const stories = data.stories || [];
       state.expandedEventStories = stories;
       _renderEventStories(eventItem, stories, eventObj);
@@ -4244,9 +4234,7 @@
   }
   async function loadNarratives() {
     try {
-      const resp = await fetch("/api/narratives");
-      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-      const data = await resp.json();
+      const data = await _fetchJson("/api/narratives");
       state.narrativesData = data.narratives || [];
       try {
         const prev = JSON.parse(localStorage.getItem("tm_narr_counts") || "{}");
@@ -4509,9 +4497,7 @@
     }
     openInfoPanel(narr.title, [], true, narrOpts);
     try {
-      const resp = await fetch(`/api/narratives/${narrativeId}`);
-      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-      const data = await resp.json();
+      const data = await _fetchJson("/api/narratives/" + narrativeId);
       if (data.stories && data.stories.length > 0) {
         const features = data.stories.map((s) => ({
           type: "Feature",
@@ -4865,9 +4851,7 @@
   }
   async function loadPresetOverview() {
     try {
-      const resp = await fetch("/api/world-overview");
-      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-      state.presetOverview = await resp.json();
+      state.presetOverview = await _fetchJson("/api/world-overview");
       renderPresetOverview();
     } catch (err) {
       console.error("Failed to load preset overview:", err);
@@ -5747,9 +5731,7 @@
     var list = document.getElementById("user-feeds-list");
     var counter = document.getElementById("user-feeds-count");
     try {
-      var resp = await fetch("/api/user-feeds?hash=" + encodeURIComponent(bh));
-      if (!resp.ok) throw new Error("Failed to load feeds");
-      var feeds = await resp.json();
+      var feeds = await _fetchJson("/api/user-feeds?hash=" + encodeURIComponent(bh));
       counter.textContent = feeds.length + "/20";
       if (feeds.length === 0) {
         list.innerHTML = '<div class="user-feeds-empty">No feeds added yet. Paste an RSS URL below to get started.</div>';

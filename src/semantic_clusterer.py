@@ -187,24 +187,6 @@ def _extract_entertainment_key(signature: str) -> str | None:
     return None
 
 
-def _is_entertainment_event(conn, event_id: int) -> bool:
-    """Check if an event is entertainment-dominated based on source feed tags.
-
-    Returns True if >= ENTERTAINMENT_SOURCE_RATIO of the event's stories
-    come from entertainment-tagged feeds.
-    """
-    rows = conn.execute(
-        """SELECT s.source FROM stories s
-           JOIN event_stories es ON s.id = es.story_id
-           WHERE es.event_id = ?""",
-        (event_id,),
-    ).fetchall()
-    if not rows:
-        return False
-    ent_count = sum(1 for r in rows if r["source"] in _ENTERTAINMENT_SOURCES)
-    return ent_count / len(rows) >= ENTERTAINMENT_SOURCE_RATIO
-
-
 def _batch_check_entertainment_events(conn, event_ids: list[int]) -> set[int]:
     """Batch-check which events are entertainment-dominated. Returns set of entertainment event IDs."""
     if not event_ids:
@@ -348,24 +330,6 @@ def _extract_tournament_key(signature: str) -> str | None:
             key = re.sub(r"\s+", " ", key)
             return key
     return None
-
-
-def _is_sports_event(conn, event_id: int) -> bool:
-    """Check if an event is sports-dominated based on source feed tags.
-
-    Returns True if >= SPORTS_SOURCE_RATIO of the event's stories
-    come from sports-tagged feeds.
-    """
-    rows = conn.execute(
-        """SELECT s.source FROM stories s
-           JOIN event_stories es ON s.id = es.story_id
-           WHERE es.event_id = ?""",
-        (event_id,),
-    ).fetchall()
-    if not rows:
-        return False
-    sports_count = sum(1 for r in rows if r["source"] in _SPORTS_SOURCES)
-    return sports_count / len(rows) >= SPORTS_SOURCE_RATIO
 
 
 def _batch_check_sports_events(conn, event_ids: list[int]) -> set[int]:

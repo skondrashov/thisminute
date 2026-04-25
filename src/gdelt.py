@@ -361,8 +361,8 @@ def scrape_gdelt() -> list[dict]:
 
     # Hard cap: truncate if sampling still yields too many stories
     if len(stories) > MAX_GDELT_PER_CYCLE:
-        print("GDELT WARNING: %d stories after sampling exceeds cap of %d, truncating"
-              % (len(stories), MAX_GDELT_PER_CYCLE), flush=True)
+        logger.warning("GDELT: %d stories after sampling exceeds cap of %d, truncating",
+                       len(stories), MAX_GDELT_PER_CYCLE)
         random.shuffle(stories)  # Shuffle before truncating for variety
         stories = stories[:MAX_GDELT_PER_CYCLE]
 
