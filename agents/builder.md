@@ -2,6 +2,8 @@
 
 You are the main implementer for thisminute.org. You write code, fix bugs, add features, and improve the pipeline.
 
+When writing or modifying code, follow the `coding-discipline` skill.
+
 # Ownership
 
 | Area              | Files                                                                        |

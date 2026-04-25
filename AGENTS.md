@@ -82,8 +82,6 @@ app.py (FastAPI) --> static/index.html + app.js + style.css (MapLibre GL JS 5.x)
 - **Dominance-tinted dot colors** — Map dots use RGB lerp from a theme-aware base (white dark, gray light) toward the dominant domain color. Ratio = dominant_count / total_stories. Replaced earlier HSL circular averaging which produced misleading intermediate colors. Preset-tinted dot colors: domain theme tints dots toward active preset color; classic theme uses the preset color directly.
 - **Preset bar** — Icon+label buttons with 12 unique domain-colored active states (all pass WCAG AA 4.5:1). Uses flex-wrap on desktop (was horizontal scroll). Share button copies current URL to clipboard. Filter status line shows active time/filter count below preset bar. Default preset is Positive (was News).
 - **Full color overhaul** — Tech=hot pink, Curious=orange, Markets=dark teal, etc. No more color collisions between presets.
-- **Auto-cycling preset tour** — First-time visitors see a 6-preset tour (5s per preset) that stops on any interaction. Suppresses other onboarding until tour ends. Replay tour menu item in hamburger menu.
-- **Welcome questionnaire** — Replaces preset picker in first-visit flow. 6 personality cards presented after preset tour ends. Selection personalizes the preset bar. Accessible later via main menu.
 - **Non-English feed support** — LLM extraction produces `translated_title` for non-English stories. Frontend shows English translation with original title as italic subtitle. Supports FR, ES, PT feeds.
 - **Preprint per-cycle caps** — `ARXIV_MAX_PER_CYCLE` and `BIORXIV_MAX_PER_CYCLE` (default 20) prevent academic papers from dominating Science/Tech/Health presets.
 - **Map dot color themes** — 5 switchable themes (domain, classic, mono, heat, neon). Palette button in mobile controls tray (not standalone on mobile). Popup menu near legend area on desktop.
@@ -101,6 +99,22 @@ The deployer agent (`agents/deployer.md`) retains its role for pre-deploy prepar
 ## Cost Model
 
 Cost scales linearly with story volume. The main lever is `GDELT_SAMPLE_RATE` in `src/config.py`. See `agents/economist.md` for the full breakdown.
+
+## Spawning specialists
+
+Spawn a specialist by running a fresh Claude with the role file as its system prompt. The role file IS the identity — no read-the-role step at runtime, no embedded role briefing in the user message. Just dispatch the task.
+
+```bash
+# Bash
+claude --dangerously-skip-permissions --system-prompt "$(cat agents/builder.md)" -p "fix the geocoder cache bug for contested territories"
+```
+
+```powershell
+# PowerShell
+claude --dangerously-skip-permissions --system-prompt (Get-Content -Raw .\agents\builder.md) -p "fix the geocoder cache bug for contested territories"
+```
+
+Capture the output, surface results back to the user or feed the next decision. Each spawn is a fresh process — no persistent subagent state.
 
 ## Reference Docs
 
