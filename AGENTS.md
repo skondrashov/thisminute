@@ -75,6 +75,7 @@ app.py (FastAPI) --> static/index.html + app.js + style.css (MapLibre GL JS 5.x)
 - **Inference feed pattern** — Structured data APIs (USGS, NOAA, etc.) pre-build `_extraction` dicts, skipping LLM entirely (zero Haiku cost)
 - **SOURCE_ENABLED toggles** — Config-driven enable/disable per 16 source types (including user_feeds), overridable via env vars
 - **curiousMode filtering** — Frontend filters stories by `human_interest_score >= 6` in the Curious preset, mirroring the `brightSideMode` pattern
+- **Per-preset default tabs** — Positive (bright_side) and Curious presets default to the Stories/Events tab and show it first in tab order, since their content is primarily one-off stories rather than ongoing situations. URL `?view=` param still overrides.
 - **User-added RSS feeds** — Backend API for user-configurable feeds with SSRF protection (DNS pinning, redirect blocking), rate limiting, per-user/global volume caps, and pipeline integration
 - **8 narrative domains** — news, sports, entertainment, positive, curious, science, business, health. Per-domain Sonnet passes with domain-specific prompts
 - **12 presets** — News, Sports, Entertainment, Positive, Science, Tech, Curious, Weather, Crisis, Travel, Geopolitics, Markets. Composite presets use subset `activeOrigins` arrays.

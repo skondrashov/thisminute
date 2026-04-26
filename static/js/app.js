@@ -550,6 +550,11 @@
     tech: "science",
     markets: "business"
   };
+  // Presets whose default tab is Stories (events) rather than Situations (narratives)
+  var _STORIES_DEFAULT_PRESETS = new Set(["bright_side", "curious"]);
+  function _getPresetDefaultView(presetId) {
+    return _STORIES_DEFAULT_PRESETS.has(presetId) ? "events" : "narratives";
+  }
   // Presets that are API-driven (structured data only) and should not show narrative situations
   var _DOMAINLESS_HIDE_SITUATIONS = new Set(["planet", "travel"]);
   var _DOMAIN_HIGHLIGHT_COLORS = {
@@ -1772,7 +1777,7 @@
     var target = state._pendingMapView;
     var targetLon = target ? target.lon : 20 + Math.random() * 40;
     var targetLat = target ? target.lat : 15 + Math.random() * 25;
-    var targetZoom = target ? target.zoom : (_isFirstVisitForTour ? 1.8 : 2.2);
+    var targetZoom = target ? target.zoom : 2.2;
     if (target) state._pendingMapView = null;
     var startLon = targetLon - 400 - Math.random() * 200;
     var startLat = 0;
@@ -2026,37 +2031,11 @@
       state.map.jumpTo({ center: [state._pendingMapView.lon, state._pendingMapView.lat], zoom: state._pendingMapView.zoom });
       state._pendingMapView = null;
     }
-    // Don't kill intro spin here — let it finish naturally or stop on user interaction
-    startPresetTour();
-    if (!_presetTourActive) {
-      showOnboardingHint();
-      if (_isMobile() && !localStorage.getItem("thisminute-onboarded")) {
-        setTimeout(() => {
-          setSheetState("half");
-          setTimeout(() => setSheetState("closed"), 1500);
-        }, 2e3);
-      }
-    }
     // Phase 3: if time filter wants more than 24h, expand in background
     var filterHours = parseFloat(document.getElementById("filter-time").value) || 0;
     if (filterHours === 0 || filterHours > 24) {
       _expandTimeRange(filterHours);
     }
-  }
-  function showOnboardingHint() {
-    if (localStorage.getItem("thisminute-onboarded")) return;
-    const hint = document.createElement("div");
-    hint.id = "onboarding-hint";
-    hint.innerHTML = _isMobile() ? "Tap a situation to explore &middot; Swipe to browse &middot; Try different presets above" : "Click a situation to explore &middot; Use <kbd>j</kbd>/<kbd>k</kbd> to navigate &middot; <kbd>?</kbd> for shortcuts";
-    document.getElementById("sidebar").appendChild(hint);
-    const dismiss = () => {
-      hint.classList.add("dismissed");
-      setTimeout(() => hint.remove(), 300);
-      localStorage.setItem("thisminute-onboarded", "1");
-      document.removeEventListener("click", dismiss);
-    };
-    setTimeout(() => document.addEventListener("click", dismiss), 1e3);
-    setTimeout(dismiss, 15e3);
   }
   function getHoverTooltip() {
     if (!state.hoverTooltipEl) {
@@ -3088,6 +3067,8 @@
     applyPresetConfig(effectiveConfig, world.keywords, world.feedTags);
     state.activePresetId = presetId;
     state.presetModified = false;
+    switchView(_getPresetDefaultView(presetId));
+    _reorderViewTabs(presetId);
     _blendLocationColors(state.cloudData.features || []);
     _updateLegendColors();
     updatePresetsBar();
@@ -3262,7 +3243,6 @@
       }
       btn.title = world.label;
       btn.addEventListener("click", () => {
-        stopPresetTour();
         switchPreset(id);
       });
       bar.insertBefore(btn, shareBtn);
@@ -3270,101 +3250,7 @@
     updatePresetsBar();
     updatePresetsBarOverflow();
   }
-  // === Preset Tour: Auto-cycling presets for first-time visitors ===
-  var PRESET_TOUR_SEQUENCE = ["bright_side", "sports", "curious", "entertainment", "conflict", "travel"];
-  var PRESET_TOUR_INTERVAL = 5000;
-  var _presetTourTimer = null;
-  var _presetTourIdx = 0;
-  var _presetTourActive = false;
-  var _isFirstVisitForTour = false;
-  function captureFirstVisitFlag() {
-    _isFirstVisitForTour = !localStorage.getItem("tm_world_tour_seen") && !localStorage.getItem("tm_last_visit") && !localStorage.getItem("tm_default_world") && !window.location.hash;
-  }
-  function replayPresetTour() {
-    if (_presetTourActive) stopPresetTour();
-    if (_presetTourTimer) { clearInterval(_presetTourTimer); _presetTourTimer = null; }
-    _isFirstVisitForTour = true;
-    _presetTourActive = false;
-    startPresetTour();
-  }
-  function startPresetTour() {
-    if (_presetTourTimer) { clearInterval(_presetTourTimer); _presetTourTimer = null; }
-    if (!_isFirstVisitForTour) return;
-    _presetTourActive = true;
-    _presetTourIdx = 0;
-    _showTourPreset(_presetTourIdx);
-    _presetTourTimer = setInterval(() => {
-      _presetTourIdx++;
-      if (_presetTourIdx >= PRESET_TOUR_SEQUENCE.length) {
-        _presetTourIdx = 0;
-      }
-      _transitionTourPreset(_presetTourIdx);
-    }, PRESET_TOUR_INTERVAL);
-    var stopEvents = ["click", "scroll", "keydown", "touchstart", "wheel"];
-    function onInteraction() {
-      stopPresetTour();
-      for (var ev of stopEvents) {
-        document.removeEventListener(ev, onInteraction, true);
-      }
-    }
-    for (var ev of stopEvents) {
-      document.addEventListener(ev, onInteraction, true);
-    }
-  }
-  function stopPresetTour() {
-    if (!_presetTourActive) return;
-    _presetTourActive = false;
-    if (_presetTourTimer) {
-      clearInterval(_presetTourTimer);
-      _presetTourTimer = null;
-    }
-    localStorage.setItem("tm_world_tour_seen", "1");
-    var overlay = document.getElementById("preset-tour-overlay");
-    if (overlay) {
-      overlay.classList.remove("visible");
-      overlay.classList.add("fading");
-    }
-    // Show welcome questionnaire for first-time visitors after tour ends
-    if (_shouldShowPresetPicker()) {
-      setTimeout(() => _showWelcomeDialog(), 600);
-    } else {
-      // Fire deferred onboarding after tour ends
-      showOnboardingHint();
-      if (_isMobile() && !localStorage.getItem("thisminute-onboarded")) {
-        setTimeout(() => {
-          setSheetState("half");
-          setTimeout(() => setSheetState("closed"), 1500);
-        }, 2e3);
-      }
-    }
-  }
-  function _showTourPreset(idx) {
-    var presetId = PRESET_TOUR_SEQUENCE[idx];
-    var world = state.allPresets[presetId];
-    if (!world) return;
-    var icon = PRESET_ICONS[presetId] || "";
-    var overlay = document.getElementById("preset-tour-overlay");
-    if (!overlay) return;
-    var tourIcon = overlay.querySelector(".tour-icon");
-    var tourName = overlay.querySelector(".tour-name");
-    if (tourIcon) tourIcon.textContent = icon;
-    if (tourName) tourName.textContent = world.label;
-    overlay.classList.add("visible");
-    overlay.classList.remove("fading");
-    switchPreset(presetId);
-  }
-  function _transitionTourPreset(idx) {
-    var overlay = document.getElementById("preset-tour-overlay");
-    if (!overlay) return;
-    overlay.classList.add("fading");
-    overlay.classList.remove("visible");
-    setTimeout(() => {
-      if (!_presetTourActive) return;
-      _showTourPreset(idx);
-    }, 400);
-  }
-
-  // === Preset Picker: First-visit preset selector ===
+  // === Preset Picker ===
   var PRESET_PICKER_DESCRIPTIONS = {
     bright_side: "Uplifting and feel-good stories",
     sports: "Live scores, transfers, tournaments",
@@ -3478,17 +3364,6 @@
     }
     closePresetPicker();
     _presetPickerSelection = null;
-    // Deferred onboarding: show hint + mobile sheet peek on first visit (Fix #1)
-    // This fires regardless of how the picker was dismissed (Done, Escape, or click-outside)
-    if (_isFirstVisitForTour) {
-      showOnboardingHint();
-      if (_isMobile() && !localStorage.getItem("thisminute-onboarded")) {
-        setTimeout(() => {
-          setSheetState("half");
-          setTimeout(() => setSheetState("closed"), 1500);
-        }, 2e3);
-      }
-    }
   }
   function _loadVisiblePresets() {
     try {
@@ -3527,43 +3402,6 @@
       localStorage.setItem("tm_visible_worlds", JSON.stringify(visible));
     }
   }
-  function _shouldShowPresetPicker() {
-    // Show if first visit (tour just finished) AND no saved visible presets preference
-    return _isFirstVisitForTour && !localStorage.getItem("tm_visible_worlds");
-  }
-
-  var _welcomeDialogInit = false;
-  function _showWelcomeDialog() {
-    var dialog = document.getElementById("welcome-dialog");
-    if (!dialog) return;
-    dialog.classList.add("visible");
-    if (_welcomeDialogInit) return;
-    _welcomeDialogInit = true;
-    dialog.querySelectorAll(".welcome-card").forEach(function(card) {
-      card.addEventListener("click", function() {
-        var presetId = card.dataset.world;
-        dialog.classList.remove("visible");
-        if (presetId && state.allPresets[presetId]) {
-          switchPreset(presetId);
-          localStorage.setItem("tm_default_world", presetId);
-        }
-        showOnboardingHint();
-        if (_isMobile() && !localStorage.getItem("thisminute-onboarded")) {
-          setTimeout(function() {
-            setSheetState("half");
-            setTimeout(function() { setSheetState("closed"); }, 1500);
-          }, 2e3);
-        }
-      });
-    });
-    dialog.addEventListener("click", function(e) {
-      if (e.target === dialog) {
-        dialog.classList.remove("visible");
-        showOnboardingHint();
-      }
-    });
-  }
-
   function togglePresetsPanel() {
     const panel = document.getElementById("presets-panel");
     panel.classList.toggle("visible");
@@ -4849,6 +4687,20 @@
     activeList.scrollTop = 0;
     saveStateToURL();
   }
+  function _reorderViewTabs(presetId) {
+    const container = document.getElementById("view-toggles");
+    const btns = Array.from(container.querySelectorAll(".view-btn"));
+    if (btns.length < 2) return;
+    const eventsFirst = _STORIES_DEFAULT_PRESETS.has(presetId);
+    const eventsBtn = btns.find((b) => b.dataset.view === "events");
+    const narrativesBtn = btns.find((b) => b.dataset.view === "narratives");
+    if (!eventsBtn || !narrativesBtn) return;
+    if (eventsFirst) {
+      container.insertBefore(eventsBtn, narrativesBtn);
+    } else {
+      container.insertBefore(narrativesBtn, eventsBtn);
+    }
+  }
   async function loadPresetOverview() {
     try {
       state.presetOverview = await _fetchJson("/api/world-overview");
@@ -5053,7 +4905,8 @@
     if (state.brightSideMode) params.set("bs", "1");
     if (state.curiousMode) params.set("cur", "1");
     if (state.activeNarrativeId) params.set("sit", state.activeNarrativeId);
-    if (state.currentView && state.currentView !== "narratives") params.set("view", state.currentView);
+    var _defaultView = _getPresetDefaultView(state.activePresetId || "all");
+    if (state.currentView && state.currentView !== _defaultView) params.set("view", state.currentView);
     const search = document.getElementById("search-box").value.trim();
     if (search) params.set("q", search);
     const time = document.getElementById("filter-time").value;
@@ -5096,6 +4949,8 @@
         }
         updatePresetsBar();
       }
+      switchView(_getPresetDefaultView(defaultPresetId || "all"));
+      _reorderViewTabs(defaultPresetId || "all");
       return;
     }
     localStorage.setItem("tm_last_visit", Date.now().toString());
@@ -5177,7 +5032,10 @@
     }
     if (params.has("view") && (params.get("view") === "events" || params.get("view") === "narratives")) {
       switchView(params.get("view"));
+    } else {
+      switchView(_getPresetDefaultView(state.activePresetId || "all"));
     }
+    _reorderViewTabs(state.activePresetId || "all");
     if (params.has("lat") && params.has("lon") && params.has("z")) {
       state._pendingMapView = {
         lat: parseFloat(params.get("lat")),
@@ -5195,7 +5053,6 @@
     loadFeedTags();
     loadPresets();
     renderPresetsBar();
-    captureFirstVisitFlag();
     loadStateFromURL();
     initMap();
     let searchTimer = null;
@@ -5360,10 +5217,6 @@
       document.getElementById("main-menu").classList.remove("visible");
       openUserFeedsDialog();
     });
-    document.getElementById("menu-replay-tour").addEventListener("click", () => {
-      document.getElementById("main-menu").classList.remove("visible");
-      replayPresetTour();
-    });
     document.getElementById("menu-about").addEventListener("click", () => {
       document.getElementById("main-menu").classList.remove("visible");
       document.getElementById("about-dialog").classList.add("visible");
@@ -5469,12 +5322,6 @@
         document.getElementById("search-box").focus();
       }
       if (e.key === "Escape") {
-        const welcomeDialog = document.getElementById("welcome-dialog");
-        if (welcomeDialog && welcomeDialog.classList.contains("visible")) {
-          welcomeDialog.classList.remove("visible");
-          showOnboardingHint();
-          return;
-        }
         const presetPickerDialog = document.getElementById("preset-picker-dialog");
         if (presetPickerDialog && presetPickerDialog.classList.contains("visible")) {
           confirmPresetPicker();

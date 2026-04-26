@@ -504,63 +504,6 @@ body {
     box-shadow: 0 0 12px rgba(31, 111, 235, 0.3);
 }
 
-/* Preset tour overlay — centered label on map during auto-cycle */
-#preset-tour-overlay {
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    pointer-events: none;
-    z-index: 10;
-    opacity: 0;
-    transition: opacity 0.6s ease;
-}
-#preset-tour-overlay.visible {
-    opacity: 1;
-}
-.preset-tour-label {
-    font-size: 48px;
-    font-weight: 800;
-    color: #ffffff;
-    text-shadow: 0 2px 20px rgba(0, 0, 0, 0.7), 0 0 60px rgba(0, 0, 0, 0.4);
-    letter-spacing: 2px;
-    text-transform: uppercase;
-    animation: preset-tour-pulse 5s ease-in-out infinite;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 8px;
-}
-.preset-tour-label .tour-icon {
-    font-size: 56px;
-    filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.5));
-}
-.preset-tour-label .tour-name {
-    font-size: 36px;
-    letter-spacing: 4px;
-}
-.preset-tour-label .tour-hint {
-    font-size: 13px;
-    font-weight: 400;
-    letter-spacing: 1px;
-    opacity: 0.7;
-    text-transform: none;
-    margin-top: 4px;
-}
-@keyframes preset-tour-pulse {
-    0%, 100% { transform: scale(1); opacity: 0.9; }
-    50% { transform: scale(1.04); opacity: 1; }
-}
-/* Preset tour transition fade */
-#preset-tour-overlay.fading {
-    opacity: 0;
-    transition: opacity 0.4s ease;
-}
-
 #preset-share-btn {
     width: 24px;
     height: 24px;
@@ -1116,67 +1059,6 @@ body {
 
 body.light-mode .preset-picker-card.selected {
     background: var(--bg-tertiary);
-}
-
-/* Welcome questionnaire */
-.welcome-panel {
-    max-width: 420px;
-    width: 90vw;
-    text-align: center;
-}
-.welcome-panel h3 {
-    margin-bottom: 6px;
-}
-.welcome-hint {
-    font-size: 11px;
-    color: var(--text-muted);
-    margin-top: 12px;
-}
-#welcome-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 8px;
-}
-.welcome-card {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 4px;
-    padding: 14px 8px;
-    background: var(--bg-inset);
-    border: 2px solid var(--border-default);
-    border-radius: 10px;
-    cursor: pointer;
-    transition: all 0.15s;
-    font-family: inherit;
-    color: var(--text-secondary);
-}
-.welcome-card:hover {
-    border-color: var(--accent-blue);
-    background: rgba(88, 166, 255, 0.06);
-    transform: translateY(-2px);
-}
-.welcome-icon {
-    font-size: 28px;
-    line-height: 1;
-}
-.welcome-label {
-    font-size: 14px;
-    font-weight: 700;
-    color: var(--text-primary);
-}
-.welcome-desc {
-    font-size: 10px;
-    color: var(--text-muted);
-    line-height: 1.3;
-}
-@media (max-width: 600px) {
-    #welcome-grid { grid-template-columns: 1fr 1fr; gap: 6px; }
-    .welcome-panel { padding: 18px 14px; }
-    .welcome-icon { font-size: 24px; }
-    .welcome-label { font-size: 12px; }
-    .welcome-desc { font-size: 9px; }
-    .welcome-card { padding: 10px 6px; }
 }
 
 @media (max-width: 600px) {
@@ -1865,42 +1747,6 @@ body.light-mode .preset-picker-card.selected {
     color: var(--text-disabled);
     font-size: 13px;
 }
-
-/* Onboarding hint */
-#onboarding-hint {
-    position: absolute;
-    bottom: 60px;
-    left: 12px;
-    right: 12px;
-    background: var(--bg-tertiary);
-    border: 1px solid var(--border-default);
-    border-radius: 8px;
-    padding: 10px 14px;
-    font-size: 12px;
-    color: var(--text-muted);
-    text-align: center;
-    z-index: 20;
-    animation: hint-fade-in 0.5s ease;
-    transition: opacity 0.3s, transform 0.3s;
-}
-#onboarding-hint.dismissed {
-    opacity: 0;
-    transform: translateY(10px);
-}
-#onboarding-hint kbd {
-    background: var(--bg-inset);
-    border: 1px solid var(--border-default);
-    border-radius: 3px;
-    padding: 1px 5px;
-    font-size: 11px;
-    color: var(--text-secondary);
-    font-family: inherit;
-}
-@keyframes hint-fade-in {
-    from { opacity: 0; transform: translateY(10px); }
-    to { opacity: 1; transform: translateY(0); }
-}
-/* onboarding light-mode handled by tokens + light-mode section */
 
 /* Search highlight */
 mark {
@@ -3967,12 +3813,6 @@ body.light-mode #preset-share-btn { color: #656d76; border-color: #d0d7de; }
 body.light-mode #preset-share-btn:hover { color: #0969da; border-color: #0969da; }
 body.light-mode #preset-share-btn.copied { color: #1a7f37; border-color: #1a7f37; }
 
-/* Preset tour overlay — light mode */
-body.light-mode .preset-tour-label {
-    color: #1a1a2e;
-    text-shadow: 0 2px 20px rgba(255, 255, 255, 0.7), 0 0 60px rgba(255, 255, 255, 0.4);
-}
-
 /* Presets panel: lighter box-shadow */
 body.light-mode #presets-panel { box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15); }
 body.light-mode .preset-panel-desc { color: #656d76; }
@@ -4070,9 +3910,6 @@ body.light-mode #info-panel.feed-themed[data-feed="internet"] { background: line
 
 /* Hover tooltip: unique bg */
 body.light-mode #hover-tooltip { background: rgba(255,255,255,0.95); }
-
-/* Onboarding */
-body.light-mode #onboarding-hint { background: #ffffff; }
 
 /* Search highlight */
 body.light-mode mark { background: rgba(9, 105, 218, 0.12); }
@@ -4443,10 +4280,6 @@ body.light-mode #legend-toggle { background: rgba(246, 248, 250, 0.9); }
     .preset-btn-icon { font-size: 11px; }
     .preset-btn-label { font-size: 9px; }
     #filter-status { padding: 1px 8px 3px; font-size: 9px; }
-    /* Preset tour overlay — smaller on mobile */
-    .preset-tour-label .tour-icon { font-size: 36px; }
-    .preset-tour-label .tour-name { font-size: 24px; letter-spacing: 2px; }
-    .preset-tour-label .tour-hint { font-size: 11px; }
     #preset-share-btn {
         width: 24px;
         height: 24px;
