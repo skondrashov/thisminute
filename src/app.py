@@ -28,8 +28,9 @@ from .database import (
     search_stories_multi, get_story_extraction, get_story_actors,
     get_active_narratives, get_narrative_by_id, get_narrative_events,
     get_active_registry_events, get_domain_distribution,
+    get_active_wiki_events,
 )
-from .categorizer import get_all_concept_names, CONCEPT_DOMAINS
+from .categorizer import CONCEPT_DOMAINS
 from .geocoder import bbox_to_radius_km
 from .ner import classify_location, _COUNTRY_SET
 from .scheduler import PipelineScheduler
@@ -1302,11 +1303,7 @@ async def api_wiki_events(
 ):
     """Return active Wikipedia event articles with story counts."""
     conn = get_connection()
-    try:
-        from .database import get_active_wiki_events
-        events = get_active_wiki_events(conn, limit=limit)
-    except Exception:
-        events = []
+    events = get_active_wiki_events(conn, limit=limit)
     conn.close()
     return {"wiki_events": events}
 
@@ -1632,31 +1629,16 @@ async def api_topics():
         return JSONResponse(content=cached, headers={"Cache-Control": "public, max-age=1800"})
 
     conn = get_connection()
-    try:
-        # Use SQLite JSON functions to extract and count topics in SQL
-        rows = conn.execute(
-            """SELECT j.value as topic, COUNT(*) as count
-               FROM stories, json_each(stories.concepts) j
-               WHERE stories.scraped_at > datetime('now', '-3 days')
-               AND stories.concepts IS NOT NULL AND stories.concepts != '[]'
-               GROUP BY j.value
-               ORDER BY count DESC
-               LIMIT 100"""
-        ).fetchall()
-        result = [{"name": r["topic"], "count": r["count"]} for r in rows]
-    except Exception:
-        # Fallback: parse JSON in Python if json_each not available
-        raw = conn.execute(
-            """SELECT concepts FROM stories
-               WHERE scraped_at > datetime('now', '-3 days')
-               AND concepts IS NOT NULL AND concepts != '[]'"""
-        ).fetchall()
-        counts = {}
-        for row in raw:
-            for t in _json(row["concepts"] or "[]", []):
-                counts[t] = counts.get(t, 0) + 1
-        sorted_topics = sorted(counts.items(), key=lambda x: x[1], reverse=True)
-        result = [{"name": name, "count": count} for name, count in sorted_topics[:100]]
+    rows = conn.execute(
+        """SELECT j.value as topic, COUNT(*) as count
+           FROM stories, json_each(stories.concepts) j
+           WHERE stories.scraped_at > datetime('now', '-3 days')
+           AND stories.concepts IS NOT NULL AND stories.concepts != '[]'
+           GROUP BY j.value
+           ORDER BY count DESC
+           LIMIT 100"""
+    ).fetchall()
+    result = [{"name": r["topic"], "count": r["count"]} for r in rows]
     conn.close()
     response_data = {"topics": result}
     _topics_cache.set(response_data, 1800)

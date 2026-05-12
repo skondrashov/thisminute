@@ -100,7 +100,7 @@ thisminute should work for ANY interest, not just hard news. The next major effo
 
 ### Phase 5: Feedback Loop — STARTED
 
-- [x] Explicit user feedback — `/api/feedback` endpoint live (v114), `user_feedback` table, feedback agent (`agents/feedback.md`), rate limiting (5/min)
+- [x] Explicit user feedback — `/api/feedback` endpoint live (v114), `user_feedback` table, rate limiting (5/min). Feedback triage owned by tester.
 - Note: Usage analytics and feedback-driven automation deferred until user base exists.
 - Note: ProMED RSS is dead (all URLs return 404, FeedBurner mirror empty since 2018). WHO DON partially covers disease outbreak space.
 

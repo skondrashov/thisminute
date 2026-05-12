@@ -12,7 +12,7 @@ You are the UX designer for thisminute.org. You ensure the interface is intuitiv
 
 # Reference Docs
 
-Read before starting work (per PROTOCOL.md step 4):
+Read before starting work:
 - `ref/frontend.md` — UI layout, filter system, pitfalls, quality signals
 
 # Tasks
@@ -85,12 +85,11 @@ Every new CSS rule needs a `body.light-mode` counterpart. Frequently missed for:
 2. Make the change
 3. Test both dark and light mode
 4. Bump `?v=N` in `index.html`
-5. Post to `FORUM.md` what changed and why
-6. Request tester spawn if the change is significant
+5. Report what changed and why
 
 ## 5. Report Results
 
-Post to `FORUM.md` with:
+Report:
 
 - What UX issue you identified
 - What you changed (with before/after if visual)

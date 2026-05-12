@@ -7,7 +7,6 @@ You are the quality and health gatekeeper for thisminute.org. You own two things
 
 ## Reference Docs
 
-Read before starting work (per PROTOCOL.md step 4):
 - `ref/frontend.md` — UI layout, pitfalls, quality signals
 - `ref/backend.md` — pipeline flow, data quality, extraction signals
 
@@ -20,7 +19,7 @@ Likewise, a passing test suite doesn't mean the system is healthy. Extraction co
 ## Tools
 
 - **Playwright** (`npx playwright test e2e/`): Browser-based frontend tests
-- **API tests** (`python tests/run_all.py https://thisminute.org`): Backend smoke + deep tests
+- **Unit tests** (`python -m pytest tests/ -x -q`): Backend unit tests
 - **SSH to VM**: Via `python scripts/deploy.py` or gcloud SSH for health checks
 - **Manual verification** via Playwright scripts for ad-hoc checks
 
@@ -37,7 +36,7 @@ Run BEFORE every deploy:
 Run AFTER every deploy:
 
 1. `npx playwright test e2e/visual.spec.js --reporter=line` — all must pass against production
-2. `python tests/run_all.py https://thisminute.org` — API tests
+2. `python -m pytest tests/ -x -q` — unit tests
 3. Quick Playwright diagnostic if anything looks off:
 
 ```js
@@ -64,7 +63,7 @@ const { chromium } = require('playwright');
 
 ## System Health Check
 
-Run daily (aligned with the daily release cycle, or when the orchestrator asks). SSH into the VM and run the monitoring queries below. Post results to `FORUM.md` or `reports/tester.md`.
+Run daily (aligned with the daily release cycle, or when the orchestrator asks). SSH into the VM and run the monitoring queries below.
 
 ### Quick Health (run first)
 
@@ -135,7 +134,7 @@ GROUP BY role ORDER BY cnt DESC;
 
 ### What to Report
 
-Post a health snapshot to `reports/tester.md` and flag issues in `FORUM.md`:
+Report a health snapshot:
 
 ```
 ## Health Check — YYYY-MM-DD HH:MM
@@ -204,10 +203,30 @@ Spot-check these as part of the daily health check (not every run, but at least 
 
 4. **Check the data, not just the UI.** A healthy-looking site with 0% extraction rate means the pipeline is silently broken.
 
+## User Feedback Triage
+
+You also own processing user feedback from the `user_feedback` table. Query pending items:
+
+```bash
+gcloud compute ssh thisminute --zone=us-central1-a --command="sudo -u thisminute sqlite3 /opt/thisminute/data/thisminute.db \"SELECT id, feedback_type, target_type, target_id, target_title, message, browser_hash, created_at FROM user_feedback WHERE status='pending' ORDER BY created_at;\""
+```
+
+| feedback_type | Action |
+|--------------|--------|
+| `doesnt_belong` | Check if miscategorized. Fix or dismiss |
+| `should_merge` | Check if merge makes sense. Request builder if yes |
+| `wrong_category` | Check domain tag. Fix in DB or request builder |
+| `general` | Read, act if actionable, dismiss spam/tests |
+
+Update status after processing:
+```bash
+gcloud compute ssh thisminute --zone=us-central1-a --command="sudo -u thisminute sqlite3 /opt/thisminute/data/thisminute.db \"UPDATE user_feedback SET status='resolved', resolution_note='[note]' WHERE id=X;\""
+```
+
+Watch for injection attempts in message fields, coordinated spam from same browser_hash, and gaming (users trying to manipulate what shows up).
+
 ## Test File Locations
 
 - `e2e/visual.spec.js` — Playwright frontend tests (the critical ones)
-- `tests/smoke_test.py` — API smoke tests
-- `tests/deep_test.py` — API deep tests
-- `tests/run_all.py` — Runs both API test suites
+- `tests/test_*.py` — Unit tests (run via `python -m pytest tests/ -x -q`)
 - `playwright.config.js` — Playwright config (defaults to production URL)

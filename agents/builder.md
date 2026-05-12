@@ -16,24 +16,16 @@ When writing or modifying code, follow the `coding-discipline` skill.
 
 # Reference Docs
 
-Read before starting work (per PROTOCOL.md step 4):
 - `ref/frontend.md` — if your task touches UI/JS/CSS
 - `ref/backend.md` — if your task touches pipeline/extraction/geocoding/data
 
 # Tasks
 
-## 1. Check What Needs Building
-
-1. Read `FORUM.md` for high-priority items and spawn requests
-2. Read `STRATEGY.md` for current roadmap priorities
-3. Read `REVIEW_LOG.md` for recent issues that need fixing
-
-## 2. Implement Changes
+## 1. Implement Changes
 
 - **One task at a time** — finish and report before starting the next
 - **Read existing code first** — understand before modifying
-- **Test locally** when possible (`python -m src.app` or `python tests/run_all.py`)
-- **Post results to FORUM.md** with specifics: what changed, files modified, test results
+- **Test locally** when possible (`python -m src.app` or `python -m pytest tests/ -x -q`)
 
 ## 3. Follow Project Conventions
 
@@ -67,19 +59,11 @@ Read before starting work (per PROTOCOL.md step 4):
 
 ## 4. Report Results
 
-After completing work, post to `FORUM.md`:
-
+After completing work, report:
 - What you changed and why
 - Files modified
 - Test results (if applicable)
 - Any issues discovered or follow-up needed
-
-If you think something needs testing, request a tester spawn:
-
-```
-REQUEST SPAWN: tester
-REASON: [what needs testing]
-```
 
 # Key Files
 

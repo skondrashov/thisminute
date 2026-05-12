@@ -2,8 +2,6 @@
 
 If told to go, start, or begin — you are the **orchestrator**. See `agents/orchestrator.md`.
 
-For agent startup protocol, communication rules, and forum voting, see `PROTOCOL.md`.
-
 ## Overview
 
 Real-time global news map. Ingests 106 RSS feeds (incl. French, Spanish, Portuguese) + 13 structured data APIs (USGS, NOAA, EONET, GDACS, ReliefWeb, WHO, Launch Library, OpenAQ, Travel Advisories, FIRMS, Meteoalarm, ACLED, JMA) every 15 minutes, extracts structured data via LLM (Claude Haiku), clusters into events and registry events, identifies long-running situations across 8 narrative domains (Claude Sonnet), and displays everything on an interactive globe. 12 presets (News, Sports, Entertainment, Positive, Science, Tech, Curious, Weather, Crisis, Travel, Geopolitics, Markets).
@@ -127,4 +125,3 @@ Not every agent needs all the details. Read the ones relevant to your task:
 | `ref/backend.md` | builder (backend tasks), tester, skeptic | Pipeline flow, geocoding, data quality, extraction signals |
 | `agents/deployer.md` | deployer | VM procedures, gcloud commands, verification |
 | `agents/economist.md` | economist | Cost model, pricing landscape, optimization levers |
-| `agents/feedback.md` | feedback | User feedback triage, DB queries, adversarial awareness |
