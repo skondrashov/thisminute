@@ -3179,6 +3179,7 @@
       btn.innerHTML = html;
       btn.title = label;
     });
+    _updatePresetDropdownTrigger();
   }
   function saveCurrentAsPreset(name) {
     const id = "custom_" + Date.now();
@@ -3227,6 +3228,7 @@
   function renderPresetsBar() {
     const bar = document.getElementById("presets-bar");
     const shareBtn = document.getElementById("preset-share-btn");
+    // Still render hidden preset-btn elements for existing code that queries them
     bar.querySelectorAll(".preset-btn").forEach((b) => b.remove());
     const visibleEntries = _getVisiblePresetEntries();
     for (const [id, world] of visibleEntries) {
@@ -3247,8 +3249,88 @@
       });
       bar.insertBefore(btn, shareBtn);
     }
+    // Render dropdown menu
+    _renderPresetDropdownMenu(visibleEntries);
     updatePresetsBar();
     updatePresetsBarOverflow();
+  }
+  function _renderPresetDropdownMenu(visibleEntries) {
+    const menu = document.getElementById("preset-dropdown-menu");
+    if (!menu) return;
+    menu.innerHTML = "";
+    for (const [id, world] of visibleEntries) {
+      const item = document.createElement("button");
+      item.className = "preset-dropdown-item";
+      item.dataset.world = id;
+      const icon = PRESET_ICONS[id] || state.presetPrefs[id]?.icon || "";
+      const label = world.label;
+      const desc = PRESET_PICKER_DESCRIPTIONS[id] || "";
+      item.innerHTML =
+        `<span class="preset-dropdown-item-icon">${icon}</span>` +
+        `<span class="preset-dropdown-item-dot" style="background:${world.color}"></span>` +
+        `<span class="preset-dropdown-item-info"><span class="preset-dropdown-item-label">${escapeHtml(label)}</span>` +
+        (desc ? `<span class="preset-dropdown-item-desc">${escapeHtml(desc)}</span>` : "") +
+        `</span>` +
+        `<span class="preset-dropdown-item-count"></span>`;
+      item.addEventListener("click", (e) => {
+        e.stopPropagation();
+        _closePresetDropdown();
+        switchPreset(id);
+      });
+      menu.appendChild(item);
+    }
+  }
+  function _updatePresetDropdownTrigger() {
+    const trigger = document.getElementById("preset-dropdown-trigger");
+    if (!trigger) return;
+    const presetId = state.activePresetId || "bright_side";
+    const world = state.allPresets[presetId];
+    if (!world) return;
+    const icon = PRESET_ICONS[presetId] || state.presetPrefs[presetId]?.icon || "";
+    const iconEl = trigger.querySelector(".preset-dropdown-icon");
+    const labelEl = trigger.querySelector(".preset-dropdown-label");
+    if (iconEl) iconEl.textContent = icon;
+    if (labelEl) labelEl.textContent = world.label;
+    // Tint trigger border with preset color
+    trigger.style.borderColor = world.color;
+    // Update active state in dropdown menu
+    document.querySelectorAll(".preset-dropdown-item").forEach((item) => {
+      item.classList.toggle("active", item.dataset.world === presetId);
+    });
+    // Update counts in dropdown
+    const domainCounts = {};
+    for (const n of state.narrativesData || []) {
+      const d = n.domain || "news";
+      domainCounts[d] = (domainCounts[d] || 0) + 1;
+    }
+    document.querySelectorAll(".preset-dropdown-item").forEach((item) => {
+      const id = item.dataset.world;
+      const domain = PRESET_DOMAIN_MAP[id];
+      const count = domain ? domainCounts[domain] || 0 : 0;
+      const countEl = item.querySelector(".preset-dropdown-item-count");
+      if (countEl) countEl.textContent = count > 0 ? count : "";
+    });
+  }
+  function _togglePresetDropdown() {
+    const trigger = document.getElementById("preset-dropdown-trigger");
+    const menu = document.getElementById("preset-dropdown-menu");
+    if (!trigger || !menu) return;
+    const isOpen = menu.classList.contains("open");
+    if (isOpen) {
+      _closePresetDropdown();
+    } else {
+      trigger.classList.add("open");
+      menu.classList.add("open");
+      // Scroll active item into view
+      const active = menu.querySelector(".preset-dropdown-item.active");
+      if (active) active.scrollIntoView({ block: "nearest" });
+    }
+  }
+  function _closePresetDropdown() {
+    const trigger = document.getElementById("preset-dropdown-trigger");
+    const menu = document.getElementById("preset-dropdown-menu");
+    if (trigger) trigger.classList.remove("open");
+    if (menu) menu.classList.remove("open");
   }
   // === Preset Picker ===
   var PRESET_PICKER_DESCRIPTIONS = {
@@ -5265,6 +5347,17 @@
       }
     });
     document.getElementById("presets-bar").addEventListener("scroll", updatePresetsBarOverflow);
+    document.getElementById("preset-dropdown-trigger").addEventListener("click", (e) => {
+      e.stopPropagation();
+      _togglePresetDropdown();
+    });
+    document.addEventListener("click", (e) => {
+      const menu = document.getElementById("preset-dropdown-menu");
+      const trigger = document.getElementById("preset-dropdown-trigger");
+      if (menu && menu.classList.contains("open") && !menu.contains(e.target) && e.target !== trigger) {
+        _closePresetDropdown();
+      }
+    });
     document.getElementById("presets-more-btn").addEventListener("click", togglePresetsPanel);
     document.getElementById("presets-panel-close").addEventListener("click", closePresetsPanel);
     document.getElementById("presets-save-btn").addEventListener("click", () => showSavePresetDialog());
