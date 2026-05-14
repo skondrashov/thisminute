@@ -32,7 +32,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
     <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5.5.0/dist/maplibre-gl.css" />
-    <link rel="stylesheet" href="/static/css/style.css?v=151" />
+    <link rel="stylesheet" href="/static/css/style.css?v=154" />
 </head>
 <body>
     <div id="sidebar" role="navigation" aria-label="News filters and situations">
@@ -40,7 +40,7 @@
             <span class="mobile-bar-stats"><span id="mobile-stat-showing">--</span> stories<span id="mobile-filter-dot" class="mobile-filter-dot"></span></span>
             <span class="mobile-bar-preset">
                 <span class="mobile-bar-preset-dot"></span>
-                <span id="mobile-preset-name">News</span>
+                <span id="mobile-preset-name">All Stories</span>
             </span>
             <button id="mobile-menu-btn" title="Open menu">&#9776;</button>
         </div>
@@ -49,8 +49,8 @@
             <h1><a href="/" id="logo-link">thisminute</a></h1>
             <div id="header-preset-group">
                 <button id="preset-dropdown-trigger" class="preset-dropdown-trigger">
-                    <span class="preset-dropdown-icon">&#x2728;</span>
-                    <span class="preset-dropdown-label">Bright Side</span>
+                    <span class="preset-dropdown-icon">&#x25C9;</span>
+                    <span class="preset-dropdown-label">All Stories</span>
                     <span class="preset-dropdown-arrow">&#9662;</span>
                 </button>
                 <div id="preset-dropdown-menu" class="preset-dropdown-menu"></div>
@@ -165,11 +165,11 @@
             <button class="view-btn active" data-view="narratives" role="tab" aria-selected="true">Situations</button>
             <button class="view-btn" data-view="events" role="tab" aria-selected="false">Events</button>
             <select id="sort-toggle" class="sort-toggle" title="Sort situations">
-                <option value="volume">Volume</option>
-                <option value="new">New</option>
-                <option value="growing">Growing</option>
-                <option value="longest">Longest</option>
-                <option value="broadest">Broadest</option>
+                <option value="volume">Sort: Volume</option>
+                <option value="new">Sort: New</option>
+                <option value="growing">Sort: Growing</option>
+                <option value="longest">Sort: Longest</option>
+                <option value="broadest">Sort: Broadest</option>
             </select>
         </div>
 
@@ -195,7 +195,6 @@
 
     <button id="sidebar-toggle" title="Toggle sidebar (s)">&lsaquo;</button>
     <button id="labels-toggle" title="Toggle map labels (m)">Aa</button>
-    <button id="globe-toggle" title="Toggle globe/flat (g)">&#127758;</button>
     <div id="map-legend"></div>
     <div id="heat-legend" style="display:none">
         <span class="heat-label">Few</span>
@@ -216,7 +215,7 @@
             <div class="shortcut-row"><span class="shortcut-key">/</span><span class="shortcut-desc">Focus search</span></div>
             <div class="shortcut-row"><span class="shortcut-key">Esc</span><span class="shortcut-desc">Close popup / clear search</span></div>
             <div class="shortcut-row"><span class="shortcut-key">s</span><span class="shortcut-desc">Toggle sidebar</span></div>
-            <div class="shortcut-row"><span class="shortcut-key">g</span><span class="shortcut-desc">Toggle globe/flat map</span></div>
+
             <div class="shortcut-row"><span class="shortcut-key">l</span><span class="shortcut-desc">Toggle light/dark mode</span></div>
             <div class="shortcut-row"><span class="shortcut-key">w</span><span class="shortcut-desc">Cycle presets</span></div>
             <div class="shortcut-row"><span class="shortcut-key">e</span><span class="shortcut-desc">Toggle Situations/Events</span></div>
@@ -330,7 +329,7 @@
         <div id="mobile-map-controls">
             <button id="mobile-ctrl-toggle" title="Map controls">&#9881;</button>
             <div id="mobile-ctrl-tray">
-                <button id="mobile-globe-btn" title="Toggle globe/flat">&#127758;</button>
+
                 <button id="mobile-labels-btn" title="Toggle labels">Aa</button>
                 <button id="mobile-theme-btn" title="Dot color theme">&#127912;</button>
                 <button id="mobile-spin-btn" class="spin-toggle-btn" title="Spin globe">&#10227;</button>
@@ -349,6 +348,6 @@
     </div>
 
     <script src="https://unpkg.com/maplibre-gl@5.5.0/dist/maplibre-gl.js"></script>
-    <script src="/static/js/app.js?v=150"></script>
+    <script src="/static/js/app.js?v=153"></script>
 </body>
 </html>

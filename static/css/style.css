@@ -1945,7 +1945,7 @@ mark {
     left: 440px;
     top: 50%;
     transform: translateY(-50%);
-    z-index: 1001;
+    z-index: 999;
     width: 20px;
     height: 48px;
     background: var(--bg-secondary);
@@ -1973,9 +1973,8 @@ body.sidebar-collapsed #sidebar {
 body.sidebar-collapsed #sidebar-toggle {
     left: 0;
 }
-body.sidebar-collapsed #labels-toggle { left: 16px; }
-body.sidebar-collapsed #globe-toggle { left: 16px; }
-body.sidebar-collapsed #map-legend { left: 60px; }
+body.sidebar-collapsed #map-legend { left: 16px; }
+body.sidebar-collapsed #labels-toggle { left: 172px; }
 
 #sidebar {
     transition: margin-left 0.3s ease, width 0.5s ease, min-width 0.5s ease;
@@ -3273,13 +3272,13 @@ body.light-mode #time-badge:hover {
 }
 body.light-mode #time-badge .tb-time { color: rgba(0, 0, 0, 0.85); }
 body.light-mode #time-badge .tb-count { color: rgba(0, 0, 0, 0.45); }
-body.map-hidden #time-badge { display: none; }
+/* map-hidden class removed with globe toggle */
 
 /* Map labels toggle */
 #labels-toggle {
     position: fixed;
-    bottom: 76px;
-    left: 456px;
+    bottom: 32px;
+    left: 618px;
     z-index: 1001;
     width: 36px;
     height: 36px;
@@ -3307,45 +3306,14 @@ body.map-hidden #time-badge { display: none; }
     color: var(--accent-blue);
     opacity: 1;
 }
-body.map-hidden #labels-toggle { display: none; }
-body.map-hidden #mobile-map-controls { display: none; }
 
-/* Globe toggle */
-#globe-toggle {
-    position: fixed;
-    bottom: 32px;
-    left: 456px;
-    z-index: 1001;
-    width: 36px;
-    height: 36px;
-    background: var(--bg-secondary);
-    border: 1px solid var(--border-default);
-    border-radius: 8px;
-    color: var(--text-muted);
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 18px;
-    transition: all 0.2s;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.3);
-}
-
-#globe-toggle:hover {
-    color: var(--text-primary);
-    background: var(--bg-tertiary);
-    border-color: var(--accent-blue);
-}
-
-#globe-toggle.no-map-mode {
-    color: #3fb950;
-}
+/* Globe toggle removed */
 
 /* Map color legend */
 #map-legend {
     position: fixed;
     bottom: 32px;
-    left: 500px;
+    left: 456px;
     z-index: 1001;
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -3360,7 +3328,6 @@ body.map-hidden #mobile-map-controls { display: none; }
 body.light-mode #map-legend {
     background: rgba(246, 248, 250, 0.9);
 }
-body.map-hidden #map-legend { display: none; }
 .legend-item {
     display: flex;
     align-items: center;
@@ -3390,7 +3357,6 @@ body.light-mode #dot-theme-btn {
     border-color: var(--accent-blue);
 }
 body.sidebar-collapsed #dot-theme-btn { left: 16px; }
-body.map-hidden #dot-theme-btn { display: none; }
 
 #dot-theme-menu {
     display: none !important;
@@ -3403,7 +3369,6 @@ body.light-mode #dot-theme-menu {
     display: flex;
 }
 body.sidebar-collapsed #dot-theme-menu { left: 56px; }
-body.map-hidden #dot-theme-menu { display: none; }
 
 .dot-theme-item {
     display: flex;
@@ -3461,7 +3426,6 @@ body.map-hidden #dot-theme-menu { display: none; }
 body.light-mode #heat-legend {
     background: rgba(246, 248, 250, 0.9);
 }
-body.map-hidden #heat-legend { display: none; }
 body.sidebar-collapsed #heat-legend { left: 60px; }
 .heat-label {
     font-size: 10px;
@@ -3474,43 +3438,7 @@ body.sidebar-collapsed #heat-legend { left: 60px; }
     background: linear-gradient(to right, #58a6ff, #00d2d2, #ffff00, #ff8c00, #ff321e);
 }
 
-/* No-map mode: sidebar fills screen */
-body.map-hidden #map-container {
-    flex: 0 0 0%;
-    opacity: 0;
-    pointer-events: none;
-    overflow: hidden;
-}
-
-body.map-hidden #sidebar {
-    width: 100%;
-    min-width: unset;
-    max-width: unset;
-}
-
-body.map-hidden #sidebar-toggle {
-    display: none;
-}
-
-body.map-hidden #story-list,
-body.map-hidden #event-list,
-body.map-hidden #narrative-list {
-    columns: 2;
-    column-gap: 12px;
-    padding: 0 8px;
-}
-
-body.map-hidden .story-item,
-body.map-hidden .event-item,
-body.map-hidden .situation-item {
-    break-inside: avoid;
-}
-
-body.map-hidden #globe-toggle {
-    position: fixed;
-    bottom: 32px;
-    left: 456px;
-}
+/* No-map mode removed with globe toggle */
 
 /* Map container */
 #map-container {
@@ -3857,7 +3785,6 @@ body.light-mode .story-action { background: rgba(101, 109, 118, 0.08); border-co
 
 /* Globe/feed buttons: semi-transparent bg */
 body.light-mode #labels-toggle,
-body.light-mode #globe-toggle,
 body.light-mode .feed-btn {
     background: rgba(246, 248, 250, 0.9);
 }
@@ -4352,9 +4279,6 @@ body.light-mode #legend-toggle { background: rgba(246, 248, 250, 0.9); }
     }
     body.light-mode #labels-toggle {
         background: rgba(246, 248, 250, 0.95);
-    }
-    #globe-toggle {
-        display: none !important;
     }
     #legend-toggle {
         display: flex !important;

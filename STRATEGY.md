@@ -17,7 +17,7 @@ All original v1 priorities are complete. Current focus is UX polish and code qua
 - **Feedback-driven automation** — Feedback API is live. Manual triage for now.
 - **Dot color theme selector** — Hidden due to interaction issues with country highlights. Tracked in BACKLOG.md.
 - **Space/Internet tile scaling** — Nice-to-have. Backlog.
-- **app.js module split** — The file (~5400 lines) is a build artifact edited directly. Should be re-split into ~10 source modules and restore the esbuild pipeline. Not blocking but improves maintainability.
+- **~~app.js module split~~** — DONE (v137). Split into 9 ES modules under `src/js/`, built via esbuild into `static/js/app.js`.
 
 ## Completed
 

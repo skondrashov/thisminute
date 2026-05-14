@@ -73,7 +73,9 @@
   };
   function _markPopupDismiss() {
     state._popupDismissing = true;
-    requestAnimationFrame(function() { state._popupDismissing = false; });
+    requestAnimationFrame(function() {
+      state._popupDismissing = false;
+    });
   }
   var DOMAIN_COLORS = {
     violence: "#e74c3c",
@@ -90,17 +92,24 @@
     return [parseInt(hex.slice(1, 3), 16), parseInt(hex.slice(3, 5), 16), parseInt(hex.slice(5, 7), 16)];
   }
   function _rgbToHex(r, g, b) {
-    var toHex = function(v) { return Math.round(Math.min(255, Math.max(0, v))).toString(16).padStart(2, "0"); };
+    var toHex = function(v) {
+      return Math.round(Math.min(255, Math.max(0, v))).toString(16).padStart(2, "0");
+    };
     return "#" + toHex(r) + toHex(g) + toHex(b);
   }
   var _domainRGB = {};
-  for (var _dc in DOMAIN_COLORS) _domainRGB[_dc] = _hexToRGB(DOMAIN_COLORS[_dc]);
+  for (_dc in DOMAIN_COLORS) _domainRGB[_dc] = _hexToRGB(DOMAIN_COLORS[_dc]);
+  var _dc;
   var _fallbackRGB = _hexToRGB("#484f58");
   var _BLEND_BASE_DARK = [255, 255, 255];
   var _BLEND_BASE_LIGHT = [110, 118, 129];
   function _featureDomain(f) {
     var concepts = f.properties.concepts;
-    if (typeof concepts === "string") try { concepts = JSON.parse(concepts); } catch (e) { concepts = []; }
+    if (typeof concepts === "string") try {
+      concepts = JSON.parse(concepts);
+    } catch (e) {
+      concepts = [];
+    }
     if (Array.isArray(concepts)) {
       for (var i = 0; i < concepts.length; i++) {
         var lower = concepts[i].toLowerCase();
@@ -134,11 +143,10 @@
     var rawBase = state.lightMode ? _BLEND_BASE_LIGHT : _BLEND_BASE_DARK;
     var theme = state.dotColorTheme || "domain";
     var monoColor = state.lightMode ? "#57606a" : "#ffffff";
-    /* Preset color tint — applied as a final pass on domain/classic themes */
     var activePreset = state.allPresets[state.activePresetId];
     var presetRGB = activePreset && activePreset.color ? _hexToRGB(activePreset.color) : null;
     var base = rawBase;
-    var classicColor = presetRGB ? _rgbToHex(presetRGB[0], presetRGB[1], presetRGB[2]) : (state.lightMode ? "#0969da" : "#58a6ff");
+    var classicColor = presetRGB ? _rgbToHex(presetRGB[0], presetRGB[1], presetRGB[2]) : state.lightMode ? "#0969da" : "#58a6ff";
     try {
       var byCoord = {};
       for (var i = 0; i < features.length; i++) {
@@ -166,7 +174,6 @@
           var heatRatio = maxGroupSize > 1 ? (group.length - 1) / (maxGroupSize - 1) : 0;
           blended = _heatColor(heatRatio);
         } else {
-          /* domain or neon */
           var domainCounts = {}, total = 0;
           var maxDomain = "general", maxCount = 0;
           for (var j = 0; j < group.length; j++) {
@@ -182,7 +189,6 @@
           if (theme === "neon") {
             blended = _rgbToHex(domRGB[0], domRGB[1], domRGB[2]);
           } else {
-            /* domain (default) */
             var ratio = total > 0 ? maxCount / total : 0;
             blended = _rgbToHex(
               base[0] + (domRGB[0] - base[0]) * ratio,
@@ -191,7 +197,6 @@
             );
           }
         }
-        /* Apply preset color tint to final blended color (skip for "all" — show pure domain colors) */
         if (presetRGB && state.activePresetId !== "all" && (theme === "domain" || theme === "classic")) {
           var bRGB = _hexToRGB(blended);
           var wt = 0.22;
@@ -249,14 +254,34 @@
   var NARRATIVES_INTERVAL = 3e5;
   var BRIGHT_SIDE_MIN_SCORE = 4;
   var CURIOUS_MIN_SCORE = 7;
-  // Topics that veto stories from Bright Side / Curious even if scores are high
-  var _VETO_TOPICS = new Set([
-    "war", "iran-war", "iraq-war", "civil-war", "airstrike", "airstrikes",
-    "bombing", "missile-strike", "military-operation", "invasion",
-    "terrorism", "terrorist-attack", "mass-shooting", "shooting",
-    "murder", "homicide", "assassination", "genocide", "massacre",
-    "death-toll", "casualties", "killed", "fatalities",
-    "drug-trafficking", "drug-cartel", "kidnapping", "hostage"
+  var _VETO_TOPICS = /* @__PURE__ */ new Set([
+    "war",
+    "iran-war",
+    "iraq-war",
+    "civil-war",
+    "airstrike",
+    "airstrikes",
+    "bombing",
+    "missile-strike",
+    "military-operation",
+    "invasion",
+    "terrorism",
+    "terrorist-attack",
+    "mass-shooting",
+    "shooting",
+    "murder",
+    "homicide",
+    "assassination",
+    "genocide",
+    "massacre",
+    "death-toll",
+    "casualties",
+    "killed",
+    "fatalities",
+    "drug-trafficking",
+    "drug-cartel",
+    "kidnapping",
+    "hostage"
   ]);
   function _hasVetoTopic(concepts) {
     for (var i = 0; i < concepts.length; i++) {
@@ -290,7 +315,6 @@
         excludedSources: [],
         activeOrigins: ["rss", "gdelt", "usgs", "noaa", "eonet", "gdacs", "reliefweb", "who", "launches", "openaq", "travel", "firms", "meteoalarm", "acled", "jma"],
         brightSideMode: false,
-
         timeHours: "",
         hideOpinion: false
       }
@@ -306,7 +330,6 @@
         excludedSources: [],
         activeOrigins: ["rss", "gdelt", "launches"],
         brightSideMode: true,
-
         timeHours: "",
         hideOpinion: false
       }
@@ -322,7 +345,6 @@
         excludedSources: [],
         activeOrigins: ["rss", "gdelt", "usgs", "noaa", "eonet", "gdacs", "reliefweb", "who", "launches", "openaq", "travel", "firms", "meteoalarm", "acled", "jma"],
         brightSideMode: false,
-
         timeHours: "",
         hideOpinion: false
       },
@@ -339,7 +361,6 @@
         excludedSources: [],
         activeOrigins: ["rss", "gdelt", "usgs", "noaa", "eonet", "gdacs", "reliefweb", "who", "launches", "openaq", "travel", "firms", "meteoalarm", "acled", "jma"],
         brightSideMode: false,
-
         timeHours: "",
         hideOpinion: false
       },
@@ -357,7 +378,6 @@
         activeOrigins: ["rss", "gdelt", "usgs", "noaa", "eonet", "gdacs", "reliefweb", "who", "launches", "openaq", "travel", "firms", "meteoalarm", "acled", "jma"],
         brightSideMode: false,
         curiousMode: true,
-
         timeHours: "",
         hideOpinion: false
       }
@@ -373,7 +393,6 @@
         excludedSources: [],
         activeOrigins: ["rss", "gdelt", "usgs", "noaa", "eonet", "gdacs", "reliefweb", "who", "launches", "openaq", "travel", "firms", "meteoalarm", "acled", "jma"],
         brightSideMode: false,
-
         timeHours: "",
         hideOpinion: false
       },
@@ -390,7 +409,6 @@
         excludedSources: [],
         activeOrigins: ["rss", "gdelt", "usgs", "noaa", "eonet", "gdacs", "reliefweb", "who", "launches", "openaq", "travel", "firms", "meteoalarm", "acled", "jma"],
         brightSideMode: false,
-
         timeHours: "",
         hideOpinion: false
       },
@@ -407,7 +425,6 @@
         excludedSources: [],
         activeOrigins: ["noaa", "eonet", "usgs", "gdacs", "firms", "meteoalarm", "jma"],
         brightSideMode: false,
-
         timeHours: "",
         hideOpinion: false
       }
@@ -423,7 +440,6 @@
         excludedSources: [],
         activeOrigins: ["rss", "gdelt", "acled"],
         brightSideMode: false,
-
         timeHours: "",
         hideOpinion: false
       },
@@ -440,7 +456,6 @@
         excludedSources: [],
         activeOrigins: ["rss", "travel", "noaa", "gdacs", "who", "meteoalarm", "acled", "jma"],
         brightSideMode: false,
-
         timeHours: "",
         hideOpinion: false
       }
@@ -456,7 +471,6 @@
         excludedSources: [],
         activeOrigins: ["rss", "gdelt", "acled", "travel"],
         brightSideMode: false,
-
         timeHours: "",
         hideOpinion: false
       },
@@ -473,7 +487,6 @@
         excludedSources: [],
         activeOrigins: ["rss", "gdelt"],
         brightSideMode: false,
-
         timeHours: "",
         hideOpinion: false
       },
@@ -490,12 +503,11 @@
         excludedSources: [],
         activeOrigins: ["rss", "who", "reliefweb"],
         brightSideMode: false,
-
         timeHours: "",
         hideOpinion: false
       },
       keywords: ["health", "disease", "vaccine", "hospital", "drug", "cancer", "pandemic", "surgery", "outbreak", "medical"]
-    },
+    }
   };
   var PRESET_ALIASES = {
     "positive": "bright_side",
@@ -504,7 +516,9 @@
     "geopolitics": "power",
     "news": "all"
   };
-  function _resolvePresetAlias(id) { return id && PRESET_ALIASES[id] || id; }
+  function _resolvePresetAlias(id) {
+    return id && PRESET_ALIASES[id] || id;
+  }
   var PRESET_ICONS = { all: "\u25C9", bright_side: "\u2728", sports: "\u26BD", entertainment: "\u{1F3AC}", science: "\u{1F52C}", tech: "\u{1F4BB}", curious: "\u{1F9E9}", planet: "\u{1F30D}", conflict: "\u2694\uFE0F", travel: "\u2708\uFE0F", power: "\u{1F3DB}\uFE0F", markets: "\u{1F4C8}", health: "\u{1F3E5}" };
   var NAME_EMOJI_MAP = [
     [/war|conflict|military|defense/i, "\u2694\uFE0F"],
@@ -551,13 +565,11 @@
     tech: "science",
     markets: "business"
   };
-  // Presets whose default tab is Stories (events) rather than Situations (narratives)
-  var _STORIES_DEFAULT_PRESETS = new Set(["bright_side", "curious"]);
+  var _STORIES_DEFAULT_PRESETS = /* @__PURE__ */ new Set(["bright_side", "curious"]);
   function _getPresetDefaultView(presetId) {
     return _STORIES_DEFAULT_PRESETS.has(presetId) ? "events" : "narratives";
   }
-  // Presets that are API-driven (structured data only) and should not show narrative situations
-  var _DOMAINLESS_HIDE_SITUATIONS = new Set(["planet", "travel"]);
+  var _DOMAINLESS_HIDE_SITUATIONS = /* @__PURE__ */ new Set(["planet", "travel"]);
   var _DOMAIN_HIGHLIGHT_COLORS = {
     dark: { news: "#58a6ff", sports: "#3fb950", entertainment: "#bc8cff", positive: "#f5a623", curious: "#ff6f61", science: "#22d3ee", business: "#2dd4a8", health: "#a78bfa" },
     light: { news: "#0969da", sports: "#1a7f37", entertainment: "#8250df", positive: "#bf8700", curious: "#c9302c", science: "#0891b2", business: "#0d7367", health: "#7c3aed" }
@@ -579,8 +591,6 @@
     if (!resp.ok) throw new Error("HTTP " + resp.status);
     return resp.json();
   }
-
-  /** Shared clipboard-copy with checkmark animation. */
   function _copyToClipboard(btn, url, originalIcon) {
     originalIcon = originalIcon || "&#128279;";
     function onSuccess() {
@@ -606,11 +616,13 @@
     ta.style.opacity = "0";
     document.body.appendChild(ta);
     ta.select();
-    try { document.execCommand("copy"); if (onSuccess) onSuccess(); } catch (e) {}
+    try {
+      document.execCommand("copy");
+      if (onSuccess) onSuccess();
+    } catch (e) {
+    }
     document.body.removeChild(ta);
   }
-
-  /** Shared feedback-button wiring — call on any container with .feedback-btn elements. */
   function _wireFeedbackButtons(container) {
     container.querySelectorAll(".feedback-btn").forEach((btn) => {
       btn.addEventListener("click", (e) => {
@@ -666,17 +678,26 @@
     const ctx = canvas.getContext("2d");
     const isLight = document.body.classList.contains("light-mode");
     const panel = document.getElementById("info-panel");
-    const resize = () => { canvas.width = panel.offsetWidth; canvas.height = panel.offsetHeight; };
+    const resize = () => {
+      canvas.width = panel.offsetWidth;
+      canvas.height = panel.offsetHeight;
+    };
     resize();
     window.addEventListener("resize", resize);
     canvas._resizeHandler = resize;
     return { canvas, ctx, isLight };
   }
   function _stopAnim(stateKey) {
-    if (state[stateKey]) { cancelAnimationFrame(state[stateKey]); state[stateKey] = null; }
+    if (state[stateKey]) {
+      cancelAnimationFrame(state[stateKey]);
+      state[stateKey] = null;
+    }
     const canvas = document.getElementById("info-panel-bg-canvas");
     if (canvas) {
-      if (canvas._resizeHandler) { window.removeEventListener("resize", canvas._resizeHandler); canvas._resizeHandler = null; }
+      if (canvas._resizeHandler) {
+        window.removeEventListener("resize", canvas._resizeHandler);
+        canvas._resizeHandler = null;
+      }
       canvas.getContext("2d").clearRect(0, 0, canvas.width, canvas.height);
     }
   }
@@ -770,7 +791,9 @@
     }
     state.networkAnimId = requestAnimationFrame(draw);
   }
-  function stopNetworkAnimation() { _stopAnim("networkAnimId"); }
+  function stopNetworkAnimation() {
+    _stopAnim("networkAnimId");
+  }
   function startSpaceAnimation() {
     const env = _initAnimCanvas();
     if (!env) return;
@@ -893,7 +916,9 @@
     }
     state.spaceAnimId = requestAnimationFrame(draw);
   }
-  function stopSpaceAnimation() { _stopAnim("spaceAnimId"); }
+  function stopSpaceAnimation() {
+    _stopAnim("spaceAnimId");
+  }
 
   // src/js/mobile.js
   var _isMobile = () => window.innerWidth <= 768;
@@ -975,7 +1000,10 @@
     function requestMapResize() {
       if (rafPending) return;
       rafPending = true;
-      requestAnimationFrame(() => { if (state.map) state.map.resize(); rafPending = false; });
+      requestAnimationFrame(() => {
+        if (state.map) state.map.resize();
+        rafPending = false;
+      });
     }
     function startDrag(clientY) {
       touchStartY = clientY;
@@ -1114,15 +1142,15 @@
         }
       });
     }
-    var mGlobe = document.getElementById("mobile-globe-btn");
     var mLabels = document.getElementById("mobile-labels-btn");
     var mTheme = document.getElementById("mobile-theme-btn");
     var mSpin = document.getElementById("mobile-spin-btn");
     var mReload = document.getElementById("mobile-reload-btn");
-    if (mGlobe) mGlobe.addEventListener("click", toggleGlobe);
     if (mLabels) mLabels.addEventListener("click", toggleMapLabels);
     if (mTheme) mTheme.addEventListener("click", _toggleDotThemeMenu);
-    if (mSpin) mSpin.addEventListener("click", () => { if (state.toggleAutoRotate) state.toggleAutoRotate(); });
+    if (mSpin) mSpin.addEventListener("click", () => {
+      if (state.toggleAutoRotate) state.toggleAutoRotate();
+    });
     if (mReload) mReload.addEventListener("click", () => {
       mReload.classList.add("spinning");
       setTimeout(() => location.reload(), 300);
@@ -1567,6 +1595,7 @@
       if (step >= steps) clearInterval(interval);
     }, 30);
   }
+
   // src/js/store.js
   function _getPresetDomain(presetId) {
     return PRESET_DOMAIN_MAP[presetId] || null;
@@ -1680,11 +1709,15 @@
       events.sort((a, b) => (b.story_count || 0) - (a.story_count || 0));
     }
     const allStoryIds = new Set(state.geojsonData.features.map((f) => f.properties.id));
-    let narratives = (state.narrativesData || []).map((n) => ({
-      ...n,
-      filteredCount: contentFiltering && storyIds && n.story_ids ? n.story_ids.filter((id) => storyIds.has(id)).length : n.story_ids ? n.story_ids.filter((id) => allStoryIds.has(id)).length || n.story_count : n.story_count
-    }));
     const presetDomain = _getPresetDomain(state.activePresetId);
+    let narratives = (state.narrativesData || []).map((n) => {
+      const matchesDomain = presetDomain && (n.domain || "news") === presetDomain;
+      const useSourceFilter = contentFiltering && storyIds && n.story_ids && !matchesDomain;
+      return {
+        ...n,
+        filteredCount: useSourceFilter ? n.story_ids.filter((id) => storyIds.has(id)).length : n.story_ids ? n.story_ids.filter((id) => allStoryIds.has(id)).length || n.story_count : n.story_count
+      };
+    });
     if (_DOMAINLESS_HIDE_SITUATIONS.has(state.activePresetId)) {
       narratives = [];
     } else if (presetDomain) {
@@ -1743,7 +1776,6 @@
 
   // src/js/main.js
   state.lightMode = localStorage.getItem("thisminute-theme") === "light";
-  /* Theme selector hidden — force domain theme, clear any stale preference */
   localStorage.removeItem("tm_dot_theme");
   state.dotColorTheme = "domain";
   function _markVisited(url) {
@@ -1768,12 +1800,11 @@
     var startZoom = 0.05;
     var midZoom = Math.min(targetZoom + 1.2, 4.5);
     var endZoom = targetZoom;
-    // v0 = distance * (1 - friction), total distance = v0 / (1 - f)
     var totalSpin = targetLon - startLon;
     var spinFriction = 0.982;
     var spinVelocity = totalSpin * (1 - spinFriction);
-    var zoomInDuration = 3000;
-    var zoomOutDuration = 2000;
+    var zoomInDuration = 3e3;
+    var zoomOutDuration = 2e3;
     var totalZoomDuration = zoomInDuration + zoomOutDuration;
     var zoomStart = performance.now();
     var lon = startLon;
@@ -1789,22 +1820,19 @@
         zoom = startZoom + (midZoom - startZoom) * ease;
       } else {
         var t2 = Math.min(1, (elapsed - zoomInDuration) / zoomOutDuration);
-        var ease2 = t2 * t2 * (3 - 2 * t2); // smoothstep
+        var ease2 = t2 * t2 * (3 - 2 * t2);
         zoom = midZoom + (endZoom - midZoom) * ease2;
       }
-      // Spin with friction — converges toward targetLon
       lon += spinVelocity;
       spinVelocity *= spinFriction;
-      // Latitude eases toward target
       var latT = Math.min(1, elapsed / (zoomInDuration * 0.8));
       var latEase = 1 - Math.pow(1 - latT, 4);
       lat = startLat + (targetLat - startLat) * latEase;
-      state.map.jumpTo({ center: [lon, lat], zoom: zoom });
+      state.map.jumpTo({ center: [lon, lat], zoom });
       var zoomDone = elapsed >= totalZoomDuration;
-      if (!zoomDone || spinVelocity > 0.005) {
+      if (!zoomDone || spinVelocity > 5e-3) {
         requestAnimationFrame(frame);
       } else {
-        // Snap to exact target at the end
         state.map.jumpTo({ center: [targetLon, targetLat], zoom: endZoom });
         _introSpinActive = false;
       }
@@ -1813,16 +1841,20 @@
     var stopEvents = ["click", "mousedown", "touchstart", "wheel"];
     function stopSpin() {
       _introSpinActive = false;
-      stopEvents.forEach(function(ev) { document.removeEventListener(ev, stopSpin, true); });
+      stopEvents.forEach(function(ev) {
+        document.removeEventListener(ev, stopSpin, true);
+      });
     }
-    stopEvents.forEach(function(ev) { document.addEventListener(ev, stopSpin, true); });
+    stopEvents.forEach(function(ev) {
+      document.addEventListener(ev, stopSpin, true);
+    });
   }
   function initMap() {
     state.map = new maplibregl.Map({
       container: "map",
       style: state.lightMode ? "https://basemaps.cartocdn.com/gl/positron-gl-style/style.json" : "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json",
       center: [20, 30],
-      zoom: 1.0,
+      zoom: 1,
       minZoom: 0,
       maxZoom: 18
     });
@@ -1898,59 +1930,7 @@
   function toggleMapLabels() {
     setMapLabelsVisible(!state.mapLabelsVisible);
   }
-  function toggleGlobe() {
-    setMapVisible(state.mapHidden);
-  }
-  function setMapVisible(visible) {
-    state.mapHidden = !visible;
-    const mapContainer = document.getElementById("map-container");
-    if (!visible) {
-      const rect = mapContainer.getBoundingClientRect();
-      mapContainer.style.position = "absolute";
-      mapContainer.style.top = rect.top + "px";
-      mapContainer.style.right = "0";
-      mapContainer.style.width = rect.width + "px";
-      mapContainer.style.height = rect.height + "px";
-      mapContainer.style.transition = "opacity 0.4s ease";
-      document.body.classList.add("map-hidden");
-      if (_isMobile()) setSheetState("full");
-      requestAnimationFrame(() => {
-        mapContainer.style.opacity = "0";
-      });
-      setTimeout(() => {
-        mapContainer.style.position = "";
-        mapContainer.style.top = "";
-        mapContainer.style.right = "";
-        mapContainer.style.width = "";
-        mapContainer.style.height = "";
-        mapContainer.style.transition = "";
-        mapContainer.style.opacity = "";
-      }, 550);
-    } else {
-      mapContainer.style.opacity = "0";
-      mapContainer.style.transition = "opacity 0.4s ease";
-      document.body.classList.remove("map-hidden");
-      requestAnimationFrame(() => {
-        mapContainer.style.opacity = "";
-      });
-      setTimeout(() => {
-        mapContainer.style.transition = "";
-        if (state.map) state.map.resize();
-      }, 550);
-    }
-    updateMapToggleButton();
-  }
   function updateMapToggleButton() {
-    const btn = document.getElementById("globe-toggle");
-    if (state.mapHidden) {
-      btn.innerHTML = "&#127758;";
-      btn.title = "Show map (g)";
-      btn.classList.add("no-map-mode");
-    } else {
-      btn.innerHTML = "&#10005;";
-      btn.classList.remove("no-map-mode");
-      btn.title = "Hide map (g)";
-    }
   }
   function showLoadingBar() {
     const bar = document.getElementById("loading-bar");
@@ -1967,9 +1947,7 @@
     addMapInteractions(state.map, "");
     setMapLabelsVisible(false);
     showLoadingBar();
-    // Phase 1: instant map dots from last hour
     await fetchCloudData(1);
-    // Phase 2: full 24h data + metadata
     const storiesP = loadAll(null, 24);
     const conceptsP = loadConcepts();
     const sourcesP = loadSources();
@@ -1983,7 +1961,6 @@
       state.map.jumpTo({ center: [state._pendingMapView.lon, state._pendingMapView.lat], zoom: state._pendingMapView.zoom });
       state._pendingMapView = null;
     }
-    // Phase 3: if time filter wants more than 24h, expand in background
     var filterHours = parseFloat(document.getElementById("filter-time").value) || 0;
     if (filterHours === 0 || filterHours > 24) {
       _expandTimeRange(filterHours);
@@ -2036,7 +2013,7 @@
     if (rect2.left < 10) tooltip.style.left = "10px";
     if (rect2.top < 10) {
       tooltip.style.top = "10px";
-      tooltip.style.maxHeight = (window.innerHeight - 20) + "px";
+      tooltip.style.maxHeight = window.innerHeight - 20 + "px";
     }
   }
   function hideHoverTooltip() {
@@ -2092,23 +2069,23 @@
       const favicon = _getFavicon(p.url);
       const visited = state._visitedStories.has(p.url) ? " visited" : "";
       return `<div class="info-card${img ? " has-image" : ""}${visited}" data-story-id="${p.story_id || p.id}" data-lon="${lon}" data-lat="${lat}">
-                ${img}
-                <div class="info-card-body">
-                    <div class="info-card-title">${titleHtml}</div>
-                    ${originalLine}
-                    <div class="info-card-meta">
-                        ${favicon}<span class="story-source clickable" data-source="${escapeHtml(p.source)}">${escapeHtml(p.source)}</span>
-                        ${tags}
-                        <span class="story-time" data-time="${escapeHtml(timeIso || "")}" title="${escapeHtml(fullTime)}">${time}</span>
-                    </div>
-                    ${summaryHtml ? `<div class="info-card-summary">${summaryHtml}</div>` : ""}
-                    <div class="info-card-actions">
-                        <a class="info-card-link" href="${escapeHtml(p.url)}" target="_blank" rel="noopener">Read full story</a>
-                        <button class="info-card-copy" data-url="${escapeHtml(p.url)}" title="Copy link">&#128279;</button>
-                        <button class="info-card-feedback feedback-btn" data-fb-type="story" data-fb-id="${p.id}" data-fb-title="${escapeHtml(p.title)}" title="Report story">&#9873;</button>
-                    </div>
-                </div>
-            </div>`;
+              ${img}
+              <div class="info-card-body">
+                  <div class="info-card-title">${titleHtml}</div>
+                  ${originalLine}
+                  <div class="info-card-meta">
+                      ${favicon}<span class="story-source clickable" data-source="${escapeHtml(p.source)}">${escapeHtml(p.source)}</span>
+                      ${tags}
+                      <span class="story-time" data-time="${escapeHtml(timeIso || "")}" title="${escapeHtml(fullTime)}">${time}</span>
+                  </div>
+                  ${summaryHtml ? `<div class="info-card-summary">${summaryHtml}</div>` : ""}
+                  <div class="info-card-actions">
+                      <a class="info-card-link" href="${escapeHtml(p.url)}" target="_blank" rel="noopener">Read full story</a>
+                      <button class="info-card-copy" data-url="${escapeHtml(p.url)}" title="Copy link">&#128279;</button>
+                      <button class="info-card-feedback feedback-btn" data-fb-type="story" data-fb-id="${p.id}" data-fb-title="${escapeHtml(p.title)}" title="Report story">&#9873;</button>
+                  </div>
+              </div>
+          </div>`;
     }
     let html;
     if (events && events.length > 0 && state.storySortMode === "new") {
@@ -2129,10 +2106,10 @@
         });
         const evTime = ev.last_updated ? formatTime(ev.last_updated) : "";
         parts.push(`<div class="info-event-group-header">
-                <span class="info-event-group-title">${escapeHtml(ev.title)}</span>
-                <span class="info-event-group-count">${evStories.length}</span>
-                ${evTime ? `<span class="info-event-group-time" data-time="${escapeHtml(ev.last_updated)}">${evTime}</span>` : ""}
-            </div>`);
+              <span class="info-event-group-title">${escapeHtml(ev.title)}</span>
+              <span class="info-event-group-count">${evStories.length}</span>
+              ${evTime ? `<span class="info-event-group-time" data-time="${escapeHtml(ev.last_updated)}">${evTime}</span>` : ""}
+          </div>`);
         for (const f of evStories) {
           parts.push(_renderCard(f));
           rendered.add(f.properties.story_id || f.properties.id);
@@ -2395,7 +2372,7 @@
       if (searchQ && searchCount) {
         const hidden = filtered.stats.searchMatchAll - filtered.stats.showing;
         if (hidden > 0) {
-          searchCount.textContent = `${filtered.stats.showing} results · ${hidden} hidden by filters`;
+          searchCount.textContent = `${filtered.stats.showing} results \xB7 ${hidden} hidden by filters`;
         } else {
           searchCount.textContent = `${filtered.stats.showing} results`;
         }
@@ -2492,8 +2469,7 @@
     var label = _TIME_BADGE_LABELS[timeVal] || "All Time";
     var fs = state._filterState;
     var countStr = fs ? fs.stats.showing.toLocaleString() + " stories" : "";
-    labelEl.innerHTML = '<span class="tb-time">' + escapeHtml(label) + '</span>' + (countStr ? ' <span class="tb-count">\u00B7 ' + escapeHtml(countStr) + '</span>' : '');
-    /* Update active state in menu */
+    labelEl.innerHTML = '<span class="tb-time">' + escapeHtml(label) + "</span>" + (countStr ? ' <span class="tb-count">\xB7 ' + escapeHtml(countStr) + "</span>" : "");
     var menu = document.getElementById("time-badge-menu");
     if (menu) menu.querySelectorAll(".tb-option").forEach(function(opt) {
       opt.classList.toggle("active", opt.dataset.time === timeVal);
@@ -2503,14 +2479,13 @@
     var badge = document.getElementById("time-badge");
     var menu = document.getElementById("time-badge-menu");
     if (!badge || !menu) return;
-    /* Build menu options */
     for (var i = 0; i < _TIME_CYCLE.length; i++) {
       var val = _TIME_CYCLE[i];
       var opt = document.createElement("button");
       opt.className = "tb-option" + (val === "" ? " active" : "");
       opt.dataset.time = val;
       opt.textContent = _TIME_BADGE_LABELS[val] || val;
-      opt.addEventListener("click", (function(v) {
+      opt.addEventListener("click", /* @__PURE__ */ (function(v) {
         return function(e) {
           e.stopPropagation();
           var sel = document.getElementById("filter-time");
@@ -2521,12 +2496,10 @@
       })(val));
       menu.appendChild(opt);
     }
-    /* Toggle menu */
     badge.addEventListener("click", function(e) {
       e.stopPropagation();
       menu.classList.toggle("open");
     });
-    /* Close on outside click */
     document.addEventListener("click", function() {
       if (menu.classList.contains("open")) {
         menu.classList.remove("open");
@@ -2549,8 +2522,13 @@
     if (nFilters > 0) parts.push(nFilters + " filter" + (nFilters > 1 ? "s" : ""));
     var fs = state._filterState;
     if (fs) parts.push(fs.stats.showing.toLocaleString() + " stories");
-    if (parts.length === 0) { el.classList.remove("visible"); return; }
-    el.innerHTML = parts.map(function(t, i) { return (i > 0 ? '<span class="fs-dot"></span>' : "") + '<span class="fs-item">' + escapeHtml(t) + "</span>"; }).join("");
+    if (parts.length === 0) {
+      el.classList.remove("visible");
+      return;
+    }
+    el.innerHTML = parts.map(function(t, i) {
+      return (i > 0 ? '<span class="fs-dot"></span>' : "") + '<span class="fs-item">' + escapeHtml(t) + "</span>";
+    }).join("");
     el.classList.add("visible");
   }
   async function fetchCloudData(hours) {
@@ -2911,7 +2889,6 @@
     for (const id of Object.keys(state.presetPrefs)) {
       if (!state.allPresets[id]) delete state.presetPrefs[id];
     }
-    // Apply tm_visible_worlds to presetPrefs visibility
     var visiblePresets = _loadVisiblePresets();
     if (visiblePresets) {
       for (var vid in state.presetPrefs) {
@@ -3129,7 +3106,6 @@
       });
       bar.appendChild(btn);
     }
-    // Render dropdown menu
     _renderPresetDropdownMenu(visibleEntries);
     updatePresetsBar();
     updatePresetsBarOverflow();
@@ -3145,13 +3121,7 @@
       const icon = PRESET_ICONS[id] || state.presetPrefs[id]?.icon || "";
       const label = world.label;
       const desc = PRESET_PICKER_DESCRIPTIONS[id] || "";
-      item.innerHTML =
-        `<span class="preset-dropdown-item-icon">${icon}</span>` +
-        `<span class="preset-dropdown-item-dot" style="background:${world.color}"></span>` +
-        `<span class="preset-dropdown-item-info"><span class="preset-dropdown-item-label">${escapeHtml(label)}</span>` +
-        (desc ? `<span class="preset-dropdown-item-desc">${escapeHtml(desc)}</span>` : "") +
-        `</span>` +
-        `<span class="preset-dropdown-item-count"></span>`;
+      item.innerHTML = `<span class="preset-dropdown-item-icon">${icon}</span><span class="preset-dropdown-item-dot" style="background:${world.color}"></span><span class="preset-dropdown-item-info"><span class="preset-dropdown-item-label">${escapeHtml(label)}</span>` + (desc ? `<span class="preset-dropdown-item-desc">${escapeHtml(desc)}</span>` : "") + `</span><span class="preset-dropdown-item-count"></span>`;
       item.addEventListener("click", (e) => {
         e.stopPropagation();
         _closePresetDropdown();
@@ -3163,7 +3133,7 @@
   function _updatePresetDropdownTrigger() {
     const trigger = document.getElementById("preset-dropdown-trigger");
     if (!trigger) return;
-    const presetId = state.activePresetId || "bright_side";
+    const presetId = state.activePresetId || "all";
     const world = state.allPresets[presetId];
     if (!world) return;
     const icon = PRESET_ICONS[presetId] || state.presetPrefs[presetId]?.icon || "";
@@ -3171,13 +3141,10 @@
     const labelEl = trigger.querySelector(".preset-dropdown-label");
     if (iconEl) iconEl.textContent = icon;
     if (labelEl) labelEl.textContent = world.label;
-    // Tint trigger border with preset color
     trigger.style.borderColor = world.color;
-    // Update active state in dropdown menu
     document.querySelectorAll(".preset-dropdown-item").forEach((item) => {
       item.classList.toggle("active", item.dataset.world === presetId);
     });
-    // Update counts in dropdown
     const domainCounts = {};
     for (const n of state.narrativesData || []) {
       const d = n.domain || "news";
@@ -3201,7 +3168,6 @@
     } else {
       trigger.classList.add("open");
       menu.classList.add("open");
-      // Scroll active item into view
       const active = menu.querySelector(".preset-dropdown-item.active");
       if (active) active.scrollIntoView({ block: "nearest" });
     }
@@ -3212,7 +3178,6 @@
     if (trigger) trigger.classList.remove("open");
     if (menu) menu.classList.remove("open");
   }
-  // === Preset Picker ===
   var PRESET_PICKER_DESCRIPTIONS = {
     bright_side: "Uplifting and feel-good stories",
     sports: "Live scores, transfers, tournaments",
@@ -3235,7 +3200,6 @@
     var grid = document.getElementById("preset-picker-grid");
     if (!dialog || !grid) return;
     grid.innerHTML = "";
-    // Start with current visible presets or all built-in presets
     var savedVisible = _loadVisiblePresets();
     var builtInIds = Object.keys(WORLD_PRESETS);
     _presetPickerSelection = {};
@@ -3253,13 +3217,11 @@
       card.className = "preset-picker-card" + (_presetPickerSelection[wid] ? " selected" : " deselected");
       card.dataset.world = wid;
       card.style.setProperty("--preset-picker-color", world.color);
-      card.innerHTML = '<span class="preset-picker-card-icon">' + icon + "</span>" + '<div class="preset-picker-card-info">' + '<span class="preset-picker-card-name">' + escapeHtml(world.label) + "</span>" + '<span class="preset-picker-card-desc">' + escapeHtml(desc) + "</span>" + "</div>" + '<span class="preset-picker-check">\u2713</span>';
+      card.innerHTML = '<span class="preset-picker-card-icon">' + icon + '</span><div class="preset-picker-card-info"><span class="preset-picker-card-name">' + escapeHtml(world.label) + '</span><span class="preset-picker-card-desc">' + escapeHtml(desc) + '</span></div><span class="preset-picker-check">\u2713</span>';
       card.addEventListener("click", _presetPickerToggle);
       grid.appendChild(card);
     }
     dialog.classList.add("visible");
-    // Click outside the panel to confirm
-    // Remove any stale listener before adding a new one
     if (_pickerOverlayClickRef) {
       dialog.removeEventListener("click", _pickerOverlayClickRef);
     }
@@ -3286,7 +3248,6 @@
     var dialog = document.getElementById("preset-picker-dialog");
     if (dialog) {
       dialog.classList.remove("visible");
-      // Remove overlay click listener to prevent leak (Fix #2)
       if (_pickerOverlayClickRef) {
         dialog.removeEventListener("click", _pickerOverlayClickRef);
         _pickerOverlayClickRef = null;
@@ -3294,7 +3255,10 @@
     }
   }
   function confirmPresetPicker() {
-    if (!_presetPickerSelection) { closePresetPicker(); return; }
+    if (!_presetPickerSelection) {
+      closePresetPicker();
+      return;
+    }
     var selected = [];
     var builtInIds = Object.keys(WORLD_PRESETS);
     var allSelected = true;
@@ -3306,21 +3270,17 @@
         allSelected = false;
       }
     }
-    // If none selected, treat as all selected (prevent empty bar)
     if (selected.length === 0) {
       selected = builtInIds.slice();
       allSelected = true;
     }
     if (allSelected) {
-      // Remove the key entirely -- backwards compatible default
       localStorage.removeItem("tm_visible_worlds");
     } else {
       localStorage.setItem("tm_visible_worlds", JSON.stringify(selected));
     }
-    // Apply visibility to presetPrefs
     _applyVisiblePresetsToPrefs();
     renderPresetsBar();
-    // If current preset was hidden, switch to first visible or news
     if (state.activePresetId !== "all" && selected.indexOf(state.activePresetId) === -1) {
       switchPreset(selected[0] || "all");
     }
@@ -3333,7 +3293,8 @@
       if (!raw) return null;
       var arr = JSON.parse(raw);
       if (Array.isArray(arr) && arr.length > 0) return arr;
-    } catch (e) {}
+    } catch (e) {
+    }
     return null;
   }
   function _applyVisiblePresetsToPrefs() {
@@ -3346,7 +3307,6 @@
     savePresetPrefs();
   }
   function _syncVisiblePresetsFromPrefs() {
-    // Sync presetPrefs visibility back to tm_visible_worlds
     var visible = [];
     var allVisible = true;
     var builtInIds = Object.keys(WORLD_PRESETS);
@@ -3380,7 +3340,6 @@
     const listContainer = document.getElementById("presets-panel-list");
     listContainer.innerHTML = "";
     const sorted = Object.entries(state.allPresets).sort((a, b) => (state.presetPrefs[a[0]]?.order ?? 99) - (state.presetPrefs[b[0]]?.order ?? 99));
-    // Only show visible presets in main list
     const visibleSorted = sorted.filter(([id]) => {
       const pref = state.presetPrefs[id] || {};
       return pref.visible !== false;
@@ -3393,7 +3352,6 @@
       item.className = "preset-panel-item" + (isActive ? " active-preset" : "");
       item.draggable = true;
       item.dataset.presetId = id;
-      // Drag and drop handlers
       item.addEventListener("dragstart", (e) => {
         _draggedPresetId = id;
         item.classList.add("dragging");
@@ -3404,7 +3362,7 @@
         _draggedPresetId = null;
         _dragOverPresetId = null;
         item.classList.remove("dragging");
-        listContainer.querySelectorAll(".preset-panel-item").forEach(el => {
+        listContainer.querySelectorAll(".preset-panel-item").forEach((el) => {
           el.classList.remove("drag-over-above", "drag-over-below");
         });
       });
@@ -3414,7 +3372,7 @@
         if (_draggedPresetId === id) return;
         const rect = item.getBoundingClientRect();
         const midY = rect.top + rect.height / 2;
-        listContainer.querySelectorAll(".preset-panel-item").forEach(el => {
+        listContainer.querySelectorAll(".preset-panel-item").forEach((el) => {
           el.classList.remove("drag-over-above", "drag-over-below");
         });
         if (e.clientY < midY) {
@@ -3430,7 +3388,6 @@
         const rect = item.getBoundingClientRect();
         const midY = rect.top + rect.height / 2;
         const dropAbove = e.clientY < midY;
-        // Rebuild order: remove dragged, insert at new position
         const currentOrder = visibleSorted.map(([wid]) => wid);
         const fromIdx = currentOrder.indexOf(_draggedPresetId);
         if (fromIdx === -1) return;
@@ -3438,12 +3395,10 @@
         let toIdx = currentOrder.indexOf(id);
         if (!dropAbove) toIdx++;
         currentOrder.splice(toIdx, 0, _draggedPresetId);
-        // Update order values for all visible presets
         currentOrder.forEach((wid, i) => {
           if (!state.presetPrefs[wid]) state.presetPrefs[wid] = { visible: true, order: i };
           state.presetPrefs[wid].order = i;
         });
-        // Hidden presets get order after visible ones
         const hiddenSorted = sorted.filter(([wid]) => {
           const p = state.presetPrefs[wid] || {};
           return p.visible === false;
@@ -3456,7 +3411,6 @@
         renderPresetsBar();
         renderPresetsPanelContents();
       });
-      // Drag handle
       const handle = document.createElement("span");
       handle.className = "preset-panel-drag";
       handle.innerHTML = "&#x2630;";
@@ -3473,7 +3427,6 @@
       labelEl.textContent = (icon ? icon + " " : "") + world.label;
       info.appendChild(labelEl);
       item.appendChild(info);
-      // Remove button (hides from bar)
       const removeBtn = document.createElement("button");
       removeBtn.className = "preset-panel-remove";
       removeBtn.innerHTML = "&times;";
@@ -3487,7 +3440,7 @@
         renderPresetsBar();
         renderPresetsPanelContents();
         if (state.activePresetId === id) {
-          const firstVisible = Object.keys(state.allPresets).find(wid => state.presetPrefs[wid]?.visible !== false);
+          const firstVisible = Object.keys(state.allPresets).find((wid) => state.presetPrefs[wid]?.visible !== false);
           switchPreset(firstVisible || "all");
         }
       });
@@ -3499,7 +3452,6 @@
       });
       listContainer.appendChild(item);
     });
-    // Hidden presets section
     const hiddenPresets = sorted.filter(([id]) => {
       const pref = state.presetPrefs[id] || {};
       return pref.visible === false;
@@ -3521,7 +3473,6 @@
         showRemovedBtn.textContent = "Hide removed";
         const removedSection = document.createElement("div");
         removedSection.className = "preset-panel-removed-section";
-        // Hidden-but-not-deleted presets
         hiddenPresets.forEach(([hid]) => {
           const hw = state.allPresets[hid];
           if (!hw) return;
@@ -3555,7 +3506,6 @@
           hItem.appendChild(addBtn);
           removedSection.appendChild(hItem);
         });
-        // Fully removed built-in presets
         removedBuiltIn.forEach((rid) => {
           const rw = WORLD_PRESETS[rid];
           if (!rw) return;
@@ -3579,7 +3529,7 @@
           restoreBtn.title = "Restore preset";
           restoreBtn.addEventListener("click", (ev) => {
             ev.stopPropagation();
-            const rem = _getRemovedPresets().filter(x => x !== rid);
+            const rem = _getRemovedPresets().filter((x) => x !== rid);
             if (rem.length > 0) {
               localStorage.setItem("tm_removed_worlds", JSON.stringify(rem));
             } else {
@@ -3695,7 +3645,10 @@
       return `<span class="source-chip ${cls}" data-source="${escapeHtml(s.source)}">${escapeHtml(s.source)}<span class="chip-count">${s.count}</span></span>`;
     }).join("");
     container.querySelectorAll(".source-chip").forEach((chip) => {
-      chip.addEventListener("click", (e) => { e.stopPropagation(); toggleSource(chip.dataset.source); });
+      chip.addEventListener("click", (e) => {
+        e.stopPropagation();
+        toggleSource(chip.dataset.source);
+      });
       chip.addEventListener("contextmenu", (e) => {
         e.preventDefault();
         e.stopPropagation();
@@ -3817,25 +3770,25 @@
       }).join("");
       const visited = state._visitedStories.has(p.url) ? " visited" : "";
       return `
-            <div class="story-item${freshClass}${isBrightStory ? " bright-story" : ""}${visited}" data-id="${p.id}" data-lat="${lat}" data-lon="${lon}">
-                <div class="story-title">${sentDot}${bsScoreTag}${_highlightText(escapeHtml(displayTitle), searchQ)}</div>
-                ${isBrightStory && displayTitle !== p.title ? `<div class="bs-original-title">${escapeHtml(p.title)}</div>` : ""}
-                ${actorPills ? `<div class="story-actors">${actorPills}</div>` : ""}
-                <div class="story-meta">
-                    ${bsCategoryTag}
-                    <span class="story-source">${escapeHtml(p.source)}</span>
-                    ${actionTag}
-                    ${tags}
-                    ${p.location_name ? `<span class="story-location">${escapeHtml(p.location_name)}</span>` : ""}
-                    <span class="story-time" data-time="${escapeHtml(timeIso || "")}" title="${escapeHtml(fullTime)}">${time}</span>
-                </div>
-                ${summary ? `<div class="story-detail">
-                    ${p.image_url ? `<img class="story-detail-img" src="${escapeHtml(p.image_url)}" loading="lazy" alt="" onload="this.classList.add('loaded')" onerror="this.remove()">` : ""}
-                    <div class="story-summary">${summary}</div>
-                    <a class="story-link" href="${escapeHtml(p.url)}" target="_blank" rel="noopener">Read full story</a>
-                </div>` : ""}
-            </div>
-        `;
+          <div class="story-item${freshClass}${isBrightStory ? " bright-story" : ""}${visited}" data-id="${p.id}" data-lat="${lat}" data-lon="${lon}">
+              <div class="story-title">${sentDot}${bsScoreTag}${_highlightText(escapeHtml(displayTitle), searchQ)}</div>
+              ${isBrightStory && displayTitle !== p.title ? `<div class="bs-original-title">${escapeHtml(p.title)}</div>` : ""}
+              ${actorPills ? `<div class="story-actors">${actorPills}</div>` : ""}
+              <div class="story-meta">
+                  ${bsCategoryTag}
+                  <span class="story-source">${escapeHtml(p.source)}</span>
+                  ${actionTag}
+                  ${tags}
+                  ${p.location_name ? `<span class="story-location">${escapeHtml(p.location_name)}</span>` : ""}
+                  <span class="story-time" data-time="${escapeHtml(timeIso || "")}" title="${escapeHtml(fullTime)}">${time}</span>
+              </div>
+              ${summary ? `<div class="story-detail">
+                  ${p.image_url ? `<img class="story-detail-img" src="${escapeHtml(p.image_url)}" loading="lazy" alt="" onload="this.classList.add('loaded')" onerror="this.remove()">` : ""}
+                  <div class="story-summary">${summary}</div>
+                  <a class="story-link" href="${escapeHtml(p.url)}" target="_blank" rel="noopener">Read full story</a>
+              </div>` : ""}
+          </div>
+      `;
     }).join("");
     container.innerHTML = html;
     container.querySelectorAll(".story-item").forEach((item) => {
@@ -3920,26 +3873,26 @@
       const srcCount = ev.source_count > 1 ? `<span class="event-source-count">${ev.source_count} sources</span>` : "";
       const evPreview = ev.description ? `<div class="event-preview">${escapeHtml(ev.description)}</div>` : "";
       return `
-            <div class="event-item${isExpanded ? " expanded active" : ""}" data-event-id="${ev.id}" data-lat="${ev.primary_lat || ""}" data-lon="${ev.primary_lon || ""}">
-                <div class="event-header">
-                    ${severityDot}
-                    <span class="event-status ${status}">${status}</span>
-                    <span class="event-title">${_highlightText(escapeHtml(ev.title), searchQ)}</span>
-                    <span class="event-story-count">${ev.story_count}</span>
-                </div>
-                ${evPreview}
-                <div class="event-meta">
-                    ${srcCount}
-                    ${conceptTags}
-                    ${actorPills}
-                    ${loc}
-                    <span class="story-time" data-time="${escapeHtml(ev.last_updated || "")}" title="${escapeHtml(fullTime)}">${time}</span>
-                    <button class="feedback-btn" data-fb-type="event" data-fb-id="${ev.id}" data-fb-title="${escapeHtml(ev.title)}" title="Report issue">&#9873;</button>
-                    <button class="event-share-btn" data-event-id="${ev.id}" title="Copy link to this event">&#128279;</button>
-                </div>
-                <div class="event-stories-container"><div class="event-stories-inner"></div></div>
-            </div>
-        `;
+          <div class="event-item${isExpanded ? " expanded active" : ""}" data-event-id="${ev.id}" data-lat="${ev.primary_lat || ""}" data-lon="${ev.primary_lon || ""}">
+              <div class="event-header">
+                  ${severityDot}
+                  <span class="event-status ${status}">${status}</span>
+                  <span class="event-title">${_highlightText(escapeHtml(ev.title), searchQ)}</span>
+                  <span class="event-story-count">${ev.story_count}</span>
+              </div>
+              ${evPreview}
+              <div class="event-meta">
+                  ${srcCount}
+                  ${conceptTags}
+                  ${actorPills}
+                  ${loc}
+                  <span class="story-time" data-time="${escapeHtml(ev.last_updated || "")}" title="${escapeHtml(fullTime)}">${time}</span>
+                  <button class="feedback-btn" data-fb-type="event" data-fb-id="${ev.id}" data-fb-title="${escapeHtml(ev.title)}" title="Report issue">&#9873;</button>
+                  <button class="event-share-btn" data-event-id="${ev.id}" title="Copy link to this event">&#128279;</button>
+              </div>
+              <div class="event-stories-container"><div class="event-stories-inner"></div></div>
+          </div>
+      `;
     }).join("");
     container.innerHTML = html;
     container.scrollTop = scrollTop;
@@ -4026,13 +3979,13 @@
       const bsCat = isBright && s.bright_side_category ? `<span class="bs-category bs-cat-${s.bright_side_category}">${s.bright_side_category}</span>` : "";
       const evVisited = state._visitedStories.has(s.url) ? " visited" : "";
       return `<div class="event-story-item${isBright ? " bright-story" : ""}${evVisited}" data-story-id="${s.id}" data-lat="${s.lat || ""}" data-lon="${s.lon || ""}">
-            <a href="${escapeHtml(s.url)}" target="_blank" rel="noopener" class="event-story-title">${escapeHtml(title)}</a>
-            <div class="event-story-meta">
-                ${bsCat}
-                <span class="story-source">${escapeHtml(s.source)}</span>
-                <span class="story-time" data-time="${escapeHtml(s.scraped_at || "")}" title="${escapeHtml(fullTime)}">${time}</span>
-            </div>
-        </div>`;
+          <a href="${escapeHtml(s.url)}" target="_blank" rel="noopener" class="event-story-title">${escapeHtml(title)}</a>
+          <div class="event-story-meta">
+              ${bsCat}
+              <span class="story-source">${escapeHtml(s.source)}</span>
+              <span class="story-time" data-time="${escapeHtml(s.scraped_at || "")}" title="${escapeHtml(fullTime)}">${time}</span>
+          </div>
+      </div>`;
     }).join("");
     const moreCount = stories.length > 8 ? stories.length - 8 : 0;
     const moreHtml = moreCount > 0 ? `<div class="event-stories-more">+ ${moreCount} more stories</div>` : "";
@@ -4058,8 +4011,11 @@
     if (stories.length > 0) {
       const ids = stories.map((s) => s.id).filter(Boolean);
       if (ids.length > 0 && state.map.getLayer("cloud-points")) {
-        state.map.setPaintProperty("cloud-points", "circle-opacity",
-          ["case", ["in", ["get", "id"], ["literal", ids]], 0.95, 0.08]);
+        state.map.setPaintProperty(
+          "cloud-points",
+          "circle-opacity",
+          ["case", ["in", ["get", "id"], ["literal", ids]], 0.95, 0.08]
+        );
       }
       const lats = stories.filter((s) => s.lat).map((s) => s.lat);
       const lons = stories.filter((s) => s.lon).map((s) => s.lon);
@@ -4074,8 +4030,11 @@
   function _clearEventHighlight() {
     _clearHoverHighlight();
     if (state.map && state.map.getLayer("cloud-points")) {
-      state.map.setPaintProperty("cloud-points", "circle-opacity",
-        ["interpolate", ["linear"], ["get", "age_hours"], 0, 0.95, 6, 0.85, 24, 0.6, 72, 0.35]);
+      state.map.setPaintProperty(
+        "cloud-points",
+        "circle-opacity",
+        ["interpolate", ["linear"], ["get", "age_hours"], 0, 0.95, 6, 0.85, 24, 0.6, 72, 0.35]
+      );
     }
   }
   async function loadNarratives() {
@@ -4153,40 +4112,40 @@
         const evLon = ev.primary_lon || "";
         const locBtn = evLat ? `<button class="situation-event-locate" data-ev-lat="${evLat}" data-ev-lon="${evLon}" title="Fly to event location">&#9678;</button>` : "";
         return `<div class="situation-event-row">
-                <span class="situation-event-bar" style="width:${pct}%"></span>
-                <span class="situation-event-title">${escapeHtml(ev.title)}</span>
-                ${evTime ? `<span class="situation-event-time" data-time="${ev.last_updated}">${evTime}</span>` : ""}
-                <span class="situation-event-count">${ev.story_count}</span>
-                ${locBtn}
-            </div>`;
+              <span class="situation-event-bar" style="width:${pct}%"></span>
+              <span class="situation-event-title">${escapeHtml(ev.title)}</span>
+              ${evTime ? `<span class="situation-event-time" data-time="${ev.last_updated}">${evTime}</span>` : ""}
+              <span class="situation-event-count">${ev.story_count}</span>
+              ${locBtn}
+          </div>`;
       }).join("");
       const eventsBlock = eventsHtml ? `<div class="situation-events-list">${eventsHtml}</div>` : "";
       return `
-            <div class="event-item situation-item${isActive ? " active expanded" : ""}" data-narrative-id="${n.id}" data-domain="${n.domain || "news"}">
-                <div class="event-header">
-                    <span class="situation-chevron">\u25B8</span>
-                    ${newBadge}${developingBadge}
-                    <span class="event-title">${_highlightText(escapeHtml(n.title), searchQ)}</span>
-                    <span class="event-story-count">${countLabel}</span>${deltaLabel}
-                </div>
-                ${locsLabel}
-                ${preview}
-                <div class="situation-body">
-                    <div class="situation-body-inner">
-                        ${desc}
-                        ${eventsBlock}
-                        <div class="event-meta">
-                            ${srcCount}
-                            ${tags}
-                            ${ageLabel}
-                            <span class="story-time" data-time="${escapeHtml(n.last_updated || "")}" title="${escapeHtml(fullTime)}">${time}</span>
-                            <button class="feedback-btn" data-fb-type="narrative" data-fb-id="${n.id}" data-fb-title="${escapeHtml(n.title)}" title="Report issue">&#9873;</button>
-                            <button class="situation-share-btn" data-sit-id="${n.id}" title="Copy link to this situation">&#128279;</button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        `;
+          <div class="event-item situation-item${isActive ? " active expanded" : ""}" data-narrative-id="${n.id}" data-domain="${n.domain || "news"}">
+              <div class="event-header">
+                  <span class="situation-chevron">\u25B8</span>
+                  ${newBadge}${developingBadge}
+                  <span class="event-title">${_highlightText(escapeHtml(n.title), searchQ)}</span>
+                  <span class="event-story-count">${countLabel}</span>${deltaLabel}
+              </div>
+              ${locsLabel}
+              ${preview}
+              <div class="situation-body">
+                  <div class="situation-body-inner">
+                      ${desc}
+                      ${eventsBlock}
+                      <div class="event-meta">
+                          ${srcCount}
+                          ${tags}
+                          ${ageLabel}
+                          <span class="story-time" data-time="${escapeHtml(n.last_updated || "")}" title="${escapeHtml(fullTime)}">${time}</span>
+                          <button class="feedback-btn" data-fb-type="narrative" data-fb-id="${n.id}" data-fb-title="${escapeHtml(n.title)}" title="Report issue">&#9873;</button>
+                          <button class="situation-share-btn" data-sit-id="${n.id}" title="Copy link to this situation">&#128279;</button>
+                      </div>
+                  </div>
+              </div>
+          </div>
+      `;
     }).join("");
     container.innerHTML = html;
     container.scrollTop = scrollTop;
@@ -4311,8 +4270,6 @@
     if (!features.length || !state.map) return;
     const coords = features.map((f) => f.geometry.coordinates).filter((c) => c[0] !== 0 || c[1] !== 0);
     if (coords.length === 0) return;
-    // Don't fly to outliers — if less than 20% of features have coords, skip the flyTo
-    // (avoids flying to Iran for a Harry Styles situation with 1 geocoded outlier)
     if (coords.length < features.length * 0.2 && coords.length <= 2) return;
     if (coords.length === 1) {
       state.map.flyTo({ center: coords[0], zoom: 5, duration: 1200 });
@@ -4726,7 +4683,6 @@
     } else if (presetId === "all" || !presetId) {
       bar.querySelector(".preset-overview-text").textContent = state.presetOverview.summary;
     } else {
-      /* Presets without a narrative domain (planet, travel, etc.) — hide generic summary */
       bar.classList.remove("visible");
       return;
     }
@@ -4821,21 +4777,18 @@
       if (legendToggle) legendToggle.style.display = "none";
       if (heatLegend) heatLegend.style.display = "none";
     } else {
-      /* domain or neon */
       legendEl.style.display = "";
       if (legendToggle) legendToggle.style.display = "";
       if (heatLegend) heatLegend.style.display = "none";
     }
   }
   function _buildDotThemeUI() {
-    /* Theme button */
     var btn = document.getElementById("dot-theme-btn");
     if (!btn) return;
     btn.addEventListener("click", function(e) {
       e.stopPropagation();
       _toggleDotThemeMenu();
     });
-    /* Menu items */
     var menu = document.getElementById("dot-theme-menu");
     if (!menu) return;
     for (var i = 0; i < _DOT_THEMES.length; i++) {
@@ -4843,22 +4796,25 @@
       var item = document.createElement("div");
       item.className = "dot-theme-item" + (t.id === state.dotColorTheme ? " active" : "");
       item.dataset.theme = t.id;
-      item.innerHTML = '<span class="dot-theme-check">&#10003;</span><span class="dot-theme-label">' + escapeHtml(t.label) + '</span><span class="dot-theme-desc">' + escapeHtml(t.desc) + '</span>';
-      item.addEventListener("click", (function(tid) {
+      item.innerHTML = '<span class="dot-theme-check">&#10003;</span><span class="dot-theme-label">' + escapeHtml(t.label) + '</span><span class="dot-theme-desc">' + escapeHtml(t.desc) + "</span>";
+      item.addEventListener("click", /* @__PURE__ */ (function(tid) {
         return function(e) {
           e.stopPropagation();
           setDotColorTheme(tid);
-          setTimeout(function() { _toggleDotThemeMenu(); }, 120);
+          setTimeout(function() {
+            _toggleDotThemeMenu();
+          }, 120);
         };
       })(t.id));
       menu.appendChild(item);
     }
-    /* Close menu on outside click */
     document.addEventListener("click", function() {
       var m = document.getElementById("dot-theme-menu");
-      if (m && m.classList.contains("open")) { m.classList.remove("open"); _markPopupDismiss(); }
+      if (m && m.classList.contains("open")) {
+        m.classList.remove("open");
+        _markPopupDismiss();
+      }
     });
-    /* Apply legend state on load */
     _updateLegendForTheme();
   }
   function saveStateToURL() {
@@ -4901,7 +4857,7 @@
       localStorage.setItem("tm_last_visit", Date.now().toString());
       document.getElementById("filter-time").value = "24";
       const defaultPresetId = _resolvePresetAlias(localStorage.getItem("tm_default_world")) || state.activePresetId;
-      if (defaultPresetId && state.allPresets[defaultPresetId] && defaultPresetId !== "all") {
+      if (defaultPresetId && state.allPresets[defaultPresetId]) {
         const w = state.allPresets[defaultPresetId];
         if (w.feedTags && w.feedTags.length > 0) {
           applyPresetConfig(w.config);
@@ -5099,7 +5055,6 @@
     document.getElementById("preset-overview-bar").addEventListener("click", togglePresetOverview);
     document.getElementById("sidebar-toggle").addEventListener("click", toggleSidebar);
     document.getElementById("labels-toggle").addEventListener("click", toggleMapLabels);
-    document.getElementById("globe-toggle").addEventListener("click", toggleGlobe);
     document.querySelectorAll(".feed-btn").forEach((btn) => {
       btn.addEventListener("click", () => toggleFeedPanel(btn.dataset.feed));
     });
@@ -5123,13 +5078,19 @@
       });
       item.addEventListener("mouseenter", () => {
         if (!state.map || !state.map.getLayer("cloud-points")) return;
-        state.map.setPaintProperty("cloud-points", "circle-opacity",
-          ["case", ["==", ["get", "category"], cat], 0.95, 0.15]);
+        state.map.setPaintProperty(
+          "cloud-points",
+          "circle-opacity",
+          ["case", ["==", ["get", "category"], cat], 0.95, 0.15]
+        );
       });
       item.addEventListener("mouseleave", () => {
         if (!state.map || !state.map.getLayer("cloud-points")) return;
-        state.map.setPaintProperty("cloud-points", "circle-opacity",
-          ["interpolate", ["linear"], ["get", "age_hours"], 0, 0.95, 6, 0.85, 24, 0.6, 72, 0.35]);
+        state.map.setPaintProperty(
+          "cloud-points",
+          "circle-opacity",
+          ["interpolate", ["linear"], ["get", "age_hours"], 0, 0.95, 6, 0.85, 24, 0.6, 72, 0.35]
+        );
       });
       legendEl.appendChild(item);
     }
@@ -5367,7 +5328,6 @@
       }
       if (!_inTextInput) {
         if (e.key === "s") toggleSidebar();
-        if (e.key === "g") toggleGlobe();
         if (e.key === "l") toggleTheme();
         if (e.key === "m") toggleMapLabels();
         if (e.key === "w") {
@@ -5525,7 +5485,6 @@
       submitBtn.textContent = "Send";
     }
   }
-  /* ---- User Feeds ---- */
   function openUserFeedsDialog() {
     var dialog = document.getElementById("user-feeds-dialog");
     dialog.classList.add("visible");
@@ -5554,19 +5513,10 @@
       feeds.forEach(function(feed) {
         var item = document.createElement("div");
         item.className = "user-feed-item";
-        var statusClass = feed.last_error ? "error" : (feed.last_fetched ? "active" : "pending");
-        var statusTitle = feed.last_error ? "Error: " + escapeHtml(feed.last_error) : (feed.last_fetched ? "Active" : "Pending first fetch");
-        var errorHtml = feed.last_error ? '<div class="user-feed-error-msg" title="' + escapeHtml(feed.last_error).replace(/"/g, "&quot;") + '">' + escapeHtml(feed.last_error) + '</div>' : "";
-        item.innerHTML = '<div class="user-feed-info">' +
-          '<div class="user-feed-title" title="' + escapeHtml(feed.title || "").replace(/"/g, "&quot;") + '">' + escapeHtml(feed.title || feed.url) + '</div>' +
-          '<div class="user-feed-url" title="' + escapeHtml(feed.url).replace(/"/g, "&quot;") + '">' + escapeHtml(feed.url) + '</div>' +
-          errorHtml +
-          '</div>' +
-          '<div class="user-feed-meta">' +
-          '<span class="user-feed-tag">' + escapeHtml(feed.feed_tag) + '</span>' +
-          '<span class="user-feed-status ' + statusClass + '" title="' + statusTitle.replace(/"/g, "&quot;") + '"></span>' +
-          '</div>' +
-          '<button class="user-feed-delete" title="Remove feed">&times;</button>';
+        var statusClass = feed.last_error ? "error" : feed.last_fetched ? "active" : "pending";
+        var statusTitle = feed.last_error ? "Error: " + escapeHtml(feed.last_error) : feed.last_fetched ? "Active" : "Pending first fetch";
+        var errorHtml = feed.last_error ? '<div class="user-feed-error-msg" title="' + escapeHtml(feed.last_error).replace(/"/g, "&quot;") + '">' + escapeHtml(feed.last_error) + "</div>" : "";
+        item.innerHTML = '<div class="user-feed-info"><div class="user-feed-title" title="' + escapeHtml(feed.title || "").replace(/"/g, "&quot;") + '">' + escapeHtml(feed.title || feed.url) + '</div><div class="user-feed-url" title="' + escapeHtml(feed.url).replace(/"/g, "&quot;") + '">' + escapeHtml(feed.url) + "</div>" + errorHtml + '</div><div class="user-feed-meta"><span class="user-feed-tag">' + escapeHtml(feed.feed_tag) + '</span><span class="user-feed-status ' + statusClass + '" title="' + statusTitle.replace(/"/g, "&quot;") + '"></span></div><button class="user-feed-delete" title="Remove feed">&times;</button>';
         var deleteBtn = item.querySelector(".user-feed-delete");
         deleteBtn.addEventListener("click", function() {
           _deleteUserFeed(feed.id);
@@ -5586,7 +5536,9 @@
     var url = urlInput.value.trim();
     if (!url) {
       urlInput.classList.add("input-error");
-      setTimeout(function() { urlInput.classList.remove("input-error"); }, 600);
+      setTimeout(function() {
+        urlInput.classList.remove("input-error");
+      }, 600);
       return;
     }
     addBtn.disabled = true;
@@ -5598,7 +5550,7 @@
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          url: url,
+          url,
           feed_tag: tagSelect.value,
           browser_hash: _getBrowserHash()
         })
@@ -5608,7 +5560,9 @@
         hint.textContent = data.error || "Failed to add feed.";
         hint.style.color = "#f85149";
         urlInput.classList.add("input-error");
-        setTimeout(function() { urlInput.classList.remove("input-error"); }, 600);
+        setTimeout(function() {
+          urlInput.classList.remove("input-error");
+        }, 600);
         addBtn.disabled = false;
         addBtn.textContent = "Add";
         return;
@@ -5619,7 +5573,7 @@
       setTimeout(function() {
         hint.textContent = "Added feeds appear on the map within 15 minutes.";
         hint.style.color = "";
-      }, 3000);
+      }, 3e3);
       _loadUserFeeds();
     } catch (err) {
       hint.textContent = "Network error. Please try again.";
