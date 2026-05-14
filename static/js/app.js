@@ -14,8 +14,6 @@
     brightSideMode: false,
     curiousMode: false,
     filterDrawerOpen: false,
-    globeManualOverride: null,
-    currentProjection: "globe",
     mapHidden: false,
     activeFeedPanel: null,
     networkAnimId: null,
@@ -34,7 +32,6 @@
     // Events/views state
     currentView: "narratives",
     eventsData: [],
-    registryData: [],
     presetOverview: null,
     narrativesData: [],
     expandedEventId: null,
@@ -52,12 +49,13 @@
     // Visited story tracking
     _visitedStories: /* @__PURE__ */ new Set(),
     // UI state
+    _popupDismissing: false,
     hoverTooltipEl: null,
     _filterState: null,
     _trendingConcepts: /* @__PURE__ */ new Set(),
     // Presets
     allPresets: {},
-    activePresetId: "bright_side",
+    activePresetId: "all",
     presetModified: false,
     _pendingPresetId: null,
     presetPrefs: {},
@@ -69,11 +67,14 @@
     // Map labels
     _lastEventGeo: { type: "FeatureCollection", features: [] },
     // Animations
-    internetAnimFrame: null,
     // Feedback
     _feedbackCooldownUntil: 0,
     _feedbackSessionCount: 0
   };
+  function _markPopupDismiss() {
+    state._popupDismissing = true;
+    requestAnimationFrame(function() { state._popupDismissing = false; });
+  }
   var DOMAIN_COLORS = {
     violence: "#e74c3c",
     human: "#e67e22",
@@ -190,8 +191,8 @@
             );
           }
         }
-        /* Apply preset color tint to final blended color */
-        if (presetRGB && (theme === "domain" || theme === "classic")) {
+        /* Apply preset color tint to final blended color (skip for "all" — show pure domain colors) */
+        if (presetRGB && state.activePresetId !== "all" && (theme === "domain" || theme === "classic")) {
           var bRGB = _hexToRGB(blended);
           var wt = 0.22;
           blended = _rgbToHex(
@@ -211,7 +212,7 @@
       if (!features[ii].properties.blended_color) {
         var dom2 = features[ii].properties._domain || "general";
         var fallback = DOMAIN_COLORS[dom2] || "#484f58";
-        if (presetRGB && (theme === "domain" || theme === "classic")) {
+        if (presetRGB && state.activePresetId !== "all" && (theme === "domain" || theme === "classic")) {
           var fRGB = _hexToRGB(fallback);
           fallback = _rgbToHex(
             fRGB[0] + (presetRGB[0] - fRGB[0]) * 0.22,
@@ -277,6 +278,23 @@
     { domain: "uplifting", color: "#f1c40f", keywords: ["rescue", "hero", "discovery", "breakthrough", "donation", "volunteer", "recovery", "milestone", "achievement", "innovation"] }
   ];
   var WORLD_PRESETS = {
+    all: {
+      label: "All Stories",
+      color: "#1f6feb",
+      builtIn: true,
+      permanent: true,
+      config: {
+        activeConcepts: [],
+        excludedConcepts: [],
+        activeSources: [],
+        excludedSources: [],
+        activeOrigins: ["rss", "gdelt", "usgs", "noaa", "eonet", "gdacs", "reliefweb", "who", "launches", "openaq", "travel", "firms", "meteoalarm", "acled", "jma"],
+        brightSideMode: false,
+
+        timeHours: "",
+        hideOpinion: false
+      }
+    },
     bright_side: {
       label: "Bright Side",
       color: "#c99700",
@@ -288,7 +306,7 @@
         excludedSources: [],
         activeOrigins: ["rss", "gdelt", "launches"],
         brightSideMode: true,
-        searchText: "",
+
         timeHours: "",
         hideOpinion: false
       }
@@ -304,7 +322,7 @@
         excludedSources: [],
         activeOrigins: ["rss", "gdelt", "usgs", "noaa", "eonet", "gdacs", "reliefweb", "who", "launches", "openaq", "travel", "firms", "meteoalarm", "acled", "jma"],
         brightSideMode: false,
-        searchText: "",
+
         timeHours: "",
         hideOpinion: false
       },
@@ -321,7 +339,7 @@
         excludedSources: [],
         activeOrigins: ["rss", "gdelt", "usgs", "noaa", "eonet", "gdacs", "reliefweb", "who", "launches", "openaq", "travel", "firms", "meteoalarm", "acled", "jma"],
         brightSideMode: false,
-        searchText: "",
+
         timeHours: "",
         hideOpinion: false
       },
@@ -339,7 +357,7 @@
         activeOrigins: ["rss", "gdelt", "usgs", "noaa", "eonet", "gdacs", "reliefweb", "who", "launches", "openaq", "travel", "firms", "meteoalarm", "acled", "jma"],
         brightSideMode: false,
         curiousMode: true,
-        searchText: "",
+
         timeHours: "",
         hideOpinion: false
       }
@@ -355,7 +373,7 @@
         excludedSources: [],
         activeOrigins: ["rss", "gdelt", "usgs", "noaa", "eonet", "gdacs", "reliefweb", "who", "launches", "openaq", "travel", "firms", "meteoalarm", "acled", "jma"],
         brightSideMode: false,
-        searchText: "",
+
         timeHours: "",
         hideOpinion: false
       },
@@ -372,7 +390,7 @@
         excludedSources: [],
         activeOrigins: ["rss", "gdelt", "usgs", "noaa", "eonet", "gdacs", "reliefweb", "who", "launches", "openaq", "travel", "firms", "meteoalarm", "acled", "jma"],
         brightSideMode: false,
-        searchText: "",
+
         timeHours: "",
         hideOpinion: false
       },
@@ -389,7 +407,7 @@
         excludedSources: [],
         activeOrigins: ["noaa", "eonet", "usgs", "gdacs", "firms", "meteoalarm", "jma"],
         brightSideMode: false,
-        searchText: "",
+
         timeHours: "",
         hideOpinion: false
       }
@@ -405,7 +423,7 @@
         excludedSources: [],
         activeOrigins: ["rss", "gdelt", "acled"],
         brightSideMode: false,
-        searchText: "",
+
         timeHours: "",
         hideOpinion: false
       },
@@ -422,7 +440,7 @@
         excludedSources: [],
         activeOrigins: ["rss", "travel", "noaa", "gdacs", "who", "meteoalarm", "acled", "jma"],
         brightSideMode: false,
-        searchText: "",
+
         timeHours: "",
         hideOpinion: false
       }
@@ -438,7 +456,7 @@
         excludedSources: [],
         activeOrigins: ["rss", "gdelt", "acled", "travel"],
         brightSideMode: false,
-        searchText: "",
+
         timeHours: "",
         hideOpinion: false
       },
@@ -455,7 +473,7 @@
         excludedSources: [],
         activeOrigins: ["rss", "gdelt"],
         brightSideMode: false,
-        searchText: "",
+
         timeHours: "",
         hideOpinion: false
       },
@@ -472,29 +490,12 @@
         excludedSources: [],
         activeOrigins: ["rss", "who", "reliefweb"],
         brightSideMode: false,
-        searchText: "",
+
         timeHours: "",
         hideOpinion: false
       },
       keywords: ["health", "disease", "vaccine", "hospital", "drug", "cancer", "pandemic", "surgery", "outbreak", "medical"]
     },
-    all: {
-      label: "All",
-      color: "#1f6feb",
-      builtIn: true,
-      permanent: true,
-      config: {
-        activeConcepts: [],
-        excludedConcepts: [],
-        activeSources: [],
-        excludedSources: [],
-        activeOrigins: ["rss", "gdelt", "usgs", "noaa", "eonet", "gdacs", "reliefweb", "who", "launches", "openaq", "travel", "firms", "meteoalarm", "acled", "jma"],
-        brightSideMode: false,
-        searchText: "",
-        timeHours: "",
-        hideOpinion: false
-      }
-    }
   };
   var PRESET_ALIASES = {
     "positive": "bright_side",
@@ -1109,6 +1110,7 @@
       document.addEventListener("click", (e) => {
         if (mCtrlTray.classList.contains("open") && !mCtrlTray.contains(e.target)) {
           mCtrlTray.classList.remove("open");
+          _markPopupDismiss();
         }
       });
     }
@@ -1565,27 +1567,6 @@
       if (step >= steps) clearInterval(interval);
     }, 30);
   }
-  function updateFreshnessIndicator() {
-    const el = document.getElementById("stat-freshness");
-    if (!el || !state._lastDataUpdate) return;
-    const sec = Math.floor((Date.now() - state._lastDataUpdate) / 1e3);
-    if (sec < 10) {
-      el.textContent = "live";
-      el.classList.add("live");
-      el.classList.remove("stale");
-    } else if (sec < 60) {
-      el.textContent = `${sec}s ago`;
-      el.classList.remove("live", "stale");
-    } else if (sec < 180) {
-      el.textContent = `${Math.floor(sec / 60)}m ago`;
-      el.classList.remove("live", "stale");
-    } else {
-      el.textContent = `${Math.floor(sec / 60)}m ago`;
-      el.classList.remove("live");
-      el.classList.add("stale");
-    }
-  }
-
   // src/js/store.js
   function _getPresetDomain(presetId) {
     return PRESET_DOMAIN_MAP[presetId] || null;
@@ -1602,6 +1583,8 @@
     const topicCounts = {};
     const sourceCountMap = {};
     const feedCounts = { space: 0, internet: 0 };
+    let searchMatchAll = 0;
+    const _searchTerms = searchText ? searchText.split(/\s+/).filter((t) => t.length > 0) : [];
     for (const f of state.geojsonData.features) {
       const p = f.properties;
       let concepts = p.concepts;
@@ -1611,6 +1594,11 @@
         concepts = [];
       }
       concepts = concepts || [];
+      if (searchText) {
+        const kw = Array.isArray(p.search_keywords) ? p.search_keywords.join(" ") : "";
+        const haystack = `${p.title || ""} ${p.summary || ""} ${p.location_name || ""} ${kw}`.toLowerCase();
+        if (_searchTerms.every((term) => haystack.includes(term))) searchMatchAll++;
+      }
       if (hasFilters) {
         if (timeHours > 0) {
           const storyTime = new Date(p.published_at || p.scraped_at).getTime();
@@ -1623,8 +1611,7 @@
         if (searchText) {
           const kw = Array.isArray(p.search_keywords) ? p.search_keywords.join(" ") : "";
           const haystack = `${p.title || ""} ${p.summary || ""} ${p.location_name || ""} ${kw}`.toLowerCase();
-          const terms = searchText.split(/\s+/).filter((t) => t.length > 0);
-          if (!terms.every((term) => haystack.includes(term))) continue;
+          if (!_searchTerms.every((term) => haystack.includes(term))) continue;
         }
         if (state.brightSideMode) {
           const score = p.bright_side_score;
@@ -1672,7 +1659,19 @@
     }
     const clouds = storyIds ? { type: "FeatureCollection", features: state.cloudData.features.filter((f) => storyIds.has(f.properties.story_id)) } : state.cloudData;
     const contentFiltering = state.activeConcepts.size > 0 || state.excludedConcepts.size > 0 || state.activeSources.size > 0 || state.excludedSources.size > 0 || originFiltering || state.brightSideMode || state.curiousMode || searchText;
-    const events = contentFiltering && storyIds ? state.eventsData.filter((ev) => ev.story_ids && ev.story_ids.some((id) => storyIds.has(id))) : [...state.eventsData];
+    let events;
+    if (contentFiltering && storyIds) {
+      events = state.eventsData.filter((ev) => {
+        if (ev.story_ids && ev.story_ids.some((id) => storyIds.has(id))) return true;
+        if (searchText) {
+          const haystack = `${ev.title || ""} ${ev.description || ""} ${ev.summary || ""}`.toLowerCase();
+          return _searchTerms.every((term) => haystack.includes(term));
+        }
+        return false;
+      });
+    } else {
+      events = [...state.eventsData];
+    }
     if (state.eventSortMode === "new") {
       events.sort((a, b) => new Date(b.last_updated || 0).getTime() - new Date(a.last_updated || 0).getTime());
     } else if (state.eventSortMode === "broadest") {
@@ -1695,13 +1694,14 @@
       narratives = narratives.filter((n) => (n.bright_side_count || 0) > 0);
     }
     if (searchText) {
-      const searchTerms = searchText.split(/\s+/).filter((t) => t.length > 0);
       narratives = narratives.filter((n) => {
         const haystack = `${n.title || ""} ${n.description || ""} ${(n.theme_tags || []).join(" ")}`.toLowerCase();
-        return searchTerms.every((term) => haystack.includes(term));
+        const textMatch = _searchTerms.every((term) => haystack.includes(term));
+        return textMatch || n.filteredCount > 0;
       });
+    } else {
+      narratives = narratives.filter((n) => n.filteredCount > 0);
     }
-    narratives = narratives.filter((n) => n.filteredCount > 0);
     if (state.narrativeSortMode === "new") {
       narratives.sort((a, b) => new Date(b.last_updated || 0).getTime() - new Date(a.last_updated || 0).getTime());
     } else if (state.narrativeSortMode === "broadest") {
@@ -1734,33 +1734,18 @@
       feedCounts,
       stats: {
         showing: features.length,
-        sources: Object.keys(sourceCountMap).length
+        sources: Object.keys(sourceCountMap).length,
+        searchMatchAll
       },
       hasFilters
     };
   }
 
   // src/js/main.js
-  state.activeFeedPanel = null;
-  state.networkAnimId = null;
-  state.spaceAnimId = null;
-  state._feedTagsReady = null;
-  state._lastDataUpdate = null;
-  state._pulseAnimId = null;
-  state._pulsePhase = 0;
-  state.currentView = "narratives";
-  state.expandedEventStories = [];
-  state.activeNarrativeId = null;
-  state.narrativeSortMode = "volume";
-  state.eventSortMode = "volume";
-  state.storySortMode = "new";
-  state._pendingSituationId = null;
-  state._pendingMapView = null;
-  state.activeLocationFilter = null;
   state.lightMode = localStorage.getItem("thisminute-theme") === "light";
-  var _VALID_DOT_THEMES = ["domain", "classic", "mono", "heat", "neon"];
-  var _rawDotTheme = localStorage.getItem("tm_dot_theme");
-  state.dotColorTheme = _VALID_DOT_THEMES.indexOf(_rawDotTheme) !== -1 ? _rawDotTheme : "domain";
+  /* Theme selector hidden — force domain theme, clear any stale preference */
+  localStorage.removeItem("tm_dot_theme");
+  state.dotColorTheme = "domain";
   function _markVisited(url) {
     if (!url || state._visitedStories.has(url)) return;
     state._visitedStories.add(url);
@@ -1772,7 +1757,6 @@
   }
   var _introSpinActive = false;
   function _startIntroSpin() {
-    if (state.currentProjection !== "globe") return;
     _introSpinActive = true;
     var target = state._pendingMapView;
     var targetLon = target ? target.lon : 20 + Math.random() * 40;
@@ -1844,7 +1828,7 @@
     });
     state.map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "bottom-right");
     state.map.on("style.load", () => {
-      state.map.setProjection({ type: state.currentProjection });
+      state.map.setProjection({ type: "globe" });
       _startIntroSpin();
     });
     const _prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -1853,7 +1837,7 @@
     function startAutoRotate() {
       if (_rotateId || !_autoRotate || _introSpinActive) return;
       _rotateId = setInterval(() => {
-        if (!_autoRotate || state.currentProjection !== "globe" || _introSpinActive) {
+        if (!_autoRotate || _introSpinActive) {
           stopAutoRotate();
           return;
         }
@@ -1891,26 +1875,12 @@
       startAutoRotate();
       setTimeout(stopAutoRotate, 2e4);
     });
-    state.map.on("zoomend", () => {
-      if (state.globeManualOverride !== null) return;
-      const zoom = state.map.getZoom();
-      if (zoom >= 5 && state.currentProjection === "globe") {
-        applyProjection("mercator");
-      } else if (zoom < 1.5 && state.currentProjection === "mercator") {
-        applyProjection("globe");
-      }
-    });
     let _moveTimer = null;
     state.map.on("moveend", () => {
       clearTimeout(_moveTimer);
       _moveTimer = setTimeout(saveStateToURL, 500);
     });
     state.map.on("load", onMapLoad);
-  }
-  function applyProjection(type) {
-    state.currentProjection = type;
-    state.map.setProjection({ type });
-    updateGlobeButton();
   }
   state.mapLabelsVisible = false;
   function setMapLabelsVisible(visible) {
@@ -1929,16 +1899,7 @@
     setMapLabelsVisible(!state.mapLabelsVisible);
   }
   function toggleGlobe() {
-    if (state.mapHidden) {
-      setMapVisible(true);
-      state.globeManualOverride = "globe";
-      applyProjection("globe");
-    } else if (state.currentProjection === "globe") {
-      state.globeManualOverride = "mercator";
-      applyProjection("mercator");
-    } else {
-      setMapVisible(false);
-    }
+    setMapVisible(state.mapHidden);
   }
   function setMapVisible(visible) {
     state.mapHidden = !visible;
@@ -1977,28 +1938,19 @@
         if (state.map) state.map.resize();
       }, 550);
     }
-    updateGlobeButton();
+    updateMapToggleButton();
   }
-  function resetGlobeAuto() {
-    if (state.mapHidden) setMapVisible(true);
-    state.globeManualOverride = null;
-    const zoom = state.map.getZoom();
-    applyProjection(zoom < 5 ? "globe" : "mercator");
-  }
-  function updateGlobeButton() {
+  function updateMapToggleButton() {
     const btn = document.getElementById("globe-toggle");
     if (state.mapHidden) {
       btn.innerHTML = "&#127758;";
-      btn.title = "Show globe (g)";
-      btn.classList.remove("flat-mode");
+      btn.title = "Show map (g)";
       btn.classList.add("no-map-mode");
-      return;
+    } else {
+      btn.innerHTML = "&#10005;";
+      btn.classList.remove("no-map-mode");
+      btn.title = "Hide map (g)";
     }
-    btn.classList.remove("no-map-mode");
-    const isGlobe = state.currentProjection === "globe";
-    btn.innerHTML = isGlobe ? "&#9649;" : "&#10005;";
-    btn.classList.toggle("flat-mode", !isGlobe);
-    btn.title = isGlobe ? "Switch to flat map (g)" : "Hide map (g)";
   }
   function showLoadingBar() {
     const bar = document.getElementById("loading-bar");
@@ -2076,9 +2028,16 @@
     tooltip.classList.add("visible");
     tooltip.style.left = point.x + 16 + "px";
     tooltip.style.top = point.y - 10 + "px";
+    tooltip.style.maxHeight = "";
     const rect = tooltip.getBoundingClientRect();
     if (rect.right > window.innerWidth - 10) tooltip.style.left = point.x - rect.width - 16 + "px";
     if (rect.bottom > window.innerHeight - 10) tooltip.style.top = point.y - rect.height - 10 + "px";
+    const rect2 = tooltip.getBoundingClientRect();
+    if (rect2.left < 10) tooltip.style.left = "10px";
+    if (rect2.top < 10) {
+      tooltip.style.top = "10px";
+      tooltip.style.maxHeight = (window.innerHeight - 20) + "px";
+    }
   }
   function hideHoverTooltip() {
     if (state.hoverTooltipEl) state.hoverTooltipEl.classList.remove("visible");
@@ -2233,7 +2192,7 @@
         const lon = parseFloat(card.dataset.lon);
         const lat = parseFloat(card.dataset.lat);
         if (!isNaN(lon) && !isNaN(lat)) state.map.flyTo({ center: [lon, lat], zoom: 6, duration: 1200 });
-        scrollToStory(parseInt(card.dataset.storyId));
+        highlightStory(parseInt(card.dataset.storyId));
       });
     });
     panelStories.querySelectorAll(".info-card-link").forEach((link) => {
@@ -2431,11 +2390,15 @@
       if (state.map.getSource("stories-cloud")) state.map.getSource("stories-cloud").setData(filtered.clouds);
       updateCountryPolygons(filtered.clouds);
       _animateCount(document.getElementById("stat-showing"), filtered.stats.showing);
-      document.getElementById("stat-sources").textContent = filtered.stats.sources;
       const searchQ = (document.getElementById("search-box").value || "").trim();
       const searchCount = document.getElementById("search-count");
       if (searchQ && searchCount) {
-        searchCount.textContent = `${filtered.stats.showing} results`;
+        const hidden = filtered.stats.searchMatchAll - filtered.stats.showing;
+        if (hidden > 0) {
+          searchCount.textContent = `${filtered.stats.showing} results · ${hidden} hidden by filters`;
+        } else {
+          searchCount.textContent = `${filtered.stats.showing} results`;
+        }
         searchCount.classList.add("visible");
       } else if (searchCount) {
         searchCount.classList.remove("visible");
@@ -2457,7 +2420,11 @@
       document.querySelector('.view-btn[data-view="events"]').textContent = `Events${filtered.events.length ? ` (${filtered.events.length})` : ""}`;
       updateFeedButtonCounts(filtered.feedCounts);
       renderConceptChips(filtered.topicCounts);
-      renderSourceChips(filtered.sourceCounts);
+      if (!document.getElementById("sources-popup").classList.contains("visible")) {
+        renderSourceChips(filtered.sourceCounts);
+      } else {
+        renderSourceChips();
+      }
       updatePresetOverviewFilterState(filtered.hasFilters);
       renderActiveFilterPills();
       updateFilterStatus();
@@ -2467,6 +2434,7 @@
       console.error("applyFilters error:", err);
     }
   }
+  var _PILL_COLLAPSE_THRESHOLD = 5;
   function renderActiveFilterPills() {
     const container = document.getElementById("active-filters");
     if (!container) return;
@@ -2476,14 +2444,26 @@
       const color = DOMAIN_COLORS[domain] || "#484f58";
       pills.push(`<span class="filter-pill" style="border-color:${color}" data-type="concept" data-value="${escapeHtml(c)}">${escapeHtml(c)} <span class="filter-pill-x">&times;</span></span>`);
     }
-    for (const c of state.excludedConcepts) {
-      pills.push(`<span class="filter-pill excluded-pill" data-type="exclude-concept" data-value="${escapeHtml(c)}">-${escapeHtml(c)} <span class="filter-pill-x">&times;</span></span>`);
+    if (state.excludedConcepts.size > _PILL_COLLAPSE_THRESHOLD) {
+      pills.push(`<span class="filter-pill excluded-pill" data-type="clear-exclude-concepts" data-value="">${state.excludedConcepts.size} topics excluded <span class="filter-pill-x">&times;</span></span>`);
+    } else {
+      for (const c of state.excludedConcepts) {
+        pills.push(`<span class="filter-pill excluded-pill" data-type="exclude-concept" data-value="${escapeHtml(c)}">-${escapeHtml(c)} <span class="filter-pill-x">&times;</span></span>`);
+      }
     }
-    for (const s of state.activeSources) {
-      pills.push(`<span class="filter-pill source-pill" data-type="source" data-value="${escapeHtml(s)}">${escapeHtml(s)} <span class="filter-pill-x">&times;</span></span>`);
+    if (state.activeSources.size > _PILL_COLLAPSE_THRESHOLD) {
+      pills.push(`<span class="filter-pill source-pill" data-type="clear-sources" data-value="">${state.activeSources.size} sources selected <span class="filter-pill-x">&times;</span></span>`);
+    } else {
+      for (const s of state.activeSources) {
+        pills.push(`<span class="filter-pill source-pill" data-type="source" data-value="${escapeHtml(s)}">${escapeHtml(s)} <span class="filter-pill-x">&times;</span></span>`);
+      }
     }
-    for (const s of state.excludedSources) {
-      pills.push(`<span class="filter-pill excluded-pill" data-type="exclude-source" data-value="${escapeHtml(s)}">-${escapeHtml(s)} <span class="filter-pill-x">&times;</span></span>`);
+    if (state.excludedSources.size > _PILL_COLLAPSE_THRESHOLD) {
+      pills.push(`<span class="filter-pill excluded-pill" data-type="clear-exclude-sources" data-value="">${state.excludedSources.size} sources excluded <span class="filter-pill-x">&times;</span></span>`);
+    } else {
+      for (const s of state.excludedSources) {
+        pills.push(`<span class="filter-pill excluded-pill" data-type="exclude-source" data-value="${escapeHtml(s)}">-${escapeHtml(s)} <span class="filter-pill-x">&times;</span></span>`);
+      }
     }
     container.innerHTML = pills.join("");
     container.querySelectorAll(".filter-pill").forEach((pill) => {
@@ -2494,6 +2474,9 @@
         if (type === "exclude-concept") state.excludedConcepts.delete(value);
         if (type === "source") state.activeSources.delete(value);
         if (type === "exclude-source") state.excludedSources.delete(value);
+        if (type === "clear-exclude-concepts") state.excludedConcepts.clear();
+        if (type === "clear-sources") state.activeSources.clear();
+        if (type === "clear-exclude-sources") state.excludedSources.clear();
         applyFilters();
         markPresetModified();
       });
@@ -2545,7 +2528,10 @@
     });
     /* Close on outside click */
     document.addEventListener("click", function() {
-      menu.classList.remove("open");
+      if (menu.classList.contains("open")) {
+        menu.classList.remove("open");
+        _markPopupDismiss();
+      }
     });
   }
   function updateFilterStatus() {
@@ -2832,19 +2818,6 @@
     btn.classList.toggle("open", state.filterDrawerOpen);
     updateFilterDrawerToggle();
   }
-  function toggleSearch() {
-    const expand = document.getElementById("search-expand");
-    const btn = document.getElementById("search-toggle");
-    const box = document.getElementById("search-box");
-    const isActive = expand.classList.toggle("active");
-    btn.classList.toggle("active", isActive);
-    if (isActive) {
-      box.focus();
-    } else {
-      box.value = "";
-      applyFilters();
-    }
-  }
   function updateFilterDrawerToggle() {
     const btn = document.getElementById("filter-drawer-toggle");
     const originFilterCount = state.activeOrigins.size < 15 ? 1 : 0;
@@ -2967,28 +2940,10 @@
     if (world?.feedTags?.some((t) => t === "sports")) return "\u{1F3C6}";
     return null;
   }
-  function _getAbbreviation(label) {
-    const words = label.trim().split(/\s+/);
-    if (words.length >= 2) return (words[0][0] + words[1][0]).toUpperCase();
-    return label.substring(0, 2).toUpperCase();
-  }
   function _autoPickColor(id) {
     let hash = 0;
     for (let i = 0; i < id.length; i++) hash = (hash << 5) - hash + id.charCodeAt(i) | 0;
     return CUSTOM_COLOR_PALETTE[Math.abs(hash) % CUSTOM_COLOR_PALETTE.length];
-  }
-  function _describeConfig(config, feedTags) {
-    const parts = [];
-    if (feedTags?.length) parts.push(feedTags.join(", ") + " feeds");
-    if (config?.brightSideMode) parts.push("bright side");
-    if (config?.curiousMode) parts.push("curious");
-    if (config?.activeSources?.length) parts.push(config.activeSources.length + " sources");
-    if (config?.excludedSources?.length) parts.push(config.excludedSources.length + " excluded");
-    if (config?.activeConcepts?.length) parts.push(config.activeConcepts.length + " topics");
-    if (config?.searchText) parts.push(`"${config.searchText}"`);
-    if (config?.timeHours) parts.push(config.timeHours + "h");
-    if (config?.hideOpinion) parts.push("no opinion");
-    return parts.length ? parts.join(" \xB7 ") : "all stories";
   }
   function captureCurrentConfig() {
     return {
@@ -3080,59 +3035,6 @@
     state.presetModified = true;
     updatePresetsBar();
   }
-  function updatePresetConfig(presetId) {
-    const world = state.allPresets[presetId];
-    if (!world) return;
-    const config = captureCurrentConfig();
-    if (world.builtIn) {
-      if (!state.presetPrefs[presetId]) state.presetPrefs[presetId] = { visible: true, order: 0 };
-      state.presetPrefs[presetId].configOverride = config;
-      savePresetPrefs();
-    } else {
-      world.config = config;
-      savePresets();
-    }
-    state.presetModified = false;
-    updatePresetsBar();
-  }
-  function resetPresetConfig(presetId) {
-    const pref = state.presetPrefs[presetId];
-    if (pref?.configOverride) {
-      delete pref.configOverride;
-      savePresetPrefs();
-      switchPreset(presetId);
-    }
-  }
-  function generatePresetURL(presetId) {
-    const world = state.allPresets[presetId];
-    if (!world) return window.location.href;
-    const base = window.location.origin + window.location.pathname;
-    if (world.builtIn) {
-      const pref = state.presetPrefs[presetId];
-      if (pref?.configOverride) {
-        return base + "#" + _configToParams(pref.configOverride).toString();
-      }
-      return base + "#world=" + presetId;
-    }
-    const effectiveConfig = world.config;
-    return base + "#" + _configToParams(effectiveConfig).toString();
-  }
-  function _configToParams(config) {
-    const params = new URLSearchParams();
-    if (config.activeConcepts?.length) params.set("in", config.activeConcepts.join(","));
-    if (config.excludedConcepts?.length) params.set("ex", config.excludedConcepts.join(","));
-    if (config.activeSources?.length) params.set("src", config.activeSources.join(","));
-    if (config.excludedSources?.length) params.set("xsrc", config.excludedSources.join(","));
-    if (config.activeOrigins?.length && (config.activeOrigins.length < 15 || !config.activeOrigins.includes("rss") || !config.activeOrigins.includes("gdelt") || !config.activeOrigins.includes("usgs") || !config.activeOrigins.includes("noaa") || !config.activeOrigins.includes("eonet") || !config.activeOrigins.includes("gdacs") || !config.activeOrigins.includes("reliefweb") || !config.activeOrigins.includes("who") || !config.activeOrigins.includes("launches") || !config.activeOrigins.includes("openaq") || !config.activeOrigins.includes("travel") || !config.activeOrigins.includes("firms") || !config.activeOrigins.includes("meteoalarm") || !config.activeOrigins.includes("acled") || !config.activeOrigins.includes("jma"))) {
-      params.set("origin", config.activeOrigins.join(","));
-    }
-    if (config.brightSideMode) params.set("bs", "1");
-    if (config.curiousMode) params.set("cur", "1");
-    if (config.searchText) params.set("q", config.searchText);
-    if (config.timeHours) params.set("t", config.timeHours);
-    if (config.hideOpinion) params.set("op", "0");
-    return params;
-  }
   function updatePresetsBarOverflow() {
     const wrapper = document.querySelector(".presets-bar-wrapper");
     const bar = document.getElementById("presets-bar");
@@ -3204,31 +3106,9 @@
     renderPresetsBar();
     saveStateToURL();
   }
-  function deletePreset(presetId) {
-    const world = state.allPresets[presetId];
-    if (!world || world.permanent) return;
-    if (world.builtIn) {
-      const removed = _getRemovedPresets();
-      if (!removed.includes(presetId)) removed.push(presetId);
-      localStorage.setItem("tm_removed_worlds", JSON.stringify(removed));
-    }
-    delete state.allPresets[presetId];
-    delete state.presetPrefs[presetId];
-    savePresets();
-    savePresetPrefs();
-    if (localStorage.getItem("tm_default_world") === presetId) {
-      localStorage.removeItem("tm_default_world");
-    }
-    renderPresetsBar();
-    if (state.activePresetId === presetId) {
-      switchPreset("all");
-    }
-  }
   var PRESET_SHORT_LABELS = { entertainment: "Ent." };
   function renderPresetsBar() {
     const bar = document.getElementById("presets-bar");
-    const shareBtn = document.getElementById("preset-share-btn");
-    // Still render hidden preset-btn elements for existing code that queries them
     bar.querySelectorAll(".preset-btn").forEach((b) => b.remove());
     const visibleEntries = _getVisiblePresetEntries();
     for (const [id, world] of visibleEntries) {
@@ -3247,7 +3127,7 @@
       btn.addEventListener("click", () => {
         switchPreset(id);
       });
-      bar.insertBefore(btn, shareBtn);
+      bar.appendChild(btn);
     }
     // Render dropdown menu
     _renderPresetDropdownMenu(visibleEntries);
@@ -3494,181 +3374,227 @@
   function closePresetsPanel() {
     document.getElementById("presets-panel").classList.remove("visible");
   }
+  var _draggedPresetId = null;
+  var _dragOverPresetId = null;
   function renderPresetsPanelContents() {
     const listContainer = document.getElementById("presets-panel-list");
     listContainer.innerHTML = "";
     const sorted = Object.entries(state.allPresets).sort((a, b) => (state.presetPrefs[a[0]]?.order ?? 99) - (state.presetPrefs[b[0]]?.order ?? 99));
-    let lastBuiltIn = -1;
-    sorted.forEach(([_, w], i) => {
-      if (w.builtIn) lastBuiltIn = i;
-    });
-    const defaultPresetId = _resolvePresetAlias(localStorage.getItem("tm_default_world"));
-    sorted.forEach(([id, world], idx) => {
+    // Only show visible presets in main list
+    const visibleSorted = sorted.filter(([id]) => {
       const pref = state.presetPrefs[id] || {};
-      const isVisible = pref.visible !== false;
+      return pref.visible !== false;
+    });
+    visibleSorted.forEach(([id, world], idx) => {
+      const pref = state.presetPrefs[id] || {};
       const isActive = id === state.activePresetId;
-      const isDefault = id === defaultPresetId;
-      const hasOverride = world.builtIn && !!pref.configOverride;
+      const icon = PRESET_ICONS[id] || pref.icon;
       const item = document.createElement("div");
-      item.className = "preset-panel-item" + (isActive ? " active-preset" : "") + (!isVisible ? " hidden-preset" : "");
-      const eye = document.createElement("button");
-      eye.className = "preset-panel-eye";
-      eye.innerHTML = isVisible ? "&#x1F441;" : "&#x1F441;&#x200D;&#x1F5E8;";
-      eye.title = isVisible ? "Hide from bar" : "Show in bar";
-      eye.style.opacity = isVisible ? "0.7" : "0.3";
-      eye.addEventListener("click", (e) => {
-        e.stopPropagation();
-        if (!state.presetPrefs[id]) state.presetPrefs[id] = { visible: true, order: idx };
-        state.presetPrefs[id].visible = !isVisible;
+      item.className = "preset-panel-item" + (isActive ? " active-preset" : "");
+      item.draggable = true;
+      item.dataset.presetId = id;
+      // Drag and drop handlers
+      item.addEventListener("dragstart", (e) => {
+        _draggedPresetId = id;
+        item.classList.add("dragging");
+        e.dataTransfer.effectAllowed = "move";
+        e.dataTransfer.setData("text/plain", id);
+      });
+      item.addEventListener("dragend", () => {
+        _draggedPresetId = null;
+        _dragOverPresetId = null;
+        item.classList.remove("dragging");
+        listContainer.querySelectorAll(".preset-panel-item").forEach(el => {
+          el.classList.remove("drag-over-above", "drag-over-below");
+        });
+      });
+      item.addEventListener("dragover", (e) => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = "move";
+        if (_draggedPresetId === id) return;
+        const rect = item.getBoundingClientRect();
+        const midY = rect.top + rect.height / 2;
+        listContainer.querySelectorAll(".preset-panel-item").forEach(el => {
+          el.classList.remove("drag-over-above", "drag-over-below");
+        });
+        if (e.clientY < midY) {
+          item.classList.add("drag-over-above");
+        } else {
+          item.classList.add("drag-over-below");
+        }
+        _dragOverPresetId = id;
+      });
+      item.addEventListener("drop", (e) => {
+        e.preventDefault();
+        if (!_draggedPresetId || _draggedPresetId === id) return;
+        const rect = item.getBoundingClientRect();
+        const midY = rect.top + rect.height / 2;
+        const dropAbove = e.clientY < midY;
+        // Rebuild order: remove dragged, insert at new position
+        const currentOrder = visibleSorted.map(([wid]) => wid);
+        const fromIdx = currentOrder.indexOf(_draggedPresetId);
+        if (fromIdx === -1) return;
+        currentOrder.splice(fromIdx, 1);
+        let toIdx = currentOrder.indexOf(id);
+        if (!dropAbove) toIdx++;
+        currentOrder.splice(toIdx, 0, _draggedPresetId);
+        // Update order values for all visible presets
+        currentOrder.forEach((wid, i) => {
+          if (!state.presetPrefs[wid]) state.presetPrefs[wid] = { visible: true, order: i };
+          state.presetPrefs[wid].order = i;
+        });
+        // Hidden presets get order after visible ones
+        const hiddenSorted = sorted.filter(([wid]) => {
+          const p = state.presetPrefs[wid] || {};
+          return p.visible === false;
+        });
+        hiddenSorted.forEach(([wid], i) => {
+          if (!state.presetPrefs[wid]) state.presetPrefs[wid] = { visible: false, order: currentOrder.length + i };
+          state.presetPrefs[wid].order = currentOrder.length + i;
+        });
         savePresetPrefs();
-        _syncVisiblePresetsFromPrefs();
         renderPresetsBar();
         renderPresetsPanelContents();
       });
-      item.appendChild(eye);
+      // Drag handle
+      const handle = document.createElement("span");
+      handle.className = "preset-panel-drag";
+      handle.innerHTML = "&#x2630;";
+      handle.title = "Drag to reorder";
+      item.appendChild(handle);
       const dot = document.createElement("span");
       dot.className = "preset-panel-color";
       dot.style.background = world.color;
       item.appendChild(dot);
-      const icon = PRESET_ICONS[id] || pref.icon;
       const info = document.createElement("div");
       info.className = "preset-panel-info";
       const labelEl = document.createElement("span");
       labelEl.className = "preset-panel-label";
       labelEl.textContent = (icon ? icon + " " : "") + world.label;
       info.appendChild(labelEl);
-      const desc = document.createElement("span");
-      desc.className = "preset-panel-desc";
-      const effectiveConfig = world.builtIn && pref.configOverride || world.config;
-      desc.textContent = _describeConfig(effectiveConfig, world.feedTags);
-      info.appendChild(desc);
-      if (isActive && state.presetModified) {
-        const updateBtn = document.createElement("button");
-        updateBtn.className = "preset-panel-update";
-        updateBtn.textContent = "Update";
-        updateBtn.addEventListener("click", (e) => {
-          e.stopPropagation();
-          updatePresetConfig(id);
-          renderPresetsPanelContents();
-        });
-        info.appendChild(updateBtn);
-      }
-      if (hasOverride) {
-        const resetBtn = document.createElement("button");
-        resetBtn.className = "preset-panel-reset";
-        resetBtn.textContent = "Reset";
-        resetBtn.addEventListener("click", (e) => {
-          e.stopPropagation();
-          resetPresetConfig(id);
-          renderPresetsPanelContents();
-        });
-        info.appendChild(resetBtn);
-      }
       item.appendChild(info);
-      const star = document.createElement("button");
-      star.className = "preset-panel-star" + (isDefault ? " active" : "");
-      star.innerHTML = isDefault ? "&#x2605;" : "&#x2606;";
-      star.title = isDefault ? "Remove as default" : "Set as default";
-      star.addEventListener("click", (e) => {
+      // Remove button (hides from bar)
+      const removeBtn = document.createElement("button");
+      removeBtn.className = "preset-panel-remove";
+      removeBtn.innerHTML = "&times;";
+      removeBtn.title = "Remove from bar";
+      removeBtn.addEventListener("click", (e) => {
         e.stopPropagation();
-        if (isDefault) {
-          localStorage.removeItem("tm_default_world");
-        } else {
-          localStorage.setItem("tm_default_world", id);
+        if (!state.presetPrefs[id]) state.presetPrefs[id] = { visible: true, order: idx };
+        state.presetPrefs[id].visible = false;
+        savePresetPrefs();
+        _syncVisiblePresetsFromPrefs();
+        renderPresetsBar();
+        renderPresetsPanelContents();
+        if (state.activePresetId === id) {
+          const firstVisible = Object.keys(state.allPresets).find(wid => state.presetPrefs[wid]?.visible !== false);
+          switchPreset(firstVisible || "all");
         }
-        renderPresetsPanelContents();
       });
-      item.appendChild(star);
-      const share = document.createElement("button");
-      share.className = "preset-panel-share";
-      share.innerHTML = "&#x1F517;";
-      share.title = "Copy link";
-      share.addEventListener("click", (e) => {
-        e.stopPropagation();
-        _copyToClipboard(share, generatePresetURL(id), "&#x1F517;");
-      });
-      item.appendChild(share);
-      const arrows = document.createElement("span");
-      arrows.className = "preset-panel-arrows";
-      const upBtn = document.createElement("button");
-      upBtn.innerHTML = "&#x25B2;";
-      upBtn.title = "Move up";
-      upBtn.disabled = idx === 0;
-      upBtn.addEventListener("click", (e) => {
-        e.stopPropagation();
-        if (idx === 0) return;
-        const prevId = sorted[idx - 1][0];
-        const tmp = state.presetPrefs[id].order;
-        state.presetPrefs[id].order = state.presetPrefs[prevId].order;
-        state.presetPrefs[prevId].order = tmp;
-        savePresetPrefs();
-        renderPresetsBar();
-        renderPresetsPanelContents();
-      });
-      const downBtn = document.createElement("button");
-      downBtn.innerHTML = "&#x25BC;";
-      downBtn.title = "Move down";
-      downBtn.disabled = idx === sorted.length - 1;
-      downBtn.addEventListener("click", (e) => {
-        e.stopPropagation();
-        if (idx === sorted.length - 1) return;
-        const nextId = sorted[idx + 1][0];
-        const tmp = state.presetPrefs[id].order;
-        state.presetPrefs[id].order = state.presetPrefs[nextId].order;
-        state.presetPrefs[nextId].order = tmp;
-        savePresetPrefs();
-        renderPresetsBar();
-        renderPresetsPanelContents();
-      });
-      arrows.appendChild(upBtn);
-      arrows.appendChild(downBtn);
-      item.appendChild(arrows);
-      if (!world.builtIn) {
-        const edit = document.createElement("button");
-        edit.className = "preset-panel-edit";
-        edit.innerHTML = "&#x270E;";
-        edit.title = "Rename";
-        edit.addEventListener("click", (e) => {
-          e.stopPropagation();
-          showSavePresetDialog(id);
-        });
-        item.appendChild(edit);
-      }
-      if (!world.permanent) {
-        const del = document.createElement("button");
-        del.className = "preset-panel-delete";
-        del.innerHTML = "&times;";
-        del.addEventListener("click", (e) => {
-          e.stopPropagation();
-          deletePreset(id);
-          renderPresetsPanelContents();
-        });
-        item.appendChild(del);
-      }
-      item.addEventListener("click", () => {
+      item.appendChild(removeBtn);
+      item.addEventListener("click", (e) => {
+        if (e.target.closest(".preset-panel-remove") || e.target.closest(".preset-panel-drag")) return;
         switchPreset(id);
         closePresetsPanel();
       });
       listContainer.appendChild(item);
-      if (idx === lastBuiltIn && lastBuiltIn < sorted.length - 1) {
-        const sep = document.createElement("div");
-        sep.className = "preset-panel-separator";
-        listContainer.appendChild(sep);
-      }
     });
-    const removed = _getRemovedPresets();
-    if (removed.length > 0) {
-      const restore = document.createElement("button");
-      restore.className = "preset-panel-restore";
-      restore.textContent = "Restore default presets";
-      restore.addEventListener("click", (e) => {
+    // Hidden presets section
+    const hiddenPresets = sorted.filter(([id]) => {
+      const pref = state.presetPrefs[id] || {};
+      return pref.visible === false;
+    });
+    const removedBuiltIn = _getRemovedPresets();
+    const allHidden = [...hiddenPresets.map(([id]) => id), ...removedBuiltIn];
+    if (allHidden.length > 0) {
+      const showRemovedBtn = document.createElement("button");
+      showRemovedBtn.className = "preset-panel-show-removed";
+      showRemovedBtn.textContent = "Show removed (" + allHidden.length + ")";
+      showRemovedBtn.addEventListener("click", (e) => {
         e.stopPropagation();
-        localStorage.removeItem("tm_removed_worlds");
-        loadPresets();
-        renderPresetsBar();
-        renderPresetsPanelContents();
+        const section = listContainer.querySelector(".preset-panel-removed-section");
+        if (section) {
+          section.remove();
+          showRemovedBtn.textContent = "Show removed (" + allHidden.length + ")";
+          return;
+        }
+        showRemovedBtn.textContent = "Hide removed";
+        const removedSection = document.createElement("div");
+        removedSection.className = "preset-panel-removed-section";
+        // Hidden-but-not-deleted presets
+        hiddenPresets.forEach(([hid]) => {
+          const hw = state.allPresets[hid];
+          if (!hw) return;
+          const hIcon = PRESET_ICONS[hid] || "";
+          const hItem = document.createElement("div");
+          hItem.className = "preset-panel-item hidden-preset";
+          const hDot = document.createElement("span");
+          hDot.className = "preset-panel-color";
+          hDot.style.background = hw.color;
+          hItem.appendChild(hDot);
+          const hInfo = document.createElement("div");
+          hInfo.className = "preset-panel-info";
+          const hLabel = document.createElement("span");
+          hLabel.className = "preset-panel-label";
+          hLabel.textContent = (hIcon ? hIcon + " " : "") + hw.label;
+          hInfo.appendChild(hLabel);
+          hItem.appendChild(hInfo);
+          const addBtn = document.createElement("button");
+          addBtn.className = "preset-panel-add-back";
+          addBtn.innerHTML = "+";
+          addBtn.title = "Add back";
+          addBtn.addEventListener("click", (ev) => {
+            ev.stopPropagation();
+            if (!state.presetPrefs[hid]) state.presetPrefs[hid] = { visible: true, order: 99 };
+            state.presetPrefs[hid].visible = true;
+            savePresetPrefs();
+            _syncVisiblePresetsFromPrefs();
+            renderPresetsBar();
+            renderPresetsPanelContents();
+          });
+          hItem.appendChild(addBtn);
+          removedSection.appendChild(hItem);
+        });
+        // Fully removed built-in presets
+        removedBuiltIn.forEach((rid) => {
+          const rw = WORLD_PRESETS[rid];
+          if (!rw) return;
+          const rIcon = PRESET_ICONS[rid] || "";
+          const rItem = document.createElement("div");
+          rItem.className = "preset-panel-item hidden-preset";
+          const rDot = document.createElement("span");
+          rDot.className = "preset-panel-color";
+          rDot.style.background = rw.color;
+          rItem.appendChild(rDot);
+          const rInfo = document.createElement("div");
+          rInfo.className = "preset-panel-info";
+          const rLabel = document.createElement("span");
+          rLabel.className = "preset-panel-label";
+          rLabel.textContent = (rIcon ? rIcon + " " : "") + rw.label;
+          rInfo.appendChild(rLabel);
+          rItem.appendChild(rInfo);
+          const restoreBtn = document.createElement("button");
+          restoreBtn.className = "preset-panel-add-back";
+          restoreBtn.innerHTML = "+";
+          restoreBtn.title = "Restore preset";
+          restoreBtn.addEventListener("click", (ev) => {
+            ev.stopPropagation();
+            const rem = _getRemovedPresets().filter(x => x !== rid);
+            if (rem.length > 0) {
+              localStorage.setItem("tm_removed_worlds", JSON.stringify(rem));
+            } else {
+              localStorage.removeItem("tm_removed_worlds");
+            }
+            loadPresets();
+            renderPresetsBar();
+            renderPresetsPanelContents();
+          });
+          rItem.appendChild(restoreBtn);
+          removedSection.appendChild(rItem);
+        });
+        showRemovedBtn.after(removedSection);
       });
-      listContainer.appendChild(restore);
+      listContainer.appendChild(showRemovedBtn);
     }
   }
   function showSavePresetDialog(editId) {
@@ -3769,9 +3695,10 @@
       return `<span class="source-chip ${cls}" data-source="${escapeHtml(s.source)}">${escapeHtml(s.source)}<span class="chip-count">${s.count}</span></span>`;
     }).join("");
     container.querySelectorAll(".source-chip").forEach((chip) => {
-      chip.addEventListener("click", () => toggleSource(chip.dataset.source));
+      chip.addEventListener("click", (e) => { e.stopPropagation(); toggleSource(chip.dataset.source); });
       chip.addEventListener("contextmenu", (e) => {
         e.preventDefault();
+        e.stopPropagation();
         toggleExcludeSource(chip.dataset.source);
       });
     });
@@ -3834,12 +3761,15 @@
         _animateCount(document.getElementById("stat-total"), stats.total_stories || 0);
         const velEl = document.getElementById("stat-velocity");
         if (velEl && stats.last_1h > 0) {
-          velEl.textContent = `${stats.last_1h}/hr \xB7 `;
+          velEl.textContent = `${stats.last_1h}/hr`;
         }
       }
       if (sourcesResp.ok) {
         const sources = await sourcesResp.json();
-        if (sources.counts) state.sourceCounts = sources.counts;
+        if (sources.counts) {
+          state.sourceCounts = sources.counts;
+          document.getElementById("stat-sources").textContent = Object.keys(sources.counts).length;
+        }
       }
     } catch (err) {
       console.error("Failed to load stats:", err);
@@ -3950,16 +3880,12 @@
       }
     }
   }
-  function scrollToStory(storyId) {
-    highlightStory(storyId);
-  }
   async function loadEvents() {
     try {
       const evResp = await fetch("/api/events?limit=50&min_stories=2");
       if (!evResp.ok) throw new Error(`Events HTTP ${evResp.status}`);
       const evData = await evResp.json();
       state.eventsData = evData.events || [];
-      state.registryData = [];
       applyFilters();
     } catch (err) {
       console.error("Failed to load events:", err);
@@ -4456,12 +4382,11 @@
       return true;
     }
     m.on("click", (e) => {
+      if (state._popupDismissing) return;
       if (_isMobile()) return;
       if (e.defaultPrevented) return;
-      if (state.currentProjection === "globe") {
-        const lngLat = m.unproject(e.point);
-        if (!lngLat || isNaN(lngLat.lng) || isNaN(lngLat.lat)) return;
-      }
+      const lngLat = m.unproject(e.point);
+      if (!lngLat || isNaN(lngLat.lng) || isNaN(lngLat.lat)) return;
       if (_openNearbyDots(e.point)) return;
       const countryHit = m.queryRenderedFeatures(e.point, { layers: [countryLayer] });
       if (countryHit.length > 0) {
@@ -4485,14 +4410,13 @@
     const _crossSvg = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12'%3E%3Cline x1='6' y1='1' x2='6' y2='11' stroke='white' stroke-width='1.5'/%3E%3Cline x1='1' y1='6' x2='11' y2='6' stroke='white' stroke-width='1.5'/%3E%3Cline x1='6' y1='1' x2='6' y2='11' stroke='black' stroke-width='0.5'/%3E%3Cline x1='1' y1='6' x2='11' y2='6' stroke='black' stroke-width='0.5'/%3E%3C/svg%3E") 6 6, crosshair`;
     const _emptyGeo = { type: "FeatureCollection", features: [] };
     m.on("mousemove", (e) => {
-      if (state.currentProjection === "globe") {
-        const lngLat = m.unproject(e.point);
-        if (!lngLat || isNaN(lngLat.lng) || isNaN(lngLat.lat)) {
-          m.getCanvas().style.cursor = "";
-          hideHoverTooltip();
-          if (m.getSource(proxSrc)) m.getSource(proxSrc).setData(_emptyGeo);
-          return;
-        }
+      if (_isMobile()) return;
+      const lngLat = m.unproject(e.point);
+      if (!lngLat || isNaN(lngLat.lng) || isNaN(lngLat.lat)) {
+        m.getCanvas().style.cursor = "";
+        hideHoverTooltip();
+        if (m.getSource(proxSrc)) m.getSource(proxSrc).setData(_emptyGeo);
+        return;
       }
       const dotFeatures = m.queryRenderedFeatures(e.point, { layers: [pointsLayer] });
       if (dotFeatures.length > 0) {
@@ -4541,6 +4465,7 @@
     });
     const labelsLayer = srcPrefix + "event-labels";
     m.on("click", labelsLayer, (e) => {
+      if (state._popupDismissing) return;
       e.preventDefault();
       const evId = e.features[0].properties.event_id;
       const parentNarr = state.narrativesData.find(
@@ -4555,15 +4480,6 @@
         const sitEl = document.querySelector(`.situation-item[data-narrative-id="${parentNarr.id}"]`);
         if (sitEl) sitEl.scrollIntoView({ block: "nearest", behavior: "smooth" });
         return;
-      }
-      const regEv = state.registryData.find((r) => r.id === evId);
-      if (regEv) {
-        const allCloud = m.querySourceFeatures(cloudSrc);
-        const matches = allCloud.filter((f) => f.properties.registry_event_id === evId);
-        if (matches.length > 0) {
-          openInfoPanel(regEv.map_label || regEv.registry_label, matches);
-          setLocationFilter({ type: "point", lon: regEv.primary_lon, lat: regEv.primary_lat, name: regEv.map_label });
-        }
       }
     });
     m.on("mouseenter", labelsLayer, () => {
@@ -4582,13 +4498,11 @@
         const cx = canvas.clientWidth / 2;
         const cy = canvas.clientHeight / 2;
         const center = { x: cx, y: cy };
-        if (state.currentProjection === "globe") {
-          const lngLat = m.unproject([cx, cy]);
-          if (!lngLat || isNaN(lngLat.lng) || isNaN(lngLat.lat)) {
-            _renderMobilePreviewEmpty();
-            _reticleFeatures = [];
-            return;
-          }
+        const lngLat = m.unproject([cx, cy]);
+        if (!lngLat || isNaN(lngLat.lng) || isNaN(lngLat.lat)) {
+          _renderMobilePreviewEmpty();
+          _reticleFeatures = [];
+          return;
         }
         const pad = _proxPad();
         const bbox = [[cx - pad, cy - pad], [cx + pad, cy + pad]];
@@ -4688,6 +4602,7 @@
     }
     const feedContainer = document.getElementById("feed-buttons");
     function _updateFeedZoom() {
+      if (_isMobile()) return;
       const z = m.getZoom();
       const scale = z >= 3.5 ? 1 : 1 + (3.5 - Math.max(0, z)) / 3.5 * 0.6;
       feedContainer.style.transform = scale > 1 ? `scale(${scale.toFixed(3)})` : "";
@@ -4822,30 +4737,6 @@
     }
     bar.classList.add("visible");
   }
-  function _presetShareCopied(btn) {
-    btn.textContent = "\u2713";
-    btn.classList.add("copied");
-    btn.title = "Copied!";
-    setTimeout(() => {
-      btn.innerHTML = "&#x1F517;";
-      btn.classList.remove("copied");
-      btn.title = "Share this preset";
-    }, 1500);
-  }
-  function _presetShareFallback(btn, url) {
-    const ta = document.createElement("textarea");
-    ta.value = url;
-    ta.style.position = "fixed";
-    ta.style.opacity = "0";
-    document.body.appendChild(ta);
-    ta.select();
-    try {
-      document.execCommand("copy");
-      _presetShareCopied(btn);
-    } catch (e) {
-    }
-    document.body.removeChild(ta);
-  }
   function toggleTheme() {
     state.lightMode = !state.lightMode;
     document.body.classList.toggle("light-mode", state.lightMode);
@@ -4853,7 +4744,7 @@
     const style = state.lightMode ? "https://basemaps.cartocdn.com/gl/positron-gl-style/style.json" : "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json";
     state.map.setStyle(style);
     state.map.once("style.load", () => {
-      state.map.setProjection({ type: state.currentProjection });
+      state.map.setProjection({ type: "globe" });
       addMapLayers(state.map, "");
       addMapInteractions(state.map, "");
       setMapLabelsVisible(state.mapLabelsVisible);
@@ -4904,7 +4795,7 @@
       var dot = item.querySelector(".legend-dot");
       if (!dot || !domain) return;
       var domRGB = _domainRGB[domain] || _fallbackRGB;
-      if (presetRGB && (theme === "domain" || theme === "classic")) {
+      if (presetRGB && state.activePresetId !== "all" && (theme === "domain" || theme === "classic")) {
         dot.style.background = _rgbToHex(
           domRGB[0] + (presetRGB[0] - domRGB[0]) * wt,
           domRGB[1] + (presetRGB[1] - domRGB[1]) * wt,
@@ -4965,14 +4856,14 @@
     /* Close menu on outside click */
     document.addEventListener("click", function() {
       var m = document.getElementById("dot-theme-menu");
-      if (m && m.classList.contains("open")) m.classList.remove("open");
+      if (m && m.classList.contains("open")) { m.classList.remove("open"); _markPopupDismiss(); }
     });
     /* Apply legend state on load */
     _updateLegendForTheme();
   }
   function saveStateToURL() {
     const params = new URLSearchParams();
-    if (state.activePresetId && state.activePresetId !== "bright_side") params.set("world", state.activePresetId);
+    if (state.activePresetId && state.activePresetId !== "all") params.set("world", state.activePresetId);
     const world = state.allPresets[state.activePresetId];
     const presetFeedTagSources = world && world.feedTags ? new Set(sourcesForTags(world.feedTags)) : null;
     if (state.activeConcepts.size > 0) params.set("in", [...state.activeConcepts].join(","));
@@ -4986,7 +4877,6 @@
     if (state.activeOrigins.size < 15) params.set("origin", [...state.activeOrigins].join(","));
     if (state.brightSideMode) params.set("bs", "1");
     if (state.curiousMode) params.set("cur", "1");
-    if (state.activeNarrativeId) params.set("sit", state.activeNarrativeId);
     var _defaultView = _getPresetDefaultView(state.activePresetId || "all");
     if (state.currentView && state.currentView !== _defaultView) params.set("view", state.currentView);
     const search = document.getElementById("search-box").value.trim();
@@ -5164,17 +5054,13 @@
       applyFilters();
     });
     document.getElementById("filter-drawer-toggle").addEventListener("click", toggleFilterDrawer);
-    document.getElementById("search-toggle").addEventListener("click", toggleSearch);
     searchBox.addEventListener("blur", () => {
       if (!searchBox.value.trim()) {
-        document.getElementById("search-expand").classList.remove("active");
-        document.getElementById("search-toggle").classList.remove("active");
         searchClear.classList.remove("visible");
       }
     });
     document.getElementById("btn-clear-all-filters").addEventListener("click", clearAllFilters);
     document.getElementById("btn-sources-all").addEventListener("click", () => setAllSources("all"));
-    document.getElementById("btn-sources-none").addEventListener("click", () => setAllSources("none"));
     document.getElementById("source-search").addEventListener("input", (e) => {
       const q = e.target.value.toLowerCase().trim();
       document.querySelectorAll("#source-chips .source-chip").forEach((chip) => {
@@ -5214,7 +5100,6 @@
     document.getElementById("sidebar-toggle").addEventListener("click", toggleSidebar);
     document.getElementById("labels-toggle").addEventListener("click", toggleMapLabels);
     document.getElementById("globe-toggle").addEventListener("click", toggleGlobe);
-    document.getElementById("globe-toggle").addEventListener("dblclick", resetGlobeAuto);
     document.querySelectorAll(".feed-btn").forEach((btn) => {
       btn.addEventListener("click", () => toggleFeedPanel(btn.dataset.feed));
     });
@@ -5250,6 +5135,11 @@
     }
     const legendToggle = document.getElementById("legend-toggle");
     if (legendToggle) {
+      const isMobile = window.innerWidth <= 768;
+      if (isMobile) {
+        legendEl.classList.add("collapsed");
+        legendToggle.innerHTML = "&#9632;";
+      }
       legendToggle.addEventListener("click", () => {
         legendEl.classList.toggle("collapsed");
         legendToggle.innerHTML = legendEl.classList.contains("collapsed") ? "&#9632;" : "&#9662;";
@@ -5266,22 +5156,10 @@
       applyFilters();
       markPresetModified();
     });
-    document.getElementById("theme-toggle").addEventListener("click", toggleTheme);
-    document.getElementById("share-view-btn").addEventListener("click", () => {
-      _copyToClipboard(document.getElementById("share-view-btn"), window.location.href);
-    });
-    document.getElementById("preset-share-btn").addEventListener("click", () => {
-      const btn = document.getElementById("preset-share-btn");
-      const url = window.location.href;
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(url).then(() => {
-          _presetShareCopied(btn);
-        }).catch(() => {
-          _presetShareFallback(btn, url);
-        });
-      } else {
-        _presetShareFallback(btn, url);
-      }
+    var menuThemeBtn = document.getElementById("menu-theme");
+    if (menuThemeBtn) menuThemeBtn.addEventListener("click", function() {
+      toggleTheme();
+      document.getElementById("main-menu").classList.remove("visible");
     });
     document.getElementById("menu-btn").addEventListener("click", (e) => {
       e.stopPropagation();
@@ -5293,7 +5171,7 @@
     });
     document.getElementById("menu-pick-presets").addEventListener("click", () => {
       document.getElementById("main-menu").classList.remove("visible");
-      showPresetPicker();
+      setTimeout(togglePresetsPanel, 0);
     });
     document.getElementById("menu-feeds").addEventListener("click", () => {
       document.getElementById("main-menu").classList.remove("visible");
@@ -5311,6 +5189,7 @@
       const menu = document.getElementById("main-menu");
       if (menu.classList.contains("visible") && !menu.contains(e.target) && e.target.id !== "menu-btn") {
         menu.classList.remove("visible");
+        _markPopupDismiss();
       }
     });
     function _clearSourceSearch() {
@@ -5323,6 +5202,7 @@
       });
     }
     document.getElementById("stat-sources").addEventListener("click", () => {
+      if (state._popupDismissing) return;
       const popup = document.getElementById("sources-popup");
       if (popup.classList.contains("visible")) {
         popup.classList.remove("visible");
@@ -5344,6 +5224,7 @@
       if (!popup.contains(e.target) && e.target !== trigger) {
         popup.classList.remove("visible");
         _clearSourceSearch();
+        _markPopupDismiss();
       }
     });
     document.getElementById("presets-bar").addEventListener("scroll", updatePresetsBarOverflow);
@@ -5356,9 +5237,9 @@
       const trigger = document.getElementById("preset-dropdown-trigger");
       if (menu && menu.classList.contains("open") && !menu.contains(e.target) && e.target !== trigger) {
         _closePresetDropdown();
+        _markPopupDismiss();
       }
     });
-    document.getElementById("presets-more-btn").addEventListener("click", togglePresetsPanel);
     document.getElementById("presets-panel-close").addEventListener("click", closePresetsPanel);
     document.getElementById("presets-save-btn").addEventListener("click", () => showSavePresetDialog());
     document.getElementById("preset-save-cancel").addEventListener("click", closeSavePresetDialog);
@@ -5391,9 +5272,9 @@
     document.addEventListener("click", (e) => {
       const panel = document.getElementById("presets-panel");
       if (!panel.classList.contains("visible")) return;
-      const moreBtn = document.getElementById("presets-more-btn");
-      if (!panel.contains(e.target) && e.target !== moreBtn) {
+      if (!panel.contains(e.target)) {
         panel.classList.remove("visible");
+        _markPopupDismiss();
       }
     });
     document.getElementById("new-badge").addEventListener("click", () => {
@@ -5410,8 +5291,6 @@
       const _inTextInput = ["INPUT", "SELECT", "TEXTAREA"].includes(document.activeElement.tagName);
       if (e.key === "/" && !e.shiftKey && !_inTextInput) {
         e.preventDefault();
-        document.getElementById("search-expand").classList.add("active");
-        document.getElementById("search-toggle").classList.add("active");
         document.getElementById("search-box").focus();
       }
       if (e.key === "Escape") {
@@ -5519,11 +5398,6 @@
           loadAll();
           loadEvents();
           loadNarratives();
-          const fresh = document.getElementById("stat-freshness");
-          if (fresh) {
-            fresh.textContent = "refreshing...";
-            fresh.classList.add("live");
-          }
         }
         if (e.key === "c") {
           clearAllFilters();
@@ -5546,7 +5420,6 @@
     setInterval(loadPresetOverview, EVENTS_INTERVAL);
     setInterval(loadNarratives, NARRATIVES_INTERVAL);
     setInterval(pollUpdates, POLL_INTERVAL);
-    setInterval(updateFreshnessIndicator, 1e4);
     setInterval(() => {
       document.querySelectorAll("[data-time]:not(.tb-option)").forEach((el) => {
         const iso = el.dataset.time;
@@ -5682,15 +5555,15 @@
         var item = document.createElement("div");
         item.className = "user-feed-item";
         var statusClass = feed.last_error ? "error" : (feed.last_fetched ? "active" : "pending");
-        var statusTitle = feed.last_error ? "Error: " + _escHtml(feed.last_error) : (feed.last_fetched ? "Active" : "Pending first fetch");
-        var errorHtml = feed.last_error ? '<div class="user-feed-error-msg" title="' + _escHtml(feed.last_error).replace(/"/g, "&quot;") + '">' + _escHtml(feed.last_error) + '</div>' : "";
+        var statusTitle = feed.last_error ? "Error: " + escapeHtml(feed.last_error) : (feed.last_fetched ? "Active" : "Pending first fetch");
+        var errorHtml = feed.last_error ? '<div class="user-feed-error-msg" title="' + escapeHtml(feed.last_error).replace(/"/g, "&quot;") + '">' + escapeHtml(feed.last_error) + '</div>' : "";
         item.innerHTML = '<div class="user-feed-info">' +
-          '<div class="user-feed-title" title="' + _escHtml(feed.title || "").replace(/"/g, "&quot;") + '">' + _escHtml(feed.title || feed.url) + '</div>' +
-          '<div class="user-feed-url" title="' + _escHtml(feed.url).replace(/"/g, "&quot;") + '">' + _escHtml(feed.url) + '</div>' +
+          '<div class="user-feed-title" title="' + escapeHtml(feed.title || "").replace(/"/g, "&quot;") + '">' + escapeHtml(feed.title || feed.url) + '</div>' +
+          '<div class="user-feed-url" title="' + escapeHtml(feed.url).replace(/"/g, "&quot;") + '">' + escapeHtml(feed.url) + '</div>' +
           errorHtml +
           '</div>' +
           '<div class="user-feed-meta">' +
-          '<span class="user-feed-tag">' + _escHtml(feed.feed_tag) + '</span>' +
+          '<span class="user-feed-tag">' + escapeHtml(feed.feed_tag) + '</span>' +
           '<span class="user-feed-status ' + statusClass + '" title="' + statusTitle.replace(/"/g, "&quot;") + '"></span>' +
           '</div>' +
           '<button class="user-feed-delete" title="Remove feed">&times;</button>';
@@ -5704,11 +5577,6 @@
       list.innerHTML = '<div class="user-feeds-empty">Failed to load feeds.</div>';
       counter.textContent = "";
     }
-  }
-  function _escHtml(str) {
-    var d = document.createElement("div");
-    d.textContent = str;
-    return d.innerHTML;
   }
   async function _addUserFeed() {
     var urlInput = document.getElementById("user-feed-url");

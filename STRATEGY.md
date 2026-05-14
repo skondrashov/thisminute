@@ -6,44 +6,37 @@ thisminute.org shows what's happening in the world right now, plotted on a map. 
 
 **North star**: Anti-curation. Reduce the gap between "everything happening" and "what the user can find."
 
-## Current Priorities (updated 2026-03-15)
+## Current Priorities (updated 2026-05-14)
 
-1. ~~**Deploy v116 + uncommitted work**~~ — DONE (v118 deployed).
-2. ~~**First-use experience overhaul**~~ — DONE. Auto-cycling world presets, "pick your worlds" first-visit selector (now welcome questionnaire with 6 personality cards), prominent world bar. Welcome questionnaire replaces world picker for first-visit flow.
-3. ~~**Shareable world preset URLs + share button**~~ — DONE (v119). Share button in world bar.
-4. ~~**SEO/social shareability verification**~~ — DONE (v119). OG image, meta tags, robots.txt, sitemap.xml.
-5. ~~**Domain distribution endpoint**~~ — DONE. `/api/stats/domain-distribution` with feed tag, source type, positive/curious proxy, and narrative/event domain breakdowns.
-
-### Completed Priorities
-
-- ~~**Event clustering improvements**~~ — DONE (v80).
-- ~~**Domain-specific clustering**~~ — DONE (v115).
-- ~~**Narrative cap enforcement**~~ — DONE.
+All original v1 priorities are complete. Current focus is UX polish and code quality for public launch readiness.
 
 ### Deprioritized
 
-- **Custom topic/concept creation** — Moved to Phase 6. Power-user feature for a product that needs first-time users. 12 presets + search cover the major use cases.
-- **Usage analytics per world** — Premature. No user base to measure yet. Simple server log when needed.
-- **Feedback-driven automation** — Feedback API is live (correct). Manual triage for now; automation premature.
-- **Cheaper model evaluation** — At ~$10.92/day total (verified 2026-03-13), cost is manageable. Prompt caching + pre-LLM dedup are higher ROI with zero risk.
-- ~~**Mobile layout polish**~~ — DONE (v84-85).
+- **Custom topic/concept creation** — Moved to Phase 6. Power-user feature for a product that needs first-time users. Presets + search cover the major use cases.
+- **Usage analytics per world** — Premature. No user base to measure yet.
+- **Feedback-driven automation** — Feedback API is live. Manual triage for now.
+- **Dot color theme selector** — Hidden due to interaction issues with country highlights. Tracked in BACKLOG.md.
 - **Space/Internet tile scaling** — Nice-to-have. Backlog.
+- **app.js module split** — The file (~5400 lines) is a build artifact edited directly. Should be re-split into ~10 source modules and restore the esbuild pipeline. Not blocking but improves maintainability.
 
 ## Completed
 
-- [x] RSS scraping (95 feeds, 8 categories, tagged)
-- [x] LLM extraction via Haiku (15 fields, batches of 8)
+- [x] RSS scraping (tagged feeds, multi-language)
+- [x] LLM extraction via Haiku (batches of 8)
 - [x] Signature-based event clustering
 - [x] Event registry with map labels
-- [x] Situation synthesis via Sonnet
-- [x] Globe projection (MapLibre 5.x)
-- [x] Orthogonal filter system (topic, source, time, sentiment, situation, location)
+- [x] Situation synthesis via Sonnet (multi-domain passes)
+- [x] Globe projection (MapLibre 5.x, always globe — no flat switch)
+- [x] Orthogonal filter system (topic, source, time, sentiment, situation, location, search)
 - [x] Light/dark mode
 - [x] Trending concept detection
 - [x] Shareable filter URLs
 - [x] Deployed on GCP (thisminute.org live)
-- [x] GDELT volume stabilized (SAMPLE_RATE=0.003, MAX_PER_CYCLE=50 cap)
-- [x] Cost model recalculated (~$10.92/day verified 2026-03-13, down from $14-16 estimate)
+- [x] GDELT volume stabilized (SAMPLE_RATE + MAX_PER_CYCLE cap)
+- [x] Structured data APIs (USGS, NOAA, EONET, GDACS, ReliefWeb, WHO, Launch Library, OpenAQ, Travel Advisories, FIRMS, Meteoalarm, ACLED, JMA)
+- [x] Preset system with manage panel, drag-to-reorder, search-within-presets
+- [x] Mobile UX (bottom sheet, reticle, stripped-down controls)
+- [x] SEO/social (OG image, meta tags, robots.txt, sitemap.xml)
 
 ## Diverse Worlds (Human Directive)
 
@@ -60,17 +53,16 @@ thisminute should work for ANY interest, not just hard news. The next major effo
 - [x] URL state integration (shareable `#world=X`)
 - [x] Keyboard shortcut (`w` cycles worlds)
 - [x] Skeptic review: saveWorlds try/catch, duplicate name guard, deferred sports matching
-- [x] 61 Playwright tests passing
+- [x] Playwright tests passing
 
 ### Phase 2: Feed Expansion by World -- COMPLETE (v71)
 
-- [x] Sports feeds: 7 new dedicated feeds (ESPN, ESPN Soccer, ESPNcricinfo, Sky Sports, Sportstar, Autosport, Rugby World). Total: 10 sports sources.
-- [x] Feed tagging system: all 74 feeds tagged (news, sports, entertainment, positive, tech, science, business, health). `FEED_TAG_MAP` + `/api/feed-tags` endpoint.
-- [x] Sports world uses feed tags instead of keyword matching (skeptic Issue 7 resolved)
-- [x] Prompt caching implemented (~$1.22/day savings)
-- [x] Entertainment feeds: 9 new feeds (Variety, Hollywood Reporter, Deadline, Rolling Stone, Billboard, Pitchfork, NME, Soompi, Bollywood Hungama). Total: 15 entertainment sources.
+- [x] Sports feeds added (ESPN, ESPN Soccer, ESPNcricinfo, Sky Sports, Sportstar, Autosport, Rugby World)
+- [x] Feed tagging system: all feeds tagged (news, sports, entertainment, positive, tech, science, business, health). `FEED_TAG_MAP` + `/api/feed-tags` endpoint
+- [x] Sports world uses feed tags instead of keyword matching
+- [x] Prompt caching implemented
+- [x] Entertainment feeds added (Variety, Hollywood Reporter, Deadline, Rolling Stone, Billboard, Pitchfork, NME, Soompi, Bollywood Hungama)
 - [x] Entertainment world preset (purple, `feedTags: ["entertainment"]`)
-- [x] Economist cost check after feeds are live for 24h — verified 2026-03-13: ~$10.92/day
 
 ### Phase 3: World-Aware Extraction — COMPLETE
 
@@ -82,7 +74,7 @@ thisminute should work for ANY interest, not just hard news. The next major effo
 
 ### Phase 4: Deep Customizability — NEARLY COMPLETE
 
-- [x] User-added RSS feeds backend (POST/GET/DELETE endpoints, SSRF protection with DNS pinning + redirect blocking, feed validation, pipeline integration with global volume cap, `user_feeds` table, `SOURCE_ENABLED["user_feeds"]` kill switch, 85 tests)
+- [x] User-added RSS feeds backend (POST/GET/DELETE endpoints, SSRF protection with DNS pinning + redirect blocking, feed validation, pipeline integration with global volume cap, `user_feeds` table, `SOURCE_ENABLED["user_feeds"]` kill switch)
 - [x] User-added RSS feeds frontend UI (modal dialog: add/list/remove feeds, status dots, tag selection, error display)
 - [x] Shareable world presets via URL (share button per world, copy-to-clipboard)
 
@@ -143,23 +135,23 @@ thisminute should work for ANY interest, not just hard news. The next major effo
 - [x] UX: domain-colored map highlights (sports=green, entertainment=purple, positive=amber)
 - [x] UX: light-mode map colors (heatmap, labels, dots, highlights all theme-aware)
 - [x] UX: full timestamp tooltips on relative times, map label click selects parent situation
-- [x] Testing: fixed all 63 Playwright tests (root cause: parseInt on comma-formatted numbers)
+- [x] Testing: Playwright tests (root cause fix: parseInt on comma-formatted numbers)
 - [x] v114: Feedback API (`/api/feedback`), proximity hover polish, mobile reticle, feed zoom scaling, crosshair cursor, WAL ownership fix, server-side rate limiting
-- [x] Structured data sources: USGS earthquakes, NOAA weather alerts, EONET natural events, GDACS disasters, ReliefWeb humanitarian reports, WHO disease outbreaks, Launch Library space launches, OpenAQ air quality, US Travel Advisories, NASA FIRMS fire detection, Meteoalarm (European weather), ACLED (conflict data), JMA weather warnings (Japan) -- 15 sources total
+- [x] Structured data sources: USGS earthquakes, NOAA weather alerts, EONET natural events, GDACS disasters, ReliefWeb humanitarian reports, WHO disease outbreaks, Launch Library space launches, OpenAQ air quality, US Travel Advisories, NASA FIRMS fire detection, Meteoalarm (European weather), ACLED (conflict data), JMA weather warnings (Japan)
 - [x] SOURCE_ENABLED config toggles (env-var overridable per source)
 - [x] Inference feed pattern (pre-built `_extraction` dicts, zero LLM cost for structured sources)
 - [x] DRY refactor: `source_utils.py` shared helpers, data-driven pipeline SOURCES loop
 - [x] FIRMS/NOAA volume caps: `FIRMS_MAX_BYTES` (10 MB) + `FIRMS_MAX_ROWS` (5000), `NOAA_MAX_ALERTS` (150) severity-sorted
 - [x] Launch Library cache optimization: TTL increased from 30 to 45 min, reducing rate limit utilization from 53% to ~35%
-- [x] World presets: News, Sports, Entertainment, Positive, Science, Tech, Curious, Weather, Crisis, Travel, Geopolitics, Markets (12 total)
-- [x] 5th narrative domain: curious (human_interest_score-based)
+- [x] World presets: All Stories, Bright Side, Sports, Entertainment, Curious, Science, Tech, Planet, Conflict, Travel, Power, Markets, Health
+- [x] Multi-domain narrative analysis (news, sports, entertainment, positive, curious, science, business, health)
 - [x] Domain-specific clustering: tournament-centric sports, production-centric entertainment
 - [x] country_centroids.py helper for structured source geocoding
 - [ ] Space/internet tile scaling at globe zoom
 
 ### Strategist Roadmap -- Remaining Items (not implemented)
 
-- [x] **JMA** (Japan Meteorological Agency) -- Japanese weather alerts. `src/jma.py` (310 lines, 66 tests). Fetches active warnings from JMA bosai API, aggregated at class10s regional level, 47 prefecture centroids. Added to Weather, Crisis, Travel presets. 15th data source adapter (2026-03-14).
+- [x] **JMA** (Japan Meteorological Agency) -- Japanese weather alerts. `src/jma.py`. Fetches active warnings from JMA bosai API, aggregated at class10s regional level, 47 prefecture centroids. Added to Weather, Crisis, Travel presets.
 - [x] **arXiv/bioRxiv/medRxiv RSS** -- Research preprint feeds added to FEEDS list (2026-03-14). arXiv AI, arXiv CS, bioRxiv, medRxiv. Also added IGN and Oddity Central.
 - **ProMED** -- Disease alert RSS feed is dead (all URLs return 404, FeedBurner mirror empty since 2018). WHO DON partially covers this space. Would need a dedicated HTML scraper.
 - **Global Forest Watch** -- Deforestation alert API. Not yet implemented.
@@ -227,7 +219,7 @@ Steps 1-3 are backend-only (no cache version bump). Step 4-5 need a version bump
 - Event clustering stays world-blind. Events are clustered by `event_signature` regardless of domain, which is correct — the same clustering algorithm works for "Iran airstrike" and "IPL match result."
 - The event registry stays world-blind. Map labels are still derived from events, not situations.
 - The 50-event cap is per-domain now (each pass gets its own 50), which actually increases total coverage.
-- The `MAX_NARRATIVES = 20` cap becomes per-domain (20 news + 10 sports + 10 entertainment + 10 positive = 50 max total). Sports/entertainment/positive get fewer because they'll have lower volume.
+- The `MAX_NARRATIVES` cap is per-domain. Lower-volume domains get fewer slots.
 
 ## Anti-Curation Scorecard
 
@@ -242,10 +234,10 @@ Steps 1-3 are backend-only (no cache version bump). Step 4-5 need a version bump
 | World presets (saveable filter configs) | A+                                                          |
 | Shareable filters                       | A                                                           |
 | Custom worlds (user-created)            | A                                                           |
-| World-aware situations                  | A- (all 5 domains generating situations, domain-specific clustering shipped) |
-| User-configurable feeds                 | A- (backend + frontend complete and tested, add/list/remove with status, SSRF protection, pending deploy) |
+| World-aware situations                  | A- (all domains generating situations, domain-specific clustering shipped) |
+| User-configurable feeds                 | A- (backend + frontend complete, add/list/remove with status, SSRF protection) |
 | Custom concepts                         | F (deferred to Phase 6)                                     |
-| First-use experience                    | A- (auto-cycling world tour, welcome questionnaire with 6 personality cards, prominent icon+label world bar with flex-wrap, filter status line, replay tour, 5 dot color themes, full color overhaul) |
-| Shareability                            | A- (URL state, OpenGraph with OG image, share button in world bar, dynamic OG for situation deep links, robots.txt/sitemap.xml) |
+| First-use experience                    | A- (prominent icon+label preset bar with flex-wrap, manage panel with drag-to-reorder, filter status line) |
+| Shareability                            | A- (URL state, OpenGraph with OG image, dynamic OG for situation deep links, robots.txt/sitemap.xml) |
 
-**Overall: A-** (World-aware situations live for all 5 domains with domain-specific clustering. User feeds complete. First-use experience complete with world tour + welcome questionnaire + prominent world bar + 5 dot color themes + full color overhaul. Shareability near-complete with OG image, share button, and SEO. Main gap: custom concepts deferred to Phase 6.)
+**Overall: A-** (World-aware situations live for all domains. User feeds complete. Preset management with drag-to-reorder. Mobile UX streamlined. Main gap: custom concepts deferred to Phase 6.)

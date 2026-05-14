@@ -19,7 +19,7 @@ Every 15 minutes, `scheduler.py` runs `pipeline.py`:
 6. **Analyze** — `event_analyzer.py` generates event titles/descriptions via Haiku
 7. **Registry** — `registry_manager.py` maintains long-lived event registry (merge, retire, relabel)
 
-Every 2 hours, `narrative_analyzer.py` synthesizes situations via Sonnet (one pass per domain: news, sports, entertainment, positive).
+Every 2 hours, `narrative_analyzer.py` synthesizes situations via Sonnet (one pass per domain: news, sports, entertainment, positive, curious, science, business, health).
 
 ## Geocoding Pitfalls
 

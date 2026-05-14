@@ -4,14 +4,14 @@ If told to go, start, or begin — you are the **orchestrator**. See `agents/orc
 
 ## Overview
 
-Real-time global news map. Ingests 106 RSS feeds (incl. French, Spanish, Portuguese) + 13 structured data APIs (USGS, NOAA, EONET, GDACS, ReliefWeb, WHO, Launch Library, OpenAQ, Travel Advisories, FIRMS, Meteoalarm, ACLED, JMA) every 15 minutes, extracts structured data via LLM (Claude Haiku), clusters into events and registry events, identifies long-running situations across 8 narrative domains (Claude Sonnet), and displays everything on an interactive globe. 12 presets (News, Sports, Entertainment, Positive, Science, Tech, Curious, Weather, Crisis, Travel, Geopolitics, Markets).
+Real-time global news map. Ingests RSS feeds (incl. French, Spanish, Portuguese) + structured data APIs (USGS, NOAA, EONET, GDACS, ReliefWeb, WHO, Launch Library, OpenAQ, Travel Advisories, FIRMS, Meteoalarm, ACLED, JMA) every 15 minutes, extracts structured data via LLM (Claude Haiku), clusters into events and registry events, identifies long-running situations across narrative domains (Claude Sonnet), and displays everything on an interactive globe. Presets: All Stories, Bright Side, Sports, Entertainment, Curious, Science, Tech, Planet, Conflict, Travel, Power, Markets, Health.
 
 **Philosophy**: Anti-curation. The user decides what to see, not editors. The map IS the filter. Events = "what is happening", not "here are headlines."
 
 ## Architecture
 
 ```
-RSS Feeds (95)          Structured data APIs (13):
+RSS Feeds               Structured data APIs:
     |                   usgs.py, noaa.py, eonet.py, gdacs.py,
     v                   reliefweb.py, who.py, launches.py,
 scraper.py              openaq.py, travel_advisories.py, firms.py,
@@ -28,7 +28,7 @@ scraper.py              openaq.py, travel_advisories.py, firms.py,
     +--> event_analyzer.py (Haiku: analysis)
     +--> registry_manager.py (event registry)
     |
-    +--> narrative_analyzer.py (Sonnet, every 1-2h: 8 domain passes)
+    +--> narrative_analyzer.py (Sonnet, every 1-2h: per-domain passes)
     |
     v
 app.py (FastAPI) --> static/index.html + app.js + style.css (MapLibre GL JS 5.x)
@@ -40,7 +40,7 @@ app.py (FastAPI) --> static/index.html + app.js + style.css (MapLibre GL JS 5.x)
 - **LLM**: Anthropic API (Haiku for extraction/analysis, Sonnet for situations)
 - **Frontend**: Vanilla HTML/JS/CSS, MapLibre GL JS 5.x (no frameworks, esbuild bundler)
 - **Deploy**: GCP e2-micro VM (`/opt/thisminute`), venv, nginx, systemd, Let's Encrypt
-- **Data**: ~4,000+ stories/day from 106 RSS feeds (incl. non-English), GDELT, and 13 structured data APIs
+- **Data**: ~4,000+ stories/day from RSS feeds (incl. non-English), GDELT, and structured data APIs
 
 ## DB Tables
 
@@ -71,19 +71,19 @@ app.py (FastAPI) --> static/index.html + app.js + style.css (MapLibre GL JS 5.x)
 - **Graceful degradation** — works without ANTHROPIC_API_KEY using keyword fallbacks
 - **Bright Side system** — LLM scores stories 1-10 for positive framing, rewrites headlines
 - **Inference feed pattern** — Structured data APIs (USGS, NOAA, etc.) pre-build `_extraction` dicts, skipping LLM entirely (zero Haiku cost)
-- **SOURCE_ENABLED toggles** — Config-driven enable/disable per 16 source types (including user_feeds), overridable via env vars
+- **SOURCE_ENABLED toggles** — Config-driven enable/disable per source type (including user_feeds), overridable via env vars
 - **curiousMode filtering** — Frontend filters stories by `human_interest_score >= 6` in the Curious preset, mirroring the `brightSideMode` pattern
 - **Per-preset default tabs** — Positive (bright_side) and Curious presets default to the Stories/Events tab and show it first in tab order, since their content is primarily one-off stories rather than ongoing situations. URL `?view=` param still overrides.
 - **User-added RSS feeds** — Backend API for user-configurable feeds with SSRF protection (DNS pinning, redirect blocking), rate limiting, per-user/global volume caps, and pipeline integration
-- **8 narrative domains** — news, sports, entertainment, positive, curious, science, business, health. Per-domain Sonnet passes with domain-specific prompts
-- **12 presets** — News, Sports, Entertainment, Positive, Science, Tech, Curious, Weather, Crisis, Travel, Geopolitics, Markets. Composite presets use subset `activeOrigins` arrays.
+- **Narrative domains** — news, sports, entertainment, positive, curious, science, business, health. Per-domain Sonnet passes with domain-specific prompts
+- **Presets** — All Stories, Bright Side, Sports, Entertainment, Curious, Science, Tech, Planet, Conflict, Travel, Power, Markets, Health. Composite presets use subset `activeOrigins` arrays. Default preset is All Stories.
 - **DRY source adapter pattern** — `source_utils.py` shared helpers (fetch_json, build_extraction, attach_location, dedup_list, strip_html, polygon_centroid)
 - **Dominance-tinted dot colors** — Map dots use RGB lerp from a theme-aware base (white dark, gray light) toward the dominant domain color. Ratio = dominant_count / total_stories. Replaced earlier HSL circular averaging which produced misleading intermediate colors. Preset-tinted dot colors: domain theme tints dots toward active preset color; classic theme uses the preset color directly.
-- **Preset bar** — Icon+label buttons with 12 unique domain-colored active states (all pass WCAG AA 4.5:1). Uses flex-wrap on desktop (was horizontal scroll). Share button copies current URL to clipboard. Filter status line shows active time/filter count below preset bar. Default preset is Positive (was News).
+- **Preset bar** — Icon+label buttons with unique domain-colored active states (all pass WCAG AA 4.5:1). Uses flex-wrap on desktop. Manage presets panel (drag-to-reorder, remove/add-back) accessible from hamburger menu. Filter status line shows active time/filter count below preset bar. Default preset is All Stories.
 - **Full color overhaul** — Tech=hot pink, Curious=orange, Markets=dark teal, etc. No more color collisions between presets.
 - **Non-English feed support** — LLM extraction produces `translated_title` for non-English stories. Frontend shows English translation with original title as italic subtitle. Supports FR, ES, PT feeds.
 - **Preprint per-cycle caps** — `ARXIV_MAX_PER_CYCLE` and `BIORXIV_MAX_PER_CYCLE` (default 20) prevent academic papers from dominating Science/Tech/Health presets.
-- **Map dot color themes** — 5 switchable themes (domain, classic, mono, heat, neon). Palette button in mobile controls tray (not standalone on mobile). Popup menu near legend area on desktop.
+- **Map dot color themes** — Domain theme active (theme selector hidden, tracked in BACKLOG.md). Globe projection always — no flat/mercator switch.
 - **SEO/social** — OG image (1200x630), meta description, canonical link, twitter:card summary_large_image, dynamic OG for situation deep links. `robots.txt` and `sitemap.xml` served via FastAPI routes.
 - **Security hardening** — Two-tier rate limiting (per-hash + per-IP), global write budgets, 64KB body size middleware, SSRF protection with DNS pinning, security response headers (nosniff, DENY, strict-origin). Application-layer ready for public launch.
 
