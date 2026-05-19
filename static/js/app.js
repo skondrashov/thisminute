@@ -1688,9 +1688,11 @@
     }
     const clouds = storyIds ? { type: "FeatureCollection", features: state.cloudData.features.filter((f) => storyIds.has(f.properties.story_id)) } : state.cloudData;
     const contentFiltering = state.activeConcepts.size > 0 || state.excludedConcepts.size > 0 || state.activeSources.size > 0 || state.excludedSources.size > 0 || originFiltering || state.brightSideMode || state.curiousMode || searchText;
+    const presetDomain = _getPresetDomain(state.activePresetId);
     let events;
     if (contentFiltering && storyIds) {
       events = state.eventsData.filter((ev) => {
+        if (presetDomain && ev.domains && ev.domains.includes(presetDomain)) return true;
         if (ev.story_ids && ev.story_ids.some((id) => storyIds.has(id))) return true;
         if (searchText) {
           const haystack = `${ev.title || ""} ${ev.description || ""} ${ev.summary || ""}`.toLowerCase();
@@ -1709,7 +1711,6 @@
       events.sort((a, b) => (b.story_count || 0) - (a.story_count || 0));
     }
     const allStoryIds = new Set(state.geojsonData.features.map((f) => f.properties.id));
-    const presetDomain = _getPresetDomain(state.activePresetId);
     let narratives = (state.narrativesData || []).map((n) => {
       const matchesDomain = presetDomain && (n.domain || "news") === presetDomain;
       const useSourceFilter = contentFiltering && storyIds && n.story_ids && !matchesDomain;

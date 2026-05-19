@@ -1147,6 +1147,24 @@ async def api_events(
     conn = get_connection()
     events = get_all_events(conn, status=status, limit=limit, min_stories=min_stories)
 
+    # Include events linked to active narratives for domain preset coverage.
+    # Without this, domain presets (Sports, Entertainment, etc.) find very few
+    # events because the global top-N is dominated by big news events.
+    global_ids = {e["id"] for e in events}
+    narr_event_rows = conn.execute(
+        """SELECT DISTINCT e.* FROM events e
+           JOIN narrative_events ne ON e.id = ne.event_id
+           JOIN narratives n ON n.id = ne.narrative_id
+           WHERE n.status = 'active'
+             AND e.merged_into IS NULL
+             AND e.status != 'resolved'"""
+    ).fetchall()
+    for r in narr_event_rows:
+        d = dict(r)
+        if d["id"] not in global_ids:
+            events.append(d)
+            global_ids.add(d["id"])
+
     event_ids = [e["id"] for e in events]
     if not event_ids:
         conn.close()
@@ -1165,6 +1183,19 @@ async def api_events(
     narr_map = defaultdict(list)
     for r in narr_rows:
         narr_map[r["event_id"]].append(r["narrative_id"])
+
+    # Batch: domains from narrative links (for domain-aware preset filtering)
+    domain_rows = conn.execute(
+        f"""SELECT ne.event_id, n.domain
+            FROM narrative_events ne
+            JOIN narratives n ON n.id = ne.narrative_id
+            WHERE ne.event_id IN ({placeholders})
+              AND n.status = 'active'""",
+        event_ids,
+    ).fetchall()
+    domain_map = defaultdict(set)
+    for r in domain_rows:
+        domain_map[r["event_id"]].add(r["domain"] or "news")
 
     # Batch: all story_ids for all events
     es_rows = conn.execute(
@@ -1211,6 +1242,7 @@ async def api_events(
             event["sentiment_counts"] = {}
 
         event["narrative_ids"] = narr_map.get(eid, [])
+        event["domains"] = sorted(domain_map.get(eid, []))
         event["story_ids"] = es_map.get(eid, [])
         event["sample_stories"] = [
             {
